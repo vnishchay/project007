@@ -6,9 +6,13 @@ export interface Profile {
   id: string;
   display_name: string;
   avatar_path: string | null;
-  city: string | null;
+  /** only present on your own profile */
+  city?: string | null;
   role: Role;
   created_at: string;
+  /** only present on your own profile */
+  phone_set?: boolean;
+  contacts_synced?: boolean;
 }
 
 export interface Place {
@@ -48,20 +52,23 @@ export interface Tag { id: number; label: string }
 
 export interface ReviewRow {
   id: string;
-  user_id: string;
+  /** null when the review is anonymous and isn't yours */
+  user_id: string | null;
   place_id: string;
   item_id: string;
   rating: number;
   body: string;
   ai_drafted: boolean;
-  visit_id: string | null;
+  verified: boolean;
+  is_public: boolean;
+  author_name: string | null;
+  author_avatar: string | null;
   photo_path?: string | null;
   voice_path?: string | null;
   status: "published" | "hidden";
   created_at: string;
   items?: { name: string } | null;
   places?: { name: string; google_place_id: string | null; area: string | null } | null;
-  profiles?: { display_name: string; avatar_path: string | null } | null;
   review_tags?: { tags: { label: string } | null }[];
 }
 

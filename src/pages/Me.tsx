@@ -4,7 +4,7 @@ import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { Avatar, Icon, Spinner, StarInput, useToast } from "../components/ui";
-import { ReviewCard, REVIEW_SELECT } from "../components/ReviewCard";
+import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { MePhoneRow } from "../components/MePhoneRow";
 
 interface SavedRow { place_id: string; places: { name: string; area: string | null; category: string } | null }
@@ -42,7 +42,7 @@ export default function Me() {
 
   const loadReviews = useCallback(() => {
     setReviewsErr(null);
-    supabase.from("reviews").select(REVIEW_SELECT).eq("user_id", me).order("created_at", { ascending: false }).limit(100)
+    supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).order("created_at", { ascending: false }).limit(100)
       .then(({ data, error }) => { if (error) setReviewsErr(errorText(error)); else setReviews((data as unknown as ReviewRow[]) || []); });
   }, [me]);
   const loadSaved = useCallback(() => {
@@ -75,6 +75,13 @@ export default function Me() {
     } finally {
       setUploading(false);
     }
+  }
+
+  async function setVisibility(id: string, isPublic: boolean) {
+    const { error } = await supabase.from("reviews").update({ is_public: isPublic }).eq("id", id);
+    if (error) { toast(errorText(error)); return; }
+    setReviews((rs) => (rs || []).map((x) => (x.id === id ? { ...x, is_public: isPublic } : x)));
+    toast(isPublic ? "Your name now shows on this review" : "This review is now anonymous");
   }
 
   async function remove(id: string) {
@@ -185,6 +192,9 @@ export default function Me() {
                     <div className="row wrap" style={{ justifyContent: "flex-end", gap: 14 }}>
                       {r.status === "hidden" && <span className="badge red" style={{ marginRight: "auto" }}>Hidden by moderators</span>}
                       {r.status === "published" && <Link to={`/saved/${r.id}`} className="small strong">Post on Google</Link>}
+                      <button type="button" className="link-btn small strong" onClick={() => setVisibility(r.id, !r.is_public)}
+                        aria-label={r.is_public ? `Make review of ${r.items?.name || "this item"} anonymous` : `Show your name on review of ${r.items?.name || "this item"}`}>
+                        {r.is_public ? "Make anonymous" : "Show my name"}</button>
                       <button type="button" className="link-btn small strong" onClick={() => setDraft({ id: r.id, rating: r.rating, body: r.body || "" })}
                         aria-label={`Edit review of ${r.items?.name || "this item"}`}>Edit</button>
                       <button type="button" className="link-btn small strong" style={{ color: "var(--danger)" }} onClick={() => remove(r.id)}

@@ -17,7 +17,8 @@ function readUrlAuthError(): string | null {
   for (const k of ["error", "error_code", "error_description"]) query.delete(k);
   const qs = query.toString();
   window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : ""));
-  return (desc || code || "").replace(/\+/g, " ");
+  const text = (desc || code || "").replace(/\+/g, " ");
+  try { return decodeURIComponent(text); } catch { return text; }
 }
 export const urlAuthError = readUrlAuthError();
 
@@ -25,8 +26,9 @@ export const supabase = createClient(url || "http://localhost", key || "missing-
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
-// Columns of profiles the public may read (phone_hash is never readable).
-export const PROFILE_COLS = "id, display_name, avatar_path, city, role, created_at";
+// Columns of other people's profiles anyone may read. Phone fingerprint and home city
+// are private; your own full profile comes from the my_profile() function.
+export const PROFILE_COLS = "id, display_name, avatar_path, role, created_at";
 
 export function avatarUrl(path: string | null | undefined): string | null {
   if (!path) return null;

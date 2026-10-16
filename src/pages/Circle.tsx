@@ -130,7 +130,8 @@ export default function Circle() {
     let alive = true;
     setSearching(true);
     const t = setTimeout(() => {
-      supabase.from("profiles").select(PROFILE_COLS).ilike("display_name", `%${term}%`).neq("id", me).limit(15)
+      // Only people who posted a review with their name can be found by name.
+      supabase.rpc("find_people", { p_query: term, p_limit: 15 })
         .then(({ data, error }) => {
           if (!alive) return;
           setSearching(false);

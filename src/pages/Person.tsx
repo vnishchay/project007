@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import { useFollowing } from "../lib/follows";
 import type { Profile, ReviewRow } from "../lib/types";
 import { Avatar, Spinner, TopBar, useToast } from "../components/ui";
-import { ReviewCard, REVIEW_SELECT } from "../components/ReviewCard";
+import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,17 +31,17 @@ export default function Person() {
     setErr(null);
     Promise.all([
       supabase.from("profiles").select(PROFILE_COLS).eq("id", id).maybeSingle(),
-      supabase.from("reviews").select(REVIEW_SELECT).eq("user_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(50),
+      supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(50),
       // Only signed-in people may read the follow graph.
-      me ? supabase.from("follows").select("follower_id", { count: "exact", head: true }).eq("followee_id", id) : null,
+      supabase.rpc("person_stats", { p_user: id }),
       supabase.from("user_topic_stats").select("review_count, is_expert, topics(name)").eq("user_id", id).eq("is_expert", true),
     ]).then(([pr, rv, fl, ts]) => {
       if (!alive) return;
-      const e = pr.error || rv.error || fl?.error;
+      const e = pr.error || rv.error;
       if (e) { setErr(errorText(e)); return; }
       setP((pr.data as Profile) ?? null);
       setReviews((rv.data as unknown as ReviewRow[]) || []);
-      setFollowers(fl ? fl.count ?? 0 : null);
+      setFollowers(fl.error ? null : (((fl.data as { followers: number }[] | null) || [])[0]?.followers ?? 0));
       setExpertOn(ts.error ? [] : ((ts.data || []) as unknown as TopicStat[]).map((t) => t.topics?.name || "").filter(Boolean));
     });
     return () => { alive = false; };
@@ -69,7 +69,7 @@ export default function Person() {
 
   const on = following.has(id);
   const busy = pending.has(id);
-  const verified = reviews.filter((r) => r.visit_id).length;
+  const verified = reviews.filter((r) => r.verified).length;
   const name = p.display_name || "Someone";
 
   async function toggle() {

@@ -5,7 +5,7 @@ import { useSettings, type AppSettings } from "../lib/settings";
 import type { ListingRequest, Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
 import { Icon, useToast } from "../components/ui";
-import { ReviewCard, REVIEW_SELECT } from "../components/ReviewCard";
+import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { CoordsField } from "../components/CoordsField";
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
@@ -286,7 +286,7 @@ function Reviews() {
 
   const load = () => {
     setRows(null);
-    let q = supabase.from("reviews").select(REVIEW_SELECT).order("created_at", { ascending: false }).limit(100);
+    let q = supabase.from(REVIEW_FEED).select(REVIEW_SELECT).order("created_at", { ascending: false }).limit(100);
     if (show === "hidden") q = q.eq("status", "hidden");
     q.then(({ data, error }) => { setErr(error ? errorText(error) : ""); setRows((data as unknown as ReviewRow[]) || []); });
   };

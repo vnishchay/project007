@@ -26,11 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (uid: string | undefined) => {
     uidRef.current = uid;
     if (!uid) { setProfile(null); return; }
-    let { data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).maybeSingle();
+    const own = async () => {
+      const r = await supabase.rpc("my_profile");
+      // Before the privacy migration, my_profile() doesn't exist yet: read the table.
+      if (r.error?.code === "PGRST202") return (await supabase.from("profiles").select(PROFILE_COLS + ", city").eq("id", uid).maybeSingle()).data;
+      return ((r.data as Profile[] | null) || [])[0] ?? null;
+    };
+    let data = await own();
     if (!data) {
       // Users who signed up through another app on the same Supabase project have no profile yet.
       await supabase.rpc("ensure_profile");
-      ({ data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).maybeSingle());
+      data = await own();
     }
     if (uidRef.current !== uid) return; // signed out or switched account meanwhile
     setProfile((data as Profile) ?? { id: uid, display_name: "", avatar_path: null, city: null, role: "user", created_at: new Date().toISOString() });

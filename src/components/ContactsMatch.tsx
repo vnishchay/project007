@@ -3,7 +3,8 @@ import { supabase, errorText } from "../lib/supabase";
 import type { FollowSource } from "../lib/follows";
 import { CirclePersonRow, type PersonLite } from "./CirclePersonRow";
 import { ContactsPhoneForm, sha256Hex, toE164, useMyPhoneSet } from "./ContactsPhone";
-import { Icon, Spinner } from "./ui";
+import { Icon, Spinner, useToast } from "./ui";
+import { useAuth } from "../lib/auth";
 
 interface ContactsManagerLike { select: (props: string[], opts: { multiple: boolean }) => Promise<{ tel?: string[] }[]> }
 
@@ -23,7 +24,8 @@ export function ContactsMatch({ following, pending, onToggle }: {
   following: Set<string>; pending: Set<string>; onToggle: (id: string, source: FollowSource) => void;
 }) {
   const phone = useMyPhoneSet();
-  const [skipped, setSkipped] = useState(false);
+  const { profile, refreshProfile } = useAuth();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [paste, setPaste] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,6 +44,7 @@ export function ContactsMatch({ following, pending, onToggle }: {
       const { data, error } = await supabase.rpc("match_contacts", { p_hashes: hashes });
       if (error) { setErr(errorText(error)); return; }
       setMatches((data as PersonLite[]) || []);
+      refreshProfile();
     } catch (e) {
       setErr(errorText(e));
     } finally {
@@ -62,7 +65,17 @@ export function ContactsMatch({ following, pending, onToggle }: {
     }
   }
 
-  const needPhone = phone.isSet === false && !skipped;
+  // Matching works both ways, so your own number is required (the database checks too).
+  const needPhone = phone.isSet === false;
+
+  async function stopSync() {
+    if (!confirm("Turn off contact sync? Trusted Picks forgets who is in your contacts, and contacts stop seeing that you were somewhere.")) return;
+    const { error } = await supabase.rpc("stop_contact_sync");
+    if (error) { toast(errorText(error)); return; }
+    setMatches(null);
+    await refreshProfile();
+    toast("Contact sync is off");
+  }
 
   return (
     <section className="card" aria-labelledby="contacts-h">
@@ -77,7 +90,7 @@ export function ContactsMatch({ following, pending, onToggle }: {
       </div>
       {!open ? (
         <>
-          <p className="small muted">See which of your contacts already use Trusted Picks. Numbers are fingerprinted on your phone and never uploaded.</p>
+          <p className="small muted">{profile?.contacts_synced ? "Contact sync is on. You see places friends reviewed with their name, only when you have each other's numbers." : "Off. Turn it on to see which friends use Trusted Picks. Numbers are fingerprinted on your phone and never uploaded."}</p>
           <button type="button" className="btn small green" style={{ alignSelf: "flex-start" }} onClick={() => setOpen(true)}>Find friends</button>
         </>
       ) : phone.error ? (
@@ -89,8 +102,8 @@ export function ContactsMatch({ following, pending, onToggle }: {
         <Spinner />
       ) : needPhone ? (
         <div className="stack">
-          <p className="small"><span className="strong">Step 1 of 2.</span> Add your own number so friends who have it saved can find you too.</p>
-          <ContactsPhoneForm onSaved={(v) => phone.setIsSet(v)} onCancel={() => setSkipped(true)} />
+          <p className="small"><span className="strong">Step 1 of 2.</span> Add your own number. Contact sync works both ways: you only see contacts who also have your number, and only reviews they chose to post with their name.</p>
+          <ContactsPhoneForm onSaved={(v) => phone.setIsSet(v)} onCancel={() => setOpen(false)} />
         </div>
       ) : (
         <div className="stack">
@@ -122,15 +135,15 @@ export function ContactsMatch({ following, pending, onToggle }: {
                 <span className="small strong" role="status">{matches.length} of your contacts {matches.length === 1 ? "is" : "are"} here</span>
                 <div className="list">
                   {matches.map((p) => (
-                    <CirclePersonRow key={p.id} p={p} on={following.has(p.id)} busy={pending.has(p.id)} onToggle={() => onToggle(p.id, "contacts")} sub="In your contacts" />
+                    <CirclePersonRow key={p.id} p={p} on={following.has(p.id)} busy={pending.has(p.id)} onToggle={() => onToggle(p.id, "contacts")} sub={(p as PersonLite & { mutual?: boolean }).mutual ? "Contacts with each other" : "In your contacts. They'll see you once they sync too"} />
                   ))}
                 </div>
               </div>
             )
           )}
-          {!phone.isSet && (
-            <button type="button" className="link-btn small" style={{ alignSelf: "flex-start" }} onClick={() => setSkipped(false)}>
-              Add your own number so friends can find you
+          {profile?.contacts_synced && (
+            <button type="button" className="link-btn small" style={{ alignSelf: "flex-start", color: "var(--danger)" }} onClick={stopSync}>
+              Turn off contact sync
             </button>
           )}
         </div>

@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { copyText, googleReviewUrl, placeUrl } from "../lib/util";
 import { Icon, Spinner, Stars, useToast } from "../components/ui";
-import { REVIEW_SELECT } from "../components/ReviewCard";
+import { REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 
 function mapsSearchUrl(q: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
@@ -47,7 +47,7 @@ export default function Saved() {
   useEffect(() => {
     let alive = true;
     setLoadErr("");
-    supabase.from("reviews").select(REVIEW_SELECT).eq("id", reviewId).maybeSingle().then(({ data, error }) => {
+    supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("id", reviewId).maybeSingle().then(({ data, error }) => {
       if (!alive) return;
       if (error && !/invalid input syntax for type uuid/i.test(error.message)) { setLoadErr(errorText(error)); return; }
       const row = (data as unknown as ReviewRow) ?? null;
@@ -129,7 +129,7 @@ export default function Saved() {
       <div className="stack" style={{ gap: 8, marginTop: 16 }}>
         <span className="avatar lg" style={{ background: "var(--green-soft)" }}><Icon name="check" size={26} color="var(--green)" width={2.6} /></span>
         <h1>Saved</h1>
-        <p className="muted">{followers > 0 ? `${followers} ${followers === 1 ? "person follows" : "people follow"} you and will see it.` : "Follow friends from your Circle so you see each other's picks."}</p>
+        <p className="muted">{!r.is_public ? "Posted anonymously. Your rating counts, but no one can see it was you." : followers > 0 ? `Posted with your name. ${followers} ${followers === 1 ? "person follows" : "people follow"} you and will see it.` : "Posted with your name. You can make it anonymous from your profile."}</p>
       </div>
 
       <div className="card">

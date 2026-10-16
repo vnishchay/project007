@@ -71,6 +71,7 @@ export default function Review() {
   const [tagDraft, setTagDraft] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [aiDrafted, setAiDrafted] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
   const [listening, setListening] = useState(false);
   const [recording, setRecording] = useState(false);
   const [photo, setPhoto] = useState<Blob | null>(null);
@@ -210,7 +211,8 @@ export default function Review() {
       let voicePath: string | null = null;
       if (photo) {
         setSaving("Uploading photo…");
-        const path = `${uid}/${Date.now()}.jpg`;
+        // A random name, so the link never shows who posted it.
+        const path = `${crypto.randomUUID()}.jpg`;
         const { error } = await supabase.storage.from("review-photos").upload(path, photo, { contentType: "image/jpeg", upsert: false });
         if (error) throw new Error(`The photo didn't upload: ${errorText(error)}`);
         uploaded.push({ bucket: "review-photos", path });
@@ -218,7 +220,7 @@ export default function Review() {
       }
       if (voice) {
         setSaving("Uploading voice note…");
-        const path = `${uid}/${Date.now()}.${voice.ext}`;
+        const path = `${crypto.randomUUID()}.${voice.ext}`;
         const { error } = await supabase.storage.from("voice").upload(path, voice.blob, { contentType: voice.mime.split(";")[0] || "audio/webm", upsert: false });
         if (error) throw new Error(`The voice note didn't upload: ${errorText(error)}`);
         uploaded.push({ bucket: "voice", path });
@@ -236,6 +238,7 @@ export default function Review() {
         p_ai_drafted: aiDrafted,
         p_voice_path: voicePath,
         p_photo_path: photoPath,
+        p_is_public: isPublic,
       });
       if (error) throw error;
       nav(`/saved/${(data as { id: string }).id}`, { replace: true });
@@ -367,6 +370,19 @@ export default function Review() {
         <ReviewPhotoPicker value={photo} onChange={setPhoto} disabled={busy} />
         {canRecord && <ReviewVoiceRecorder value={voice} onChange={setVoice} disabled={busy || listening} onRecordingChange={setRecording} />}
       </div>
+
+      <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="strong" style={{ fontSize: 16, marginBottom: 10 }}>Who can see it's you</legend>
+        <label className="card row" style={{ cursor: "pointer", flexDirection: "row", alignItems: "flex-start", borderColor: !isPublic ? "var(--green)" : "var(--line)" }}>
+          <input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} style={{ width: 20, height: 20, accentColor: "var(--green)", marginTop: 2 }} />
+          <span className="grow"><b>Post anonymously</b><br /><span className="small muted">Your rating counts, but no one can see you wrote it or that you went there.</span></span>
+        </label>
+        <label className="card row" style={{ cursor: "pointer", flexDirection: "row", alignItems: "flex-start", borderColor: isPublic ? "var(--green)" : "var(--line)" }}>
+          <input type="radio" name="visibility" checked={isPublic} onChange={() => setIsPublic(true)} style={{ width: 20, height: 20, accentColor: "var(--green)", marginTop: 2 }} />
+          <span className="grow"><b>Show my name</b><br /><span className="small muted">Your name and photo appear on this review, like a Google review. Friends who synced contacts see you were here.</span></span>
+        </label>
+        <span className="tiny muted">You can change this later from your profile.</span>
+      </fieldset>
 
       {err && <div className="notice err" role="alert">{err}</div>}
       <button className="btn block" onClick={save} disabled={busy || recording}>{saving || "Save review"}</button>

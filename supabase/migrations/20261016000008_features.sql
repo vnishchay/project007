@@ -110,6 +110,7 @@ grant execute on function public.my_phone_is_set() to authenticated;
 grant execute on function public.match_contacts(text[]) to authenticated;
 
 -- ---------- Suggested people: local experts and active reviewers you don't follow ----------
+drop function if exists public.suggested_people(bigint, integer);
 create or replace function public.suggested_people(p_topic bigint default null, p_limit integer default 10)
 returns table (id uuid, display_name text, avatar_path text, city text, review_count integer, is_expert boolean, topic_name text)
 language sql stable security definer set search_path = public as $$
