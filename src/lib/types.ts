@@ -28,6 +28,32 @@ export interface Place {
   status: "live" | "lapsed" | "removed";
   listed_until: string | null;
   created_at: string;
+  owner_id?: string | null;
+  cover_path?: string | null;
+  logo_path?: string | null;
+}
+
+/** A product or dish at a place. Shops add their own with photos (is_listed). */
+export interface Item {
+  id: string;
+  place_id: string;
+  topic_id: number | null;
+  name: string;
+  image_path: string | null;
+  description: string | null;
+  price_inr: number | null;
+  sort_order: number;
+  is_listed: boolean;
+  is_hidden: boolean;
+}
+
+export interface Friend {
+  id: string;
+  display_name: string | null;
+  avatar_path: string | null;
+  via: string;
+  since: string;
+  is_guest: boolean;
 }
 
 export interface SearchResult {

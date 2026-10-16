@@ -1,0 +1,32 @@
+import { supabase } from "./supabase";
+
+/** Public URL of a shop's cover, logo or product photo (bucket place-media, path <place_id>/<file>). */
+export function placeMediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  return supabase.storage.from("place-media").getPublicUrl(path).data.publicUrl;
+}
+
+/** Shrinks a photo to at most `max` px on its longest side and returns a JPEG. */
+export async function shrinkImage(file: File, max = 1400, quality = 0.82): Promise<Blob> {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => null);
+  if (!bmp) return file;
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return new Promise((res) => canvas.toBlob((b) => res(b || file), "image/jpeg", quality));
+}
+
+/** Uploads a shop photo; returns its storage path. */
+export async function uploadPlaceMedia(placeId: string, file: File, max = 1400): Promise<string> {
+  const blob = await shrinkImage(file, max);
+  const path = `${placeId}/${crypto.randomUUID()}.jpg`;
+  const { error } = await supabase.storage.from("place-media").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+export async function removePlaceMedia(path: string | null | undefined) {
+  if (path) await supabase.storage.from("place-media").remove([path]);
+}

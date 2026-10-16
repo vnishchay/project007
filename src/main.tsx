@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import "./styles.css";
+import "./lib/invite";
 import { AuthProvider } from "./lib/auth";
 import { configured } from "./lib/supabase";
 import { Layout, RequireAuth, ToastProvider } from "./components/ui";
@@ -20,6 +21,7 @@ import Admin from "./pages/Admin";
 import AdminPlace from "./pages/AdminPlace";
 import NotFound from "./pages/NotFound";
 import Rate from "./pages/Rate";
+import Manage from "./pages/Manage";
 
 function Setup() {
   return (
@@ -50,6 +52,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/circle" element={<RequireAuth><Circle /></RequireAuth>} />
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
+                <Route path="/manage/:placeId" element={<RequireAuth><Manage /></RequireAuth>} />
                 <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
                 <Route path="/admin/place/:id" element={<RequireAuth admin><AdminPlace /></RequireAuth>} />
                 <Route path="*" element={<NotFound />} />
