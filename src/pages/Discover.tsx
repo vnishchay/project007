@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { supabase, PROFILE_COLS, errorText } from "../lib/supabase";
+import { supabase, searchPlaces, PROFILE_COLS, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Profile, SearchResult, Topic } from "../lib/types";
 import { distanceText, priceText } from "../lib/util";
@@ -30,7 +30,7 @@ export default function Discover() {
     let cancelled = false;
     setResults(null); setErr("");
     const near = effective.kind === "near" && coords;
-    supabase.rpc("search_places", {
+    searchPlaces({
       p_query: q || null,
       p_lat: near ? coords.lat : null,
       p_lng: near ? coords.lng : null,

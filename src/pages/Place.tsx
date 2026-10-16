@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { supabase, errorText } from "../lib/supabase";
+import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Place, ReviewRow, SearchResult } from "../lib/types";
 import { fetchGoogleRating, type GoogleRating } from "../lib/google";
@@ -44,7 +44,7 @@ export default function PlacePage() {
         supabase.from("item_stats").select("item_id, avg_rating, review_count, verified_count, items(name)").eq("place_id", id).order("avg_rating", { ascending: false }),
         supabase.from("reviews").select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(100),
         // Same score as Discover: one formula, computed in the database.
-        supabase.rpc("search_places", { p_place: id, p_limit: 1 }),
+        searchPlaces({ p_place: id, p_limit: 1 }),
       ]);
       if (!alive) return;
       const firstErr = s.error || r.error || sc.error;

@@ -39,3 +39,21 @@ export function errorText(e: unknown): string {
   const m = (e as { message?: string }).message;
   return m || "Something went wrong";
 }
+
+/**
+ * search_places, falling back to the older signature (no p_area / p_place) when the
+ * database hasn't had migration 20261016000008 yet, so Discover keeps working.
+ */
+export async function searchPlaces(params: Record<string, unknown>) {
+  const res = await supabase.rpc("search_places", params);
+  if (res.error?.code === "PGRST202" && ("p_area" in params || "p_place" in params)) {
+    const { p_area, p_place, ...old } = params;
+    const retry = await supabase.rpc("search_places", p_place || p_area ? { ...old, p_limit: 50 } : old);
+    if (retry.error || !retry.data) return retry;
+    let rows = retry.data as { place_id: string; area: string | null }[];
+    if (p_area) rows = rows.filter((r) => (r.area || "").toLowerCase() === String(p_area).toLowerCase());
+    if (p_place) rows = rows.filter((r) => r.place_id === p_place);
+    return { ...retry, data: rows };
+  }
+  return res;
+}
