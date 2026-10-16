@@ -10,6 +10,10 @@ If you already ran an earlier copy, run only the migration files you haven't run
 - `20261016000006_existing_users.sql`: profiles for users who signed up through other apps on the same project
 - `20261016000007_safe_signup.sql`: a profile problem can never block a sign-up
 - `20261016000008_features.sql`: review photos and voice notes, phone numbers for contact matching, suggested people, area search, and payments that keep the quoted price
+- `20261016000009_privacy.sql`: anonymous-by-default reviews, mutual contact sync, private visits, follows and city
+- `20261016000010_guests.sql`: reviews without an account, with daily limits
+
+Or run `supabase/update_existing_database.sql`, which bundles 0006 onwards.
 
 For test data, run `supabase/demo_data.sql` (five Pune places with table QR codes).
 
@@ -18,6 +22,8 @@ For test data, run `supabase/demo_data.sql` (five Pune places with table QR code
 - **Authentication > URL Configuration**: set **Site URL** to your Vercel URL (for example `https://trustedpicks.vercel.app`) and add your exact site address followed by `/**` (for example `https://project007.vercel.app/**`) and `http://localhost:5173/**` to **Redirect URLs**. Avoid a `*.vercel.app` wildcard: it would let any Vercel site receive your users' sign-in tokens. If the Supabase project is shared with other apps, leave Site URL as it is and only add Redirect URLs.
 - **Authentication > Sign In / Providers**: Email is on by default (magic link). For "Continue with Google", turn on Google and paste a Google OAuth client ID and secret.
 - **If Google or email sign-in returns you signed out**: the app now shows the reason in a red banner. "redirect" problems mean the address you signed in from is missing from **Redirect URLs** (each Vercel preview address is different; add the one you use, or use your main address). "Database error saving new user" means run `20261016000007_safe_signup.sql`.
+- **Reviews without an account**: in **Authentication > Sign In / Providers**, turn on **Allow anonymous sign-ins** (guests review anonymously, 5 a day) and **Allow manual linking** (a guest who later signs in with Google keeps their reviews).
+- **Stay signed in**: in **Authentication > Sessions**, leave "Time-box user sessions" and "Inactivity timeout" off. One sign-in then lasts on that device until the person signs out.
 - Make yourself admin: sign in once on the site, then run in SQL Editor:
   ```sql
   update public.profiles set role = 'admin'

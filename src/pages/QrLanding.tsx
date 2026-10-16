@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { Icon, Spinner, TopBar } from "../components/ui";
@@ -15,7 +15,10 @@ function friendly(e: unknown): string {
 
 export default function QrLanding() {
   const { token = "" } = useParams();
-  const { session, loading } = useAuth();
+  const { session, loading, startGuest } = useAuth();
+  const navTo = useNavigate();
+  const [starting, setStarting] = useState(false);
+  const [guestErr, setGuestErr] = useState("");
   const uid = session?.user.id;
   const [peek, setPeek] = useState<Peek | null | undefined>(undefined);
   const [peekErr, setPeekErr] = useState("");
@@ -26,6 +29,7 @@ export default function QrLanding() {
   const [scanTry, setScanTry] = useState(0);
   // One visit per code per signed-in user per page view (StrictMode runs effects twice).
   const scannedFor = useRef<string | null>(null);
+  const startingGuest = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -40,7 +44,7 @@ export default function QrLanding() {
   }, [token, peekTry]);
 
   useEffect(() => {
-    if (loading || !uid || !peek) return;
+    if (loading || !uid || !peek || startingGuest.current) return;
     const key = `${uid}:${token}:${scanTry}`;
     if (scannedFor.current === key) return;
     scannedFor.current = key;
@@ -102,7 +106,7 @@ export default function QrLanding() {
             <div className="row" style={{ justifyContent: "center" }}><span className="small muted">Unlocking your verified visit…</span></div>
           ) : null
         ) : (
-          <div className="notice">Sign in to rate what you had. Your review will carry a <b>verified visit</b> badge because you scanned the table code.</div>
+          <div className="notice">Rate what you had, no account needed. Your review is anonymous and carries a <b>verified visit</b> badge because you scanned the table code.</div>
         )}
       </div>
 
@@ -110,7 +114,26 @@ export default function QrLanding() {
         {loading ? null : session ? (
           <Link to={`/review/${peek.place_id}`} className="btn block">Rate what you had</Link>
         ) : (
-          <Link to={`/signin?next=${encodeURIComponent(next)}`} className="btn block">Sign in to review</Link>
+          <>
+            <button className="btn block" disabled={starting} onClick={async () => {
+              // Start a guest session; the effect above then unlocks the verified visit.
+              setStarting(true); setGuestErr(""); startingGuest.current = true;
+              const ok = await startGuest();
+              setStarting(false);
+              if (ok) {
+                // Unlock the verified visit before moving on (the effect above won't get the chance).
+                const { data } = await supabase.auth.getSession();
+                scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
+                await supabase.rpc("scan_qr", { p_token: token });
+                navTo(`/review/${peek.place_id}`);
+              } else {
+                startingGuest.current = false;
+                setGuestErr("Reviewing without an account isn't switched on yet. Sign in to continue.");
+              }
+            }}>{starting ? "Opening…" : "Rate what you had"}</button>
+            {guestErr && <div className="notice err">{guestErr}</div>}
+            <Link to={`/signin?next=${encodeURIComponent(next)}`} className="btn ghost block">Sign in (optional)</Link>
+          </>
         )}
         <Link to={`/p/${peek.place_id}`} className="btn quiet block">See what others loved here</Link>
       </div>

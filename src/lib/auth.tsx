@@ -8,6 +8,10 @@ interface AuthState {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
+  /** Reviewing without an account (a Supabase anonymous session). */
+  isGuest: boolean;
+  /** Starts a guest session if there's no session yet. Resolves false if guests aren't enabled. */
+  startGuest: () => Promise<boolean>;
   authError: string | null;
   clearAuthError: () => void;
   refreshProfile: () => Promise<void>;
@@ -38,8 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.rpc("ensure_profile");
       data = await own();
     }
-    if (uidRef.current !== uid) return; // signed out or switched account meanwhile
-    setProfile((data as Profile) ?? { id: uid, display_name: "", avatar_path: null, city: null, role: "user", created_at: new Date().toISOString() });
+    let p = (data as Profile) ?? { id: uid, display_name: "", avatar_path: null, city: null, role: "user", created_at: new Date().toISOString() };
+    // A guest who just signed in with Google or email keeps their account; give it their name.
+    const { data: u } = await supabase.auth.getUser();
+    const meta = u.user?.user_metadata as { full_name?: string; name?: string } | undefined;
+    const metaName = (meta?.full_name || meta?.name || "").trim();
+    if (u.user && !u.user.is_anonymous && !p.display_name && (metaName || u.user.email)) {
+      const display_name = metaName || u.user.email!.split("@")[0]!;
+      const { error } = await supabase.from("profiles").update({ display_name }).eq("id", uid);
+      if (!error) p = { ...p, display_name };
+    }
+    if (uidRef.current !== uid) return;
+    setProfile(p);
   }, []);
 
   useEffect(() => {
@@ -56,8 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!alive) return;
       setSession(s);
       if (event === "SIGNED_IN") setAuthError(null);
-      // Only refetch the profile when the user changes, and outside the auth callback.
-      if (s?.user.id !== uidRef.current) setTimeout(() => loadProfile(s?.user.id), 0);
+      // Refetch the profile when the user changes (or a guest turns into a full account),
+      // outside the auth callback.
+      if (s?.user.id !== uidRef.current || event === "USER_UPDATED") setTimeout(() => loadProfile(s?.user.id), 0);
     });
     return () => { alive = false; sub.subscription.unsubscribe(); };
   }, [loadProfile]);
@@ -67,6 +82,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     isAdmin: profile?.role === "admin",
+    isGuest: Boolean(session?.user.is_anonymous),
+    startGuest: async () => {
+      if ((await supabase.auth.getSession()).data.session) return true;
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) { setAuthError(null); return false; }
+      return true;
+    },
     authError,
     clearAuthError: () => setAuthError(null),
     refreshProfile: () => loadProfile(session?.user.id),

@@ -45,10 +45,10 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/scan" element={<Scan />} />
                 <Route path="/rate" element={<Rate />} />
                 <Route path="/u/:id" element={<Person />} />
-                <Route path="/review/:placeId" element={<RequireAuth><Review /></RequireAuth>} />
-                <Route path="/saved/:reviewId" element={<RequireAuth><Saved /></RequireAuth>} />
+                <Route path="/review/:placeId" element={<RequireAuth guestOk><Review /></RequireAuth>} />
+                <Route path="/saved/:reviewId" element={<RequireAuth guestOk><Saved /></RequireAuth>} />
                 <Route path="/circle" element={<RequireAuth><Circle /></RequireAuth>} />
-                <Route path="/me" element={<RequireAuth><Me /></RequireAuth>} />
+                <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
                 <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
                 <Route path="/admin/place/:id" element={<RequireAuth admin><AdminPlace /></RequireAuth>} />

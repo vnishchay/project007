@@ -10,7 +10,7 @@ import { Avatar, Icon } from "../components/ui";
 import { LocationPicker } from "../components/LocationPicker";
 
 export default function Discover() {
-  const { profile, session, loading } = useAuth();
+  const { profile, session, loading, isGuest } = useAuth();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
   const [text, setText] = useState(q);
@@ -106,7 +106,7 @@ export default function Discover() {
           <span className="small strong ellipsis" style={{ maxWidth: 220 }}>{label}</span>
           <Icon name="down" size={16} color="var(--muted)" width={2.4} />
         </button>
-        {loading ? null : session ? (
+        {loading ? null : session && !isGuest ? (
           <Link to="/me" aria-label="Your profile"><Avatar id={session.user.id} name={profile?.display_name || session.user.email} path={profile?.avatar_path} /></Link>
         ) : <Link to="/signin" className="btn small ghost">Sign in</Link>}
       </div>
@@ -137,7 +137,7 @@ export default function Discover() {
           <h2>{q ? "Ranked by people you trust" : "Places on Trusted Picks"}</h2>
           {results && results.length > 0 && <span className="tiny muted strong" style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>{results.length} place{results.length > 1 ? "s" : ""}{nearYou && coords && farthest > 0 ? ` · ${Math.max(1, Math.ceil(farthest / 1000))} km` : ""}</span>}
         </div>
-        {!loading && !session && <Link to="/signin" className="tiny" style={{ paddingBottom: 6 }}>Sign in to rank by friends</Link>}
+        {!loading && (!session || isGuest) && <Link to="/signin" className="tiny" style={{ paddingBottom: 6 }}>Sign in to rank by friends</Link>}
         {session && friendsHere > 0 && <span className="badge" style={{ alignSelf: "flex-start", marginBottom: 6 }}><Icon name="people" size={14} />{friendsHere} friend{friendsHere > 1 ? "s" : ""} reviewed places here</span>}
         {err && <div className="notice err">{err}</div>}
         {gap && <Link to={`/p/${gap.id}`} className="notice warn small" style={{ marginBottom: 8 }}><b>{gap.name}</b> is {gap.google.toFixed(1)} on Google, but {session ? "your circle rates" : "Trusted Picks reviewers rate"} {gap.item ? `its ${gap.item.toLowerCase()}` : "it"} {gap.ours.toFixed(1)}.</Link>}

@@ -49,7 +49,7 @@ function withCustomTags(body: string, custom: string[]): string {
 export default function Review() {
   const { placeId = "" } = useParams();
   const [params] = useSearchParams();
-  const { session } = useAuth();
+  const { session, isGuest } = useAuth();
   const uid = session?.user.id;
   const nav = useNavigate();
   const listId = useId();
@@ -371,7 +371,9 @@ export default function Review() {
         {canRecord && <ReviewVoiceRecorder value={voice} onChange={setVoice} disabled={busy || listening} onRecordingChange={setRecording} />}
       </div>
 
-      <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+      {isGuest ? (
+        <p className="small muted">Posting anonymously as a guest. No one can see it was you. <a href={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`}>Sign in</a> only if you want your name on it.</p>
+      ) : <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="strong" style={{ fontSize: 16, marginBottom: 10 }}>Who can see it's you</legend>
         <label className="card row" style={{ cursor: "pointer", flexDirection: "row", alignItems: "flex-start", borderColor: !isPublic ? "var(--green)" : "var(--line)" }}>
           <input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} style={{ width: 20, height: 20, accentColor: "var(--green)", marginTop: 2 }} />
@@ -382,7 +384,7 @@ export default function Review() {
           <span className="grow"><b>Show my name</b><br /><span className="small muted">Your name and photo appear on this review, like a Google review. Friends who synced contacts see you were here.</span></span>
         </label>
         <span className="tiny muted">You can change this later from your profile.</span>
-      </fieldset>
+      </fieldset>}
 
       {err && <div className="notice err" role="alert">{err}</div>}
       <button className="btn block" onClick={save} disabled={busy || recording}>{saving || "Save review"}</button>

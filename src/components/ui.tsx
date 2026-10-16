@@ -123,11 +123,21 @@ export function TopBar({ title, sub, right }: { title?: ReactNode; sub?: ReactNo
 
 export function Spinner() { return <div className="spinner" role="status" aria-label="Loading" />; }
 
-export function RequireAuth({ children, admin = false }: { children: ReactNode; admin?: boolean }) {
-  const { session, loading, profile, isAdmin } = useAuth();
+/**
+ * guestOk: pages anyone can use without an account (writing a review). A guest session is
+ * started quietly. Other pages need a real sign-in; guests are sent to the sign-in page.
+ */
+export function RequireAuth({ children, admin = false, guestOk = false, allowGuest = false }: { children: ReactNode; admin?: boolean; guestOk?: boolean; allowGuest?: boolean }) {
+  const { session, loading, profile, isAdmin, isGuest, startGuest } = useAuth();
   const loc = useLocation();
-  if (loading || (session && !profile)) return <div className="page"><Spinner /></div>;
-  if (!session) return <Navigate to={`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+  const [guestFailed, setGuestFailed] = useState(false);
+  useEffect(() => {
+    if (guestOk && !loading && !session && !guestFailed) startGuest().then((ok) => { if (!ok) setGuestFailed(true); });
+  }, [guestOk, loading, session, guestFailed, startGuest]);
+  const next = `/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`;
+  if (guestOk && !session && guestFailed) return <Navigate to={next} replace />;
+  if (loading || (session && !profile) || (guestOk && !session)) return <div className="page"><Spinner /></div>;
+  if (!session || (isGuest && !guestOk && !allowGuest)) return <Navigate to={next} replace />;
   if (admin && !isAdmin) return <div className="page"><div className="empty"><h2>Admins only</h2><p>This page is for the Trusted Picks team.</p><Link to="/" className="btn ghost">Go home</Link></div></div>;
   return <>{children}</>;
 }

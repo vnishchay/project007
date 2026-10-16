@@ -20,7 +20,7 @@ function Retry({ msg, onRetry }: { msg: string; onRetry: () => void }) {
 }
 
 export default function Me() {
-  const { session, profile, refreshProfile, signOut, isAdmin } = useAuth();
+  const { session, profile, refreshProfile, signOut, isAdmin, isGuest } = useAuth();
   const me = session!.user.id;
   const email = session!.user.email;
   const toast = useToast();
@@ -113,6 +113,13 @@ export default function Me() {
 
   return (
     <div className="page">
+      {isGuest ? (
+        <div className="card soft">
+          <span className="strong" style={{ fontSize: 18 }}>You're reviewing as a guest</span>
+          <span className="small muted">Your reviews are anonymous and live on this device. Signing in is optional: it keeps them on any device and lets you see what friends loved.</span>
+          <Link to="/signin" className="btn small" style={{ alignSelf: "flex-start" }}>Sign in (optional)</Link>
+        </div>
+      ) : <>
       <div className="row" style={{ gap: 14 }}>
         <button
           type="button"
@@ -156,6 +163,8 @@ export default function Me() {
         {isAdmin && <Link to="/admin" className="list-item"><Icon name="shield" color="var(--green)" /><span className="grow strong">Admin</span><Icon name="chev" size={16} color="var(--muted)" /></Link>}
       </div>
 
+      </>}
+
       <div className="tabs" role="tablist" aria-label="Your activity">
         <button type="button" role="tab" aria-selected={tab === "reviews"} className={tab === "reviews" ? "on" : ""} onClick={() => setTab("reviews")}>
           My reviews{reviews ? ` (${reviews.length})` : ""}
@@ -192,9 +201,9 @@ export default function Me() {
                     <div className="row wrap" style={{ justifyContent: "flex-end", gap: 14 }}>
                       {r.status === "hidden" && <span className="badge red" style={{ marginRight: "auto" }}>Hidden by moderators</span>}
                       {r.status === "published" && <Link to={`/saved/${r.id}`} className="small strong">Post on Google</Link>}
-                      <button type="button" className="link-btn small strong" onClick={() => setVisibility(r.id, !r.is_public)}
+                      {!isGuest && <button type="button" className="link-btn small strong" onClick={() => setVisibility(r.id, !r.is_public)}
                         aria-label={r.is_public ? `Make review of ${r.items?.name || "this item"} anonymous` : `Show your name on review of ${r.items?.name || "this item"}`}>
-                        {r.is_public ? "Make anonymous" : "Show my name"}</button>
+                        {r.is_public ? "Make anonymous" : "Show my name"}</button>}
                       <button type="button" className="link-btn small strong" onClick={() => setDraft({ id: r.id, rating: r.rating, body: r.body || "" })}
                         aria-label={`Edit review of ${r.items?.name || "this item"}`}>Edit</button>
                       <button type="button" className="link-btn small strong" style={{ color: "var(--danger)" }} onClick={() => remove(r.id)}
@@ -217,7 +226,7 @@ export default function Me() {
           ))}</div>
       )}
 
-      <button type="button" className="btn quiet block" onClick={doSignOut} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button>
+      {!isGuest && <button type="button" className="btn quiet block" onClick={doSignOut} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button>}
     </div>
   );
 }

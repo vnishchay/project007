@@ -33,7 +33,7 @@ function execCopy(text: string): boolean {
 
 export default function Saved() {
   const { reviewId = "" } = useParams();
-  const { session } = useAuth();
+  const { session, isGuest } = useAuth();
   const uid = session?.user.id;
   const toast = useToast();
   const [r, setR] = useState<ReviewRow | null | undefined>(undefined);
@@ -129,7 +129,7 @@ export default function Saved() {
       <div className="stack" style={{ gap: 8, marginTop: 16 }}>
         <span className="avatar lg" style={{ background: "var(--green-soft)" }}><Icon name="check" size={26} color="var(--green)" width={2.6} /></span>
         <h1>Saved</h1>
-        <p className="muted">{!r.is_public ? "Posted anonymously. Your rating counts, but no one can see it was you." : followers > 0 ? `Posted with your name. ${followers} ${followers === 1 ? "person follows" : "people follow"} you and will see it.` : "Posted with your name. You can make it anonymous from your profile."}</p>
+        <p className="muted">{isGuest ? "Posted anonymously, no account needed. Your rating counts, but no one can see it was you." : !r.is_public ? "Posted anonymously. Your rating counts, but no one can see it was you." : followers > 0 ? `Posted with your name. ${followers} ${followers === 1 ? "person follows" : "people follow"} you and will see it.` : "Posted with your name. You can make it anonymous from your profile."}</p>
       </div>
 
       <div className="card">
@@ -164,6 +164,14 @@ export default function Saved() {
         <button type="button" className="btn block" onClick={openGoogle}><Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}</button>
         <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? "Back to the place" : "Not now"}</Link>
       </div>
+
+      {isGuest && opened && (
+        <div className="card soft">
+          <span className="strong">Want to keep your reviews? (optional)</span>
+          <span className="small muted">You're reviewing as a guest. Sign in to keep your reviews on any device and see what friends loved. Nothing changes if you don't.</span>
+          <Link to={`/signin?next=${encodeURIComponent(`/p/${r.place_id}`)}`} className="btn small ghost" style={{ alignSelf: "flex-start" }}>Sign in</Link>
+        </div>
+      )}
     </div>
   );
 }
