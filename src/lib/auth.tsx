@@ -21,8 +21,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback(async (uid: string | undefined) => {
     if (!uid) { setProfile(null); return; }
-    const { data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).maybeSingle();
-    setProfile((data as Profile) ?? null);
+    let { data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).maybeSingle();
+    if (!data) {
+      // Users who signed up through another app on the same Supabase project have no profile yet.
+      await supabase.rpc("ensure_profile");
+      ({ data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).maybeSingle());
+    }
+    setProfile((data as Profile) ?? { id: uid, display_name: "", avatar_path: null, city: null, role: "user", created_at: new Date().toISOString() });
   }, []);
 
   useEffect(() => {

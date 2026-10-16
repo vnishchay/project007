@@ -5,7 +5,7 @@ Friend-trusted, item-level reviews for local places. React + Vite frontend, Supa
 ## 1. Database (Supabase, once)
 
 In Supabase, open **SQL Editor > New query**, paste `supabase/setup_all_in_one.sql` and press **Run**.
-If you already ran an earlier copy, run only `supabase/migrations/20261016000005_app_helpers.sql`.
+If you already ran an earlier copy, run only the migration files you haven't run yet from `supabase/migrations/` (for example `20261016000006_existing_users.sql`).
 
 ## 2. Supabase settings
 
