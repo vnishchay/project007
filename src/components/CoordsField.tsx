@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { getLocation, parseCoords } from "../lib/util";
 import { Icon } from "./ui";
 
 /** Map location for a place: type "lat, lng", paste a Google Maps link, or use this device's GPS. */
 export function CoordsField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const id = useId();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const c = value.trim() ? parseCoords(value) : null;
@@ -18,8 +19,8 @@ export function CoordsField({ value, onChange }: { value: string; onChange: (v: 
 
   return (
     <div className="field">
-      <label htmlFor="coords">Map location</label>
-      <input id="coords" className="input" value={value} onChange={(e) => onChange(e.target.value)} placeholder="18.5362, 73.8940 or a Google Maps link"
+      <label htmlFor={id}>Map location</label>
+      <input id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)} placeholder="18.5362, 73.8940 or a Google Maps link"
         onBlur={() => { if (c) onChange(`${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`); }} />
       <div className="row wrap" style={{ gap: 14 }}>
         <button type="button" className="link-btn tiny" disabled={busy} onClick={here}><Icon name="locate" size={14} />{busy ? "Locating…" : "Use my current location"}</button>

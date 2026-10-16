@@ -19,6 +19,7 @@ import Business from "./pages/Business";
 import Admin from "./pages/Admin";
 import AdminPlace from "./pages/AdminPlace";
 import NotFound from "./pages/NotFound";
+import Rate from "./pages/Rate";
 
 function Setup() {
   return (
@@ -42,6 +43,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/q/:token" element={<QrLanding />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/scan" element={<Scan />} />
+                <Route path="/rate" element={<Rate />} />
                 <Route path="/u/:id" element={<Person />} />
                 <Route path="/review/:placeId" element={<RequireAuth><Review /></RequireAuth>} />
                 <Route path="/saved/:reviewId" element={<RequireAuth><Saved /></RequireAuth>} />

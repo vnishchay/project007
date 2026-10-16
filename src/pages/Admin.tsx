@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useSettings, type AppSettings } from "../lib/settings";
-import type { ListingRequest, Place } from "../lib/types";
-import { rupees, timeAgo, parseCoords } from "../lib/util";
+import type { ListingRequest, Place, ReviewRow, Topic } from "../lib/types";
+import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
 import { Icon, useToast } from "../components/ui";
+import { ReviewCard, REVIEW_SELECT } from "../components/ReviewCard";
 import { CoordsField } from "../components/CoordsField";
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
 export default function Admin() {
-  const [tab, setTab] = useState<"requests" | "places" | "settings">("requests");
+  const [tab, setTab] = useState<"requests" | "places" | "reviews" | "settings">("requests");
   const [sum, setSum] = useState<Summary | null>(null);
   const [n, setN] = useState(0);
   const refresh = () => setN((x) => x + 1);
@@ -21,7 +22,7 @@ export default function Admin() {
 
   return (
     <div className="page">
-      <h1>Admin</h1>
+      <div className="row between"><h1>Admin</h1><Link to="/me" className="btn small ghost"><Icon name="user" size={16} />Your profile</Link></div>
       <div className="kpis">
         <div className="kpi"><div className="n">{sum?.to_review ?? "–"}</div><div className="l">to review</div></div>
         <div className="kpi"><div className="n">{sum?.live_places ?? "–"}</div><div className="l">live places</div></div>
@@ -30,11 +31,13 @@ export default function Admin() {
       <div className="tabs">
         <button className={tab === "requests" ? "on" : ""} onClick={() => setTab("requests")}>Requests</button>
         <button className={tab === "places" ? "on" : ""} onClick={() => setTab("places")}>Places</button>
+        <button className={tab === "reviews" ? "on" : ""} onClick={() => setTab("reviews")}>Reviews</button>
         <button className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Settings</button>
       </div>
       {tab === "requests" && <Requests key={n} onChange={refresh} />}
       {tab === "places" && <Places key={n} onChange={refresh} />}
-      {tab === "settings" && <Settings />}
+      {tab === "reviews" && <Reviews />}
+      {tab === "settings" && <><Settings /><Vocabulary /></>}
     </div>
   );
 }
@@ -43,11 +46,12 @@ export default function Admin() {
 function Requests({ onChange }: { onChange: () => void }) {
   const [rows, setRows] = useState<ListingRequest[] | null>(null);
   const [filter, setFilter] = useState<"open" | "all">("open");
+  const [err, setErr] = useState("");
 
   const load = () => {
     let q = supabase.from("listing_requests").select("*").order("created_at", { ascending: false }).limit(200);
     if (filter === "open") q = q.in("status", ["pending", "paid"]);
-    q.then(({ data }) => setRows((data as ListingRequest[]) || []));
+    q.then(({ data, error }) => { setErr(error ? errorText(error) : ""); setRows((data as ListingRequest[]) || []); });
   };
   useEffect(load, [filter]);
 
@@ -57,7 +61,8 @@ function Requests({ onChange }: { onChange: () => void }) {
         <button className={`chip ${filter === "open" ? "on" : ""}`} onClick={() => setFilter("open")}>To review</button>
         <button className={`chip ${filter === "all" ? "on" : ""}`} onClick={() => setFilter("all")}>All</button>
       </div>
-      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><p>No requests waiting.</p></div> :
+      {err && <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={load}>Retry</button></div>}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><p>{filter === "open" ? "No requests waiting." : "No requests yet."}</p></div> :
         rows.map((r) => <RequestAdminCard key={r.id} r={r} onDone={() => { load(); onChange(); }} />)}
     </div>
   );
@@ -83,7 +88,9 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
   const markPaid = () => run(async () => await supabase.rpc("mark_request_paid", { p_request: r.id, p_provider_ref: ref.trim() || null }), "Marked paid");
   const decline = () => { if (confirm(`Decline ${r.business_name}?`)) run(async () => await supabase.rpc("decline_listing", { p_request: r.id }), "Declined"); };
   const approve = () => run(async () => {
-    const id = gid.trim();
+    const raw = gid.trim();
+    const id = raw ? extractPlaceId(raw) : "";
+    if (raw && !id) return { error: "That isn't a Google Place ID. Paste an ID like ChIJ…, or leave it empty." };
     if (id !== (r.google_place_id || "")) {
       const u = await supabase.from("listing_requests").update({ google_place_id: id || null }).eq("id", r.id);
       if (u.error) return u;
@@ -127,11 +134,11 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
                 <input className="input" value={gid} onChange={(e) => setGid(e.target.value)} placeholder="ChIJ…" />
                 <a className="tiny" href="https://developers.google.com/maps/documentation/places/web-service/place-id#find-id" target="_blank" rel="noreferrer">Find a Place ID</a>
               </div>
+              <CoordsField value={coords} onChange={setCoords} />
               <div className="grid2">
-                <CoordsField value={coords} onChange={setCoords} />
                 {r.wants_qr && <div className="field"><label>Tables</label><input className="input" type="number" min={0} max={200} value={tables} onChange={(e) => setTables(e.target.value)} /></div>}
               </div>
-                            {r.status === "pending" && <div className="notice warn small">Not marked paid yet. Approving anyway records no payment.</div>}
+              {r.status === "pending" && <div className="notice warn small">Not marked paid yet. Approving anyway records no payment.</div>}
               <div className="row">
                 <button className="btn small grow" disabled={busy} onClick={approve}>Approve and go live</button>
                 <button className="btn small danger" disabled={busy} onClick={decline}>Decline</button>
@@ -150,7 +157,10 @@ function Places({ onChange }: { onChange: () => void }) {
   const toast = useToast();
   const [rows, setRows] = useState<Place[] | null>(null);
   const [adding, setAdding] = useState(false);
-  const [f, setF] = useState({ name: "", category: "", area: "", city: "" });
+  const [f, setF] = useState({ name: "", category: "", area: "", city: "", google_place_id: "" });
+  const [coords, setCoords] = useState("");
+  const [show, setShow] = useState<"all" | "renewals">("all");
+  const [find, setFind] = useState("");
 
   const load = () => {
     supabase.from("places").select("id, name, category, area, city, status, listed_until, google_place_id, about, hours, price_level, created_at").order("created_at", { ascending: false }).limit(300)
@@ -160,12 +170,30 @@ function Places({ onChange }: { onChange: () => void }) {
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
+    const gid = f.google_place_id.trim() ? extractPlaceId(f.google_place_id) : null;
+    if (f.google_place_id.trim() && !gid) { toast("That isn't a Google Place ID"); return; }
+    const c = coords.trim() ? parseCoords(coords) : null;
+    if (coords.trim() && !c) { toast("Check the map location"); return; }
     const until = new Date(); until.setFullYear(until.getFullYear() + 1);
-    const { error } = await supabase.from("places").insert({ ...f, area: f.area || null, status: "live", listed_until: until.toISOString().slice(0, 10) });
-    if (error) toast(errorText(error)); else { toast("Place added"); setAdding(false); setF({ name: "", category: "", area: "", city: "" }); load(); onChange(); }
+    const { data, error } = await supabase.from("places").insert({
+      name: f.name.trim(), category: f.category.trim(), area: f.area.trim() || null, city: f.city.trim(), google_place_id: gid,
+      status: "live", listed_until: until.toISOString().slice(0, 10),
+    }).select("id").single();
+    if (error) { toast(errorText(error)); return; }
+    if (c) {
+      const r = await supabase.rpc("set_place_location", { p_place: (data as { id: string }).id, p_lat: c.lat, p_lng: c.lng });
+      if (r.error) toast(errorText(r.error));
+    }
+    toast("Place added"); setAdding(false); setF({ name: "", category: "", area: "", city: "", google_place_id: "" }); setCoords(""); load(); onChange();
   }
 
   const soon = (d: string | null) => d && new Date(d).getTime() - Date.now() < 30 * 86400000;
+  const due = (p: Place) => p.status === "lapsed" || (p.status === "live" && Boolean(soon(p.listed_until)));
+  const t = find.trim().toLowerCase();
+  const shown = (rows || [])
+    .filter((p) => show === "all" || due(p))
+    .filter((p) => !t || [p.name, p.category, p.area, p.city].some((x) => (x || "").toLowerCase().includes(t)))
+    .sort((a, b) => show === "renewals" ? String(a.listed_until).localeCompare(String(b.listed_until)) : 0);
 
   return (
     <div className="stack">
@@ -178,12 +206,19 @@ function Places({ onChange }: { onChange: () => void }) {
             <input className="input" placeholder="Area" value={f.area} onChange={(e) => setF({ ...f, area: e.target.value })} />
             <input className="input" required placeholder="City" value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} />
           </div>
+          <input className="input" placeholder="Google Place ID (optional)" value={f.google_place_id} onChange={(e) => setF({ ...f, google_place_id: e.target.value })} />
+          <CoordsField value={coords} onChange={setCoords} />
           <div className="row"><button className="btn small grow">Add</button><button type="button" className="btn small ghost" onClick={() => setAdding(false)}>Cancel</button></div>
         </form>
       ) : <button className="btn ghost block" onClick={() => setAdding(true)}><Icon name="plus" size={18} />Add a place directly</button>}
-      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><p>No places yet.</p></div> : (
+      <div className="chips">
+        <button className={`chip ${show === "all" ? "on" : ""}`} onClick={() => setShow("all")}>All</button>
+        <button className={`chip ${show === "renewals" ? "on" : ""}`} onClick={() => setShow("renewals")}>Renewals due ({(rows || []).filter(due).length})</button>
+      </div>
+      <div className="search"><Icon name="search" color="var(--muted)" /><input aria-label="Find a place" placeholder="Find a place" value={find} onChange={(e) => setFind(e.target.value)} /></div>
+      {rows === null ? <div className="skeleton" /> : shown.length === 0 ? <div className="empty"><p>{show === "renewals" ? "No renewals due in the next 30 days." : "No places found."}</p></div> : (
         <div className="list">
-          {rows.map((p) => (
+          {shown.map((p) => (
             <Link key={p.id} to={`/admin/place/${p.id}`} className="list-item">
               <div className="grow stack tight">
                 <span className="strong">{p.name}</span>
@@ -239,5 +274,99 @@ function Settings() {
       <button className="btn block">Save settings</button>
       <p className="tiny muted">New prices apply to new requests. Existing requests keep the amount they were sent with.</p>
     </form>
+  );
+}
+
+/* ---------- Reviews (moderation) ---------- */
+function Reviews() {
+  const toast = useToast();
+  const [rows, setRows] = useState<ReviewRow[] | null>(null);
+  const [show, setShow] = useState<"recent" | "hidden">("recent");
+  const [err, setErr] = useState("");
+
+  const load = () => {
+    setRows(null);
+    let q = supabase.from("reviews").select(REVIEW_SELECT).order("created_at", { ascending: false }).limit(100);
+    if (show === "hidden") q = q.eq("status", "hidden");
+    q.then(({ data, error }) => { setErr(error ? errorText(error) : ""); setRows((data as unknown as ReviewRow[]) || []); });
+  };
+  useEffect(load, [show]);
+
+  async function setStatus(r: ReviewRow, status: "published" | "hidden") {
+    const { error } = await supabase.from("reviews").update({ status }).eq("id", r.id);
+    if (error) { toast(errorText(error)); return; }
+    toast(status === "hidden" ? "Review hidden" : "Review restored");
+    setRows((rs) => (rs || []).map((x) => (x.id === r.id ? { ...x, status } : x)).filter((x) => show !== "hidden" || x.status === "hidden"));
+  }
+
+  return (
+    <div className="stack">
+      <div className="chips">
+        <button className={`chip ${show === "recent" ? "on" : ""}`} onClick={() => setShow("recent")}>Recent</button>
+        <button className={`chip ${show === "hidden" ? "on" : ""}`} onClick={() => setShow("hidden")}>Hidden</button>
+      </div>
+      {err && <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={load}>Retry</button></div>}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><p>{show === "hidden" ? "No hidden reviews." : "No reviews yet."}</p></div> :
+        rows.map((r) => (
+          <ReviewCard key={r.id} r={r} showPlace>
+            <div className="row between">
+              {r.status === "hidden" ? <span className="badge red">Hidden</span> : <span className="badge gray">Published</span>}
+              {r.status === "hidden"
+                ? <button className="btn small ghost" onClick={() => setStatus(r, "published")}>Restore</button>
+                : <button className="btn small danger" onClick={() => { if (confirm("Hide this review from everyone?")) setStatus(r, "hidden"); }}>Hide</button>}
+            </div>
+          </ReviewCard>
+        ))}
+    </div>
+  );
+}
+
+/* ---------- Topics and tags ---------- */
+function Vocabulary() {
+  const toast = useToast();
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [tags, setTags] = useState<{ id: number; label: string }[]>([]);
+  const [newTopic, setNewTopic] = useState("");
+  const [newTag, setNewTag] = useState("");
+
+  const load = () => {
+    supabase.from("topics").select("id, name").order("name").then(({ data }) => setTopics((data as Topic[]) || []));
+    supabase.from("tags").select("id, label").order("label").then(({ data }) => setTags((data as { id: number; label: string }[]) || []));
+  };
+  useEffect(load, []);
+
+  async function add(table: "topics" | "tags", value: string, done: () => void) {
+    const v = value.trim();
+    if (!v) return;
+    const { error } = await supabase.from(table).insert(table === "topics" ? { name: v } : { label: v });
+    if (error) toast(errorText(error)); else { done(); load(); toast("Added"); }
+  }
+  async function remove(table: "topics" | "tags", id: number, name: string) {
+    if (!confirm(`Remove “${name}”? It comes off every item or review that uses it.`)) return;
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (error) toast(errorText(error)); else load();
+  }
+
+  const section = (title: string, table: "topics" | "tags", list: { id: number; text: string }[], value: string, setValue: (v: string) => void, ph: string) => (
+    <div className="stack">
+      <h2>{title}</h2>
+      <div className="chips">{list.map((x) => (
+        <span key={x.id} className="chip row" style={{ gap: 6 }}>{x.text}
+          <button type="button" className="link-btn" aria-label={`Remove ${x.text}`} onClick={() => remove(table, x.id, x.text)}><Icon name="close" size={14} color="var(--muted)" /></button>
+        </span>
+      ))}</div>
+      <form className="row" onSubmit={(e) => { e.preventDefault(); add(table, value, () => setValue("")); }}>
+        <input className="input" placeholder={ph} value={value} onChange={(e) => setValue(e.target.value)} aria-label={ph} />
+        <button className="btn small" style={{ height: 50 }}>Add</button>
+      </form>
+    </div>
+  );
+
+  return (
+    <div className="stack" style={{ gap: 20, marginTop: 8 }}>
+      <div className="divider" />
+      {section("Topics", "topics", topics.map((t) => ({ id: t.id, text: t.name })), newTopic, setNewTopic, "New topic, e.g. Momos")}
+      {section("Review tags", "tags", tags.map((t) => ({ id: t.id, text: t.label })), newTag, setNewTag, "New tag, e.g. Great value")}
+    </div>
   );
 }

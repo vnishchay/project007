@@ -4,7 +4,8 @@ import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { upiLink, useSettings } from "../lib/settings";
 import type { ListingRequest, QrStyle } from "../lib/types";
-import { copyText, rupees, timeAgo } from "../lib/util";
+import { copyText, extractPlaceId, QR_STYLES, rupees, timeAgo } from "../lib/util";
+import type { AppSettings } from "../lib/settings";
 import { Icon, QrImage, TopBar, useToast } from "../components/ui";
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -37,12 +38,18 @@ export default function Business() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const phoneDigits = form.phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10) { setErr("Enter a full phone number so we can reach you."); return; }
     setBusy(true); setErr("");
+    // A Maps link without a Place ID goes in the note for the team to look up.
+    const raw = form.google_place_id.trim();
+    const placeId = extractPlaceId(raw);
+    const note = [form.note.trim(), raw && !placeId ? `Google Maps link: ${raw}` : ""].filter(Boolean).join("\n");
     const { error } = await supabase.from("listing_requests").insert({
       requester_id: session!.user.id,
       business_name: form.business_name.trim(), category: form.category.trim(), area: form.area.trim() || null,
-      city: form.city.trim(), phone: form.phone.trim(), google_place_id: form.google_place_id.trim() || null,
-      note: form.note.trim() || null, wants_qr: wantsQr, qr_style: wantsQr ? style : null,
+      city: form.city.trim(), phone: form.phone.trim(), google_place_id: placeId,
+      note: note || null, wants_qr: wantsQr, qr_style: wantsQr ? style : null,
     });
     setBusy(false);
     if (error) { setErr(errorText(error)); return; }
@@ -76,7 +83,7 @@ export default function Business() {
       {mine.length > 0 && (
         <div className="stack">
           <h2>Your requests</h2>
-          {mine.map((r) => <RequestCard key={r.id} r={r} />)}
+          {mine.map((r) => <RequestCard key={r.id} r={r} settings={settings} onCopied={() => toast("UPI ID copied")} />)}
         </div>
       )}
 
@@ -100,7 +107,7 @@ export default function Business() {
           <div className="field">
             <label htmlFor="gp">Google Maps link or Place ID (optional)</label>
             <input id="gp" className="input" value={form.google_place_id} onChange={set("google_place_id")} placeholder="Paste your Google Maps link" />
-            <span className="tiny muted">Lets customers post their review on Google in one tap.</span>
+            <span className="tiny muted">Lets customers post their review on Google in one tap. If your link has no Place ID, we look it up for you.</span>
           </div>
           <div className="field"><label htmlFor="nt">Anything else (optional)</label><textarea id="nt" className="textarea" style={{ minHeight: 70 }} value={form.note} onChange={set("note")} placeholder="Number of tables, best time to call…" /></div>
 
@@ -109,8 +116,20 @@ export default function Business() {
             <span className="grow"><b>Add table QR codes</b><br /><span className="small muted">{rupees(settings.qr_price_inr)} one time</span></span>
           </label>
           {wantsQr && (
-            <div className="chips">
-              {(["paper", "neon"] as QrStyle[]).map((s) => <button type="button" key={s} className={`chip ${style === s ? "on" : ""}`} onClick={() => setStyle(s)}>{s === "paper" ? "Clean white" : "Neon dark"}</button>)}
+            <div className="stack">
+              <span className="small strong">QR style</span>
+              <div className="grid2" role="radiogroup" aria-label="QR style">
+                {(Object.keys(QR_STYLES) as QrStyle[]).map((k) => {
+                  const st = QR_STYLES[k];
+                  return (
+                    <button type="button" key={k} role="radio" aria-checked={style === k} onClick={() => setStyle(k)} className="card"
+                      style={{ alignItems: "center", cursor: "pointer", background: st.light, color: st.light === "#FFFFFF" ? "var(--ink)" : "#fff", borderColor: style === k ? "var(--green)" : "var(--line)", borderWidth: style === k ? 2 : 1, padding: 12 }}>
+                      <QrImage text={`${window.location.origin}/q/preview`} size={72} dark={st.dark} light={st.light} />
+                      <span className="small strong">{st.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -121,35 +140,35 @@ export default function Business() {
       )}
     </div>
   );
+}
 
-  function RequestCard({ r }: { r: ListingRequest }) {
-    const st = STATUS[r.status]!;
-    const ref = `TP-${r.id.slice(0, 8).toUpperCase()}`;
-    const upi = upiLink(settings, r.amount_inr, `${ref} ${r.business_name}`.slice(0, 50));
-    return (
-      <div className="card">
-        <div className="row between"><span className="strong">{r.business_name}</span><span className={`badge ${st.cls}`}>{st.label}</span></div>
-        <span className="small muted">{[r.category, r.area, r.city].filter(Boolean).join(" · ")} · {rupees(r.amount_inr)} · sent {timeAgo(r.created_at)}</span>
-        {r.status === "pending" && (
-          upi ? (
-            <div className="stack">
-              <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
-                <QrImage text={upi} size={110} />
-                <div className="stack tight small">
-                  <span>Pay <b>{rupees(r.amount_inr)}</b> by UPI to <b>{settings.upi_id}</b></span>
-                  <span className="muted">Reference <b>{ref}</b>. We confirm and list you after payment arrives.</span>
-                </div>
-              </div>
-              <div className="row">
-                <a className="btn small green" href={upi}>Pay with UPI app</a>
-                <button type="button" className="btn small ghost" onClick={async () => { if (await copyText(settings.upi_id)) toast("UPI ID copied"); }}><Icon name="copy" size={16} />Copy UPI ID</button>
+function RequestCard({ r, settings, onCopied }: { r: ListingRequest; settings: AppSettings; onCopied: () => void }) {
+  const st = STATUS[r.status]!;
+  const ref = `TP-${r.id.slice(0, 8).toUpperCase()}`;
+  const upi = upiLink(settings, r.amount_inr, `${ref} ${r.business_name}`.slice(0, 50));
+  return (
+    <div className="card">
+      <div className="row between"><span className="strong">{r.business_name}</span><span className={`badge ${st.cls}`}>{st.label}</span></div>
+      <span className="small muted">{[r.category, r.area, r.city].filter(Boolean).join(" · ")} · {rupees(r.amount_inr)} · sent {timeAgo(r.created_at)}</span>
+      {r.status === "pending" && (
+        upi ? (
+          <div className="stack">
+            <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
+              <QrImage text={upi} size={110} />
+              <div className="stack tight small">
+                <span>Pay <b>{rupees(r.amount_inr)}</b> by UPI to <b>{settings.upi_id}</b></span>
+                <span className="muted">Reference <b>{ref}</b>. We confirm and list you after payment arrives.</span>
               </div>
             </div>
-          ) : <p className="small muted">We'll call you on {r.phone} to collect payment. Reference <b>{ref}</b>.</p>
-        )}
-        {r.status === "approved" && r.place_id && <Link to={`/p/${r.place_id}`} className="link-btn">See your live page</Link>}
-        {settings.support_phone && r.status !== "approved" && <a className="small" href={`https://wa.me/${settings.support_phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi, about my listing ${ref}`)}`} target="_blank" rel="noreferrer">Message us on WhatsApp</a>}
-      </div>
-    );
-  }
+            <div className="row">
+              <a className="btn small green" href={upi}>Pay with UPI app</a>
+              <button type="button" className="btn small ghost" onClick={async () => { if (await copyText(settings.upi_id)) onCopied(); }}><Icon name="copy" size={16} />Copy UPI ID</button>
+            </div>
+          </div>
+        ) : <p className="small muted">We'll call you on {r.phone} to collect payment. Reference <b>{ref}</b>.</p>
+      )}
+      {r.status === "approved" && r.place_id && <Link to={`/p/${r.place_id}`} className="link-btn">See your live page</Link>}
+      {settings.support_phone && r.status !== "approved" && <a className="small" href={`https://wa.me/${settings.support_phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi, about my listing ${ref}`)}`} target="_blank" rel="noreferrer">Message us on WhatsApp</a>}
+    </div>
+  );
 }

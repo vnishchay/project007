@@ -11,6 +11,7 @@ const paths: Record<string, ReactNode> = {
   back: <path d="M15 5l-7 7 7 7" />,
   chev: <path d="M9 5l7 7-7 7" />,
   down: <path d="M6 9l6 6 6-6" />,
+  star: <path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.5 6.7 19.4l1.2-6L3.4 9.3l6-.7z" />,
   locate: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="7" /></>,
   globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
   close: <path d="M6 6l12 12M18 6L6 18" />,
@@ -95,13 +96,13 @@ export function Layout({ children }: { children: ReactNode }) {
 }
 
 function BottomNav() {
-  const { isAdmin } = useAuth();
   return (
     <nav className="nav no-print" aria-label="Main">
       <NavLink to="/" end><Icon name="home" size={22} />Discover</NavLink>
-      <NavLink to="/scan"><span className="scan-dot"><Icon name="scan" size={22} color="#fff" /></span></NavLink>
       <NavLink to="/circle"><Icon name="people" size={22} />Circle</NavLink>
-      <NavLink to={isAdmin ? "/admin" : "/me"}><Icon name={isAdmin ? "shield" : "user"} size={22} />{isAdmin ? "Admin" : "You"}</NavLink>
+      <NavLink to="/scan" aria-label="Scan a table QR"><span className="scan-dot"><Icon name="scan" size={22} color="#fff" /></span></NavLink>
+      <NavLink to="/rate"><Icon name="star" size={22} />Rate</NavLink>
+      <NavLink to="/me"><Icon name="user" size={22} />You</NavLink>
     </nav>
   );
 }
@@ -134,17 +135,17 @@ export function RequireAuth({ children, admin = false }: { children: ReactNode; 
 /* ---------- Toast ---------- */
 const ToastCtx = createContext<(msg: string) => void>(() => {});
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [msg, setMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; id: number } | null>(null);
   useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 2600);
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(t);
-  }, [msg]);
-  const show = useCallback((m: string) => setMsg(m), []);
+  }, [toast]);
+  const show = useCallback((m: string) => setToast({ msg: m, id: Date.now() + Math.random() }), []);
   return (
     <ToastCtx.Provider value={show}>
       {children}
-      {msg && <div className="toast" role="status">{msg}</div>}
+      {toast && <div key={toast.id} className="toast" role="status" aria-live="polite">{toast.msg}</div>}
     </ToastCtx.Provider>
   );
 }

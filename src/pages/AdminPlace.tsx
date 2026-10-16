@@ -2,17 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import type { Place, QrCode, QrStyle } from "../lib/types";
-import { qrUrl, parseCoords } from "../lib/util";
+import { qrUrl, parseCoords, QR_STYLES, extractPlaceId } from "../lib/util";
 import { Icon, QrImage, Spinner, TopBar, qrPngDataUrl, useToast } from "../components/ui";
 import { CoordsField } from "../components/CoordsField";
 import { PLACE_COLS } from "./Place";
 
-const STYLE_COLORS: Record<QrStyle, { dark: string; light: string }> = {
-  paper: { dark: "#111311", light: "#FFFFFF" },
-  neon: { dark: "#C6FF3D", light: "#07080D" },
-  aurora: { dark: "#9B7BFF", light: "#07080D" },
-  matrix: { dark: "#3DDC84", light: "#07080D" },
-};
+const STYLE_COLORS: Record<QrStyle, { dark: string; light: string }> = QR_STYLES;
 
 export default function AdminPlace() {
   const { id = "" } = useParams();
@@ -53,6 +48,10 @@ export default function AdminPlace() {
   const set = <K extends keyof Place>(k: K, val: Place[K]) => setP({ ...p, [k]: val });
 
   async function save() {
+    const rawGid = (p!.google_place_id || "").trim();
+    const gid = rawGid ? extractPlaceId(rawGid) : null;
+    if (rawGid && !gid) { toast("That isn't a Google Place ID. Use an ID like ChIJ…, or leave it empty."); return; }
+    if (coords.trim() && !parseCoords(coords)) { toast("Check the map location"); return; }
     setBusy(true);
     const hoursObj: Record<string, string> = {};
     for (const line of hours.split("\n")) {
@@ -61,7 +60,7 @@ export default function AdminPlace() {
     }
     const { error } = await supabase.from("places").update({
       name: p!.name, category: p!.category, area: p!.area || null, city: p!.city, about: p!.about || null,
-      price_level: p!.price_level || null, google_place_id: p!.google_place_id?.trim() || null,
+      price_level: p!.price_level || null, google_place_id: gid,
       status: p!.status, listed_until: p!.listed_until || null, hours: Object.keys(hoursObj).length ? hoursObj : null,
     }).eq("id", id);
     let err = error;
@@ -120,8 +119,8 @@ export default function AdminPlace() {
                 <option value="">Not set</option><option value="1">₹</option><option value="2">₹₹</option><option value="3">₹₹₹</option><option value="4">₹₹₹₹</option>
               </select>
             </div>
-            <CoordsField value={coords} onChange={setCoords} />
           </div>
+          <CoordsField value={coords} onChange={setCoords} />
           <div className="field"><label>Google Place ID</label><input className="input" value={p.google_place_id || ""} onChange={(e) => set("google_place_id", e.target.value)} placeholder="ChIJ…" /></div>
           <div className="field"><label>About</label><textarea className="textarea" style={{ minHeight: 80 }} value={p.about || ""} onChange={(e) => set("about", e.target.value)} /></div>
           <div className="field"><label>Hours (one per line, “Mon–Fri: 12–11 pm”)</label><textarea className="textarea" style={{ minHeight: 70 }} value={hours} onChange={(e) => setHours(e.target.value)} /></div>

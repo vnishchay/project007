@@ -92,3 +92,45 @@ export function parseCoords(text: string): Coords | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   return { lat, lng };
 }
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** Today's hours from entries like {"Mon–Sat": "7 am–9 pm", "Sun": "Closed"}. */
+export function todaysHours(hours: Record<string, string> | null | undefined, now = new Date()): string | null {
+  if (!hours) return null;
+  const today = now.getDay();
+  for (const [key, val] of Object.entries(hours)) {
+    for (const part of key.split(/[,&]/)) {
+      const m = part.trim().match(/^([A-Za-z]{3})[a-z]*\s*(?:[–—-]\s*([A-Za-z]{3})[a-z]*)?$/);
+      if (!m) {
+        if (/daily|every ?day|all days/i.test(part)) return val;
+        continue;
+      }
+      const a = DAYS.findIndex((d) => d.toLowerCase() === m[1]!.toLowerCase());
+      const b = m[2] ? DAYS.findIndex((d) => d.toLowerCase() === m[2]!.toLowerCase()) : a;
+      if (a < 0 || b < 0) continue;
+      const inRange = a <= b ? today >= a && today <= b : today >= a || today <= b;
+      if (inRange) return val;
+    }
+  }
+  return null;
+}
+
+export const QR_STYLES = {
+  paper: { label: "Clean white", dark: "#111311", light: "#FFFFFF" },
+  neon: { label: "Neon", dark: "#C6FF3D", light: "#07080D" },
+  aurora: { label: "Aurora", dark: "#9B7BFF", light: "#07080D" },
+  matrix: { label: "Matrix", dark: "#3DDC84", light: "#07080D" },
+} as const;
+
+/**
+ * Pulls a Google Place ID out of a Place ID or a Google Maps link that carries one
+ * (…place_id:ChIJ…, …query_place_id=ChIJ…). Short maps.app.goo.gl links don't carry it: returns null.
+ */
+export function extractPlaceId(text: string | null | undefined): string | null {
+  const t = (text || "").trim();
+  if (!t) return null;
+  const inUrl = t.match(/(?:place_id[:=]|query_place_id=|placeid=)([A-Za-z0-9_-]{16,})/);
+  if (inUrl) return inUrl[1]!;
+  if (/^[A-Za-z0-9_-]{16,}$/.test(t)) return t;
+  return null;
+}

@@ -5,12 +5,19 @@ Friend-trusted, item-level reviews for local places. React + Vite frontend, Supa
 ## 1. Database (Supabase, once)
 
 In Supabase, open **SQL Editor > New query**, paste `supabase/setup_all_in_one.sql` and press **Run**.
-If you already ran an earlier copy, run only the migration files you haven't run yet from `supabase/migrations/` (for example `20261016000006_existing_users.sql`).
+If you already ran an earlier copy, run only the migration files you haven't run yet from `supabase/migrations/`, in order. Each one is safe to run once:
+
+- `20261016000006_existing_users.sql`: profiles for users who signed up through other apps on the same project
+- `20261016000007_safe_signup.sql`: a profile problem can never block a sign-up
+- `20261016000008_features.sql`: review photos and voice notes, phone numbers for contact matching, suggested people, area search, and payments that keep the quoted price
+
+For test data, run `supabase/demo_data.sql` (five Pune places with table QR codes).
 
 ## 2. Supabase settings
 
 - **Authentication > URL Configuration**: set **Site URL** to your Vercel URL (for example `https://trustedpicks.vercel.app`) and add your exact site address followed by `/**` (for example `https://project007.vercel.app/**`) and `http://localhost:5173/**` to **Redirect URLs**. Avoid a `*.vercel.app` wildcard: it would let any Vercel site receive your users' sign-in tokens. If the Supabase project is shared with other apps, leave Site URL as it is and only add Redirect URLs.
 - **Authentication > Sign In / Providers**: Email is on by default (magic link). For "Continue with Google", turn on Google and paste a Google OAuth client ID and secret.
+- **If Google or email sign-in returns you signed out**: the app now shows the reason in a red banner. "redirect" problems mean the address you signed in from is missing from **Redirect URLs** (each Vercel preview address is different; add the one you use, or use your main address). "Database error saving new user" means run `20261016000007_safe_signup.sql`.
 - Make yourself admin: sign in once on the site, then run in SQL Editor:
   ```sql
   update public.profiles set role = 'admin'
@@ -55,7 +62,7 @@ npm run dev
 
 ## Map of the code
 
-- `src/pages` one file per screen: Discover, Place, QrLanding (`/q/:token`), Scan, Review, Saved (Google handoff), Circle, Person, Me, Business, Admin, AdminPlace
-- `src/lib` Supabase client, auth, settings, trust score, Google rating
+- `src/pages` one file per screen: Discover, Place, QrLanding (`/q/:token`), Scan, Rate (pick a place to review), Review, Saved (Google handoff), Circle, Person, Me, Business, Admin, AdminPlace
+- `src/lib` Supabase client, auth, settings, chosen location, Google rating (the trust score is computed in the database by `search_places`)
 - `api/draft.ts` AI review draft (checks the user's Supabase session first)
 - `supabase/` database schema, security rules and functions
