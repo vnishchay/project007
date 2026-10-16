@@ -12,6 +12,7 @@ If you already ran an earlier copy, run only the migration files you haven't run
 - `20261016000008_features.sql`: review photos and voice notes, phone numbers for contact matching, suggested people, area search, and payments that keep the quoted price
 - `20261016000009_privacy.sql`: anonymous-by-default reviews, mutual contact sync, private visits, follows and city
 - `20261016000010_guests.sql`: reviews without an account, with daily limits
+- `20261016000011_shops_friends.sql`: shop owners manage their page, products and photos; friends are made through shared links (phone matching is no longer used)
 
 Or run `supabase/update_existing_database.sql`, which bundles 0006 onwards.
 
@@ -64,11 +65,16 @@ npm run dev
 2. They see a UPI QR and pay link with a reference like `TP-6A095087`.
 3. You check the payment, tap **Mark paid**, add the Google Place ID and map coordinates, and tap **Approve**. The place goes live and table QR codes are created.
 4. **Admin > Places > (place)** prints the table cards or downloads each QR as a PNG.
-5. Listings lapse automatically after a year (nightly job). **Renew 1 year** extends them and records the payment.
+5. The business owner (whoever sent the request) can now open **You > Your shops** or `/manage/<place id>` to add products with photos and prices, a cover photo, logo, about and hours. Customers pick those products when they review.
+6. Listings lapse automatically after a year (nightly job). **Renew 1 year** extends them and records the payment.
+
+## Friends
+
+Every link someone shares from the app (their invite, a review, a place) carries their invite code (`?ref=`). Whoever opens it and then uses the app, even as a guest, becomes their friend. Friends' ratings count most in rankings; a friend's name is shown only on reviews they chose to post with their name.
 
 ## Map of the code
 
-- `src/pages` one file per screen: Discover, Place, QrLanding (`/q/:token`), Scan, Rate (pick a place to review), Review, Saved (Google handoff), Circle, Person, Me, Business, Admin, AdminPlace
+- `src/pages` one file per screen: Discover, Place, QrLanding (`/q/:token`), Scan, Rate (pick a place to review), Review, Saved (Google handoff), Circle (friends), Person, Me, Business, Manage (shop owner products and photos), Admin, AdminPlace
 - `src/lib` Supabase client, auth, settings, chosen location, Google rating (the trust score is computed in the database by `search_places`)
 - `api/draft.ts` AI review draft (checks the user's Supabase session first)
 - `supabase/` database schema, security rules and functions

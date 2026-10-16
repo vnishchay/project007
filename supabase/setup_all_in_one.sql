@@ -2049,3 +2049,25 @@ language sql stable security definer set search_path = public, extensions as $$
   limit least(greatest(p_limit, 1), 100);
 $$;
 grant execute on function public.search_places(text, double precision, double precision, integer, text, integer, text, uuid) to anon, authenticated;
+
+-- Who owns a shop is private: others can't read owner_id or created_by.
+revoke select on public.places from anon, authenticated;
+grant select (id, google_place_id, name, category, area, city, about, location, hours, price_level,
+              status, listed_until, created_at, cover_path, logo_path) on public.places to anon, authenticated;
+
+-- Shops you can manage (yours, or every shop for admins).
+create or replace function public.my_places()
+returns table (id uuid, name text, area text, city text, status public.place_status, listed_until date, cover_path text, logo_path text)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.name, p.area, p.city, p.status, p.listed_until, p.cover_path, p.logo_path
+  from public.places p
+  where auth.uid() is not null and p.owner_id = auth.uid()
+  order by p.name;
+$$;
+grant execute on function public.my_places() to authenticated;
+
+create or replace function public.can_manage_place(p_place uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin() or public.is_place_owner(p_place);
+$$;
+grant execute on function public.can_manage_place(uuid) to anon, authenticated;
