@@ -3,21 +3,15 @@ import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
+import { placeMediaUrl } from "../lib/media";
 import { Avatar, Icon, Spinner, StarInput, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
-import { MePhoneRow } from "../components/MePhoneRow";
+import { Chip, Cover, EmptyArt, Glyph, MenuRow, Retry, SectionTitle, lookFor } from "../components/home/Kit";
+import "../styles/home.css";
 
 interface SavedRow { place_id: string; places: { name: string; area: string | null; category: string } | null }
 interface Draft { id: string; rating: number; body: string }
-
-function Retry({ msg, onRetry }: { msg: string; onRetry: () => void }) {
-  return (
-    <div className="notice err row" role="alert">
-      <span className="grow">{msg}</span>
-      <button type="button" className="link-btn strong" style={{ color: "var(--danger)" }} onClick={onRetry}>Retry</button>
-    </div>
-  );
-}
+interface MyPlace { id: string; name: string; area: string | null; city: string; status: string; cover_path: string | null; logo_path: string | null }
 
 export default function Me() {
   const { session, profile, refreshProfile, signOut, isAdmin, isGuest } = useAuth();
@@ -27,6 +21,7 @@ export default function Me() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(profile?.display_name || "");
   const [city, setCity] = useState(profile?.city || "");
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [reviews, setReviews] = useState<ReviewRow[] | null>(null);
@@ -37,6 +32,8 @@ export default function Me() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [savingReview, setSavingReview] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [friendCount, setFriendCount] = useState<number | null>(null);
+  const [shops, setShops] = useState<MyPlace[]>([]);
 
   useEffect(() => { setName(profile?.display_name || ""); setCity(profile?.city || ""); }, [profile]);
 
@@ -52,13 +49,20 @@ export default function Me() {
   }, [me]);
   useEffect(() => { loadReviews(); loadSaved(); }, [loadReviews, loadSaved]);
 
+  // Friends and your shops. Both quietly stay empty on a database without them.
+  useEffect(() => {
+    if (isGuest) return;
+    supabase.rpc("my_friends").then(({ data, error }) => { if (!error) setFriendCount(((data as unknown[]) || []).length); });
+    supabase.rpc("my_places").then(({ data, error }) => { if (!error) setShops((data as MyPlace[]) || []); });
+  }, [me, isGuest]);
+
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) { toast("Add your name"); return; }
     setBusy(true);
     const { error } = await supabase.from("profiles").update({ display_name: name.trim(), city: city.trim() || null }).eq("id", me);
     setBusy(false);
-    if (error) toast(errorText(error)); else { await refreshProfile(); toast("Profile saved"); }
+    if (error) toast(errorText(error)); else { await refreshProfile(); setEditing(false); toast("Profile saved"); }
   }
 
   async function uploadAvatar(file: File) {
@@ -111,79 +115,129 @@ export default function Me() {
     try { await signOut(); } catch (e) { toast(errorText(e)); setSigningOut(false); }
   }
 
+  const verified = (reviews || []).filter((r) => r.verified).length;
+  const named = (reviews || []).filter((r) => r.is_public).length;
+
   return (
-    <div className="page">
+    <div className="page" style={{ gap: 18 }}>
       {isGuest ? (
-        <div className="card soft">
-          <span className="strong" style={{ fontSize: 18 }}>You're reviewing as a guest</span>
-          <span className="small muted">Your reviews are anonymous and live on this device. Signing in is optional: it keeps them on any device and lets you see what friends loved.</span>
-          <Link to="/signin" className="btn small" style={{ alignSelf: "flex-start" }}>Sign in (optional)</Link>
-        </div>
-      ) : <>
-      <div className="row" style={{ gap: 14 }}>
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          aria-label={uploading ? "Uploading photo" : "Change photo"}
-          style={{ position: "relative", border: 0, padding: 0, background: "none", borderRadius: "50%", cursor: uploading ? "wait" : "pointer", flex: "none" }}
-        >
-          <span style={{ opacity: uploading ? 0.5 : 1, display: "block" }}>
-            <Avatar id={me} name={profile?.display_name} path={profile?.avatar_path} size="lg" />
-          </span>
-          <span aria-hidden="true" style={{ position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: "50%", background: "var(--ink)", display: "grid", placeItems: "center", border: "2px solid var(--bg)" }}>
-            <Icon name="plus" size={14} color="#fff" width={2.5} />
-          </span>
-        </button>
-        <input
-          ref={fileRef} type="file" accept="image/*" hidden tabIndex={-1}
-          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadAvatar(f); }}
-        />
-        <div className="grow stack tight">
-          <span className="strong" style={{ fontSize: 18 }}>{profile?.display_name || "Add your name"}</span>
-          <span className="small muted ellipsis" title={email || undefined}>
-            {email ? <>Signed in as <span className="strong" style={{ color: "var(--ink)" }}>{email}</span></> : session!.user.phone ? `Signed in with ${session!.user.phone}` : "Signed in"}
-          </span>
-          {uploading && <span className="tiny muted" role="status">Uploading photo…</span>}
-        </div>
-      </div>
+        <header className="hero sunset">
+          <div className="row" style={{ gap: 12 }}>
+            <span className="success-burst"><Glyph name="ghost" size={34} color="#fff" /></span>
+            <div className="grow stack tight">
+              <h1 style={{ fontSize: 24 }}>Guest</h1>
+              <span className="hero-sub"><Icon name="eyeOff" size={16} />Your reviews are anonymous</span>
+            </div>
+          </div>
+          <div className="stat-tiles">
+            <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{reviews?.length ?? "–"}</span><span className="l">reviews</span></div>
+            <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
+            <div className="stat-tile"><span className="n"><Icon name="lock" size={16} /></span><span className="l">this device</span></div>
+          </div>
+          <Link to="/signin" className="btn white block" style={{ color: "#b2401f" }}><Icon name="login" size={18} />Keep my reviews (optional)</Link>
+        </header>
+      ) : (
+        <>
+          <header className="hero">
+            <div className="row" style={{ gap: 14 }}>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                aria-label={uploading ? "Uploading photo" : "Change photo"}
+                style={{ position: "relative", border: 0, padding: 0, background: "none", borderRadius: "50%", cursor: uploading ? "wait" : "pointer", flex: "none" }}
+              >
+                <span style={{ opacity: uploading ? 0.5 : 1, display: "block" }}>
+                  <Avatar id={me} name={profile?.display_name} path={profile?.avatar_path} size="lg" />
+                </span>
+                <span aria-hidden="true" style={{ position: "absolute", right: -4, bottom: -4, width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", color: "var(--green-dark)" }}>
+                  <Icon name="camera" size={13} width={2.4} />
+                </span>
+              </button>
+              <input
+                ref={fileRef} type="file" accept="image/*" hidden tabIndex={-1}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadAvatar(f); }}
+              />
+              <div className="grow stack tight" style={{ minWidth: 0 }}>
+                <span className="strong ellipsis" style={{ fontSize: 20 }}>{profile?.display_name || "Add your name"}</span>
+                <span className="hero-sub ellipsis" title={email || undefined}>
+                  <Glyph name={email ? "mail" : "user"} size={14} />
+                  <span className="ellipsis">{email || session!.user.phone || "Signed in"}</span>
+                </span>
+                {profile?.city && <span className="hero-sub"><Icon name="pin" size={14} />{profile.city}</span>}
+                {uploading && <span className="hero-sub" role="status">Uploading photo…</span>}
+              </div>
+              <button type="button" className="glass-btn round" aria-label="Edit profile" aria-expanded={editing} title="Edit profile" onClick={() => setEditing((v) => !v)}>
+                <Icon name={editing ? "close" : "edit"} size={18} />
+              </button>
+            </div>
+            <div className="stat-tiles">
+              <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{reviews?.length ?? "–"}</span><span className="l">reviews</span></div>
+              <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
+              <Link to="/circle" className="stat-tile" style={{ color: "#fff" }}><span className="n"><Icon name="people" size={16} />{friendCount ?? "–"}</span><span className="l">{friendCount === 1 ? "friend" : "friends"}</span></Link>
+            </div>
+          </header>
 
-      <form className="stack" onSubmit={saveProfile}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-          <div className="field"><label htmlFor="n">Name</label><input id="n" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required autoComplete="name" /></div>
-          <div className="field"><label htmlFor="c">City</label><input id="c" className="input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Pune" maxLength={60} autoComplete="address-level2" /></div>
-        </div>
-        <button className="btn ghost block" disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
-      </form>
+          {editing && (
+            <form className="card" onSubmit={saveProfile}>
+              <SectionTitle icon="edit" tone="sky">Your profile</SectionTitle>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+                <div className="field"><label htmlFor="n">Name</label><input id="n" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required autoComplete="name" /></div>
+                <div className="field"><label htmlFor="c">City</label><input id="c" className="input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Pune" maxLength={60} autoComplete="address-level2" /></div>
+              </div>
+              <button className="btn green block" disabled={busy}><Icon name="check" size={18} />{busy ? "Saving…" : "Save"}</button>
+            </form>
+          )}
 
-      <MePhoneRow />
+          <div className="menu">
+            <MenuRow to="/circle" icon="userPlus" tone="violet" title="Invite friends" sub={friendCount ? `${friendCount} friend${friendCount === 1 ? "" : "s"}` : "Share your link or QR"} />
+            {shops.map((s) => (
+              <Link key={s.id} to={`/manage/${s.id}`} className="menu-row">
+                <span className="thumb" style={{ width: 40, height: 40, borderRadius: 12 }}><Cover url={placeMediaUrl(s.logo_path) || placeMediaUrl(s.cover_path)} category={s.name} size={20} /></span>
+                <span className="grow stack tight" style={{ minWidth: 0 }}>
+                  <span className="t ellipsis">{s.name}</span>
+                  <span className="s ellipsis row" style={{ gap: 4 }}><Icon name="store" size={12} />Your shop{s.area ? ` · ${s.area}` : ""}{s.status !== "live" ? ` · ${s.status}` : ""}</span>
+                </span>
+                <Icon name="settings" size={18} color="var(--muted)" />
+              </Link>
+            ))}
+            <MenuRow to="/business" icon={shops.length ? "plus" : "store"} tone="amber" title={shops.length ? "Add another business" : "List your business"} />
+            {isAdmin && <MenuRow to="/admin" icon="shield" tone="sky" title="Admin" />}
+          </div>
 
-      <div className="list">
-        <Link to="/business" className="list-item"><Icon name="store" color="var(--green)" /><span className="grow strong">List your business</span><Icon name="chev" size={16} color="var(--muted)" /></Link>
-        {isAdmin && <Link to="/admin" className="list-item"><Icon name="shield" color="var(--green)" /><span className="grow strong">Admin</span><Icon name="chev" size={16} color="var(--muted)" /></Link>}
-      </div>
-
-      </>}
+          <div className="callout green">
+            <Chip icon={named ? "eye" : "eyeOff"} size="sm" />
+            <span className="small grow">{named ? `${named} review${named === 1 ? " shows" : "s show"} your name. The rest are anonymous.` : "All your reviews are anonymous. You can show your name on any of them."}</span>
+          </div>
+        </>
+      )}
 
       <div className="tabs" role="tablist" aria-label="Your activity">
         <button type="button" role="tab" aria-selected={tab === "reviews"} className={tab === "reviews" ? "on" : ""} onClick={() => setTab("reviews")}>
-          My reviews{reviews ? ` (${reviews.length})` : ""}
+          <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="star" size={16} />Reviews{reviews ? ` ${reviews.length}` : ""}</span>
         </button>
         <button type="button" role="tab" aria-selected={tab === "saved"} className={tab === "saved" ? "on" : ""} onClick={() => setTab("saved")}>
-          Saved{saved ? ` (${saved.length})` : ""}
+          <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="bookmark" size={16} />Saved{saved ? ` ${saved.length}` : ""}</span>
         </button>
       </div>
 
       {tab === "reviews" ? (
         reviewsErr ? <Retry msg={`Couldn't load your reviews: ${reviewsErr}`} onRetry={loadReviews} /> :
         reviews === null ? <Spinner /> :
-        reviews.length === 0 ? <div className="empty"><p>Your reviews show up here.</p><Link to="/scan" className="btn ghost">Scan a table code</Link></div> :
+        reviews.length === 0 ? (
+          <div className="card">
+            <EmptyArt icon="star" tone="amber" title="No reviews yet">
+              <Link to="/scan" className="btn green small"><Icon name="scan" size={16} />Scan a table QR</Link>
+            </EmptyArt>
+          </div>
+        ) : (
           <div className="stack">
             {reviews.map((r) => {
-              const editing = draft?.id === r.id;
+              const editingThis = draft?.id === r.id;
+              const what = r.items?.name || "this item";
               return (
-                <ReviewCard key={r.id} r={editing ? { ...r, rating: draft.rating, body: "" } : r} mine showPlace>
-                  {editing ? (
+                <ReviewCard key={r.id} r={editingThis ? { ...r, rating: draft.rating, body: "" } : r} mine showPlace>
+                  {editingThis ? (
                     <form className="stack" onSubmit={saveReview}>
                       <StarInput value={draft.rating} onChange={(v) => setDraft({ ...draft, rating: v })} />
                       <div className="field">
@@ -192,41 +246,57 @@ export default function Me() {
                           onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
                         <span className="tiny muted" style={{ alignSelf: "flex-end" }}>{draft.body.length}/2000</span>
                       </div>
-                      <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
-                        <button type="button" className="btn small quiet" onClick={() => setDraft(null)} disabled={savingReview}>Cancel</button>
-                        <button className="btn small" disabled={savingReview}>{savingReview ? "Saving…" : "Save"}</button>
+                      <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                        <button type="button" className="icon-act" onClick={() => setDraft(null)} disabled={savingReview} aria-label="Cancel" title="Cancel"><Icon name="close" size={18} /></button>
+                        <button className="btn small green" disabled={savingReview}><Icon name="check" size={16} />{savingReview ? "Saving…" : "Save"}</button>
                       </div>
                     </form>
                   ) : (
-                    <div className="row wrap" style={{ justifyContent: "flex-end", gap: 14 }}>
-                      {r.status === "hidden" && <span className="badge red" style={{ marginRight: "auto" }}>Hidden by moderators</span>}
-                      {r.status === "published" && <Link to={`/saved/${r.id}`} className="small strong">Post on Google</Link>}
-                      {!isGuest && <button type="button" className="link-btn small strong" onClick={() => setVisibility(r.id, !r.is_public)}
-                        aria-label={r.is_public ? `Make review of ${r.items?.name || "this item"} anonymous` : `Show your name on review of ${r.items?.name || "this item"}`}>
-                        {r.is_public ? "Make anonymous" : "Show my name"}</button>}
-                      <button type="button" className="link-btn small strong" onClick={() => setDraft({ id: r.id, rating: r.rating, body: r.body || "" })}
-                        aria-label={`Edit review of ${r.items?.name || "this item"}`}>Edit</button>
-                      <button type="button" className="link-btn small strong" style={{ color: "var(--danger)" }} onClick={() => remove(r.id)}
-                        aria-label={`Delete review of ${r.items?.name || "this item"}`}>Delete</button>
+                    <div className="row" style={{ gap: 8 }}>
+                      {r.status === "hidden" ? <span className="badge red" style={{ marginRight: "auto" }}><Icon name="eyeOff" size={12} />Hidden</span> : <span className="grow" />}
+                      {r.status === "published" && (
+                        <Link to={`/saved/${r.id}`} className="icon-act sky" aria-label={`Post review of ${what} on Google`} title="Post on Google"><Icon name="external" size={18} /></Link>
+                      )}
+                      {!isGuest && (
+                        <button type="button" className={`icon-act ${r.is_public ? "green" : ""}`} onClick={() => setVisibility(r.id, !r.is_public)}
+                          aria-label={r.is_public ? `Make review of ${what} anonymous` : `Show your name on review of ${what}`}
+                          title={r.is_public ? "Name shown. Tap to hide" : "Anonymous. Tap to show name"}>
+                          <Icon name={r.is_public ? "eye" : "eyeOff"} size={18} />
+                        </button>
+                      )}
+                      <button type="button" className="icon-act" onClick={() => setDraft({ id: r.id, rating: r.rating, body: r.body || "" })}
+                        aria-label={`Edit review of ${what}`} title="Edit"><Icon name="edit" size={18} /></button>
+                      <button type="button" className="icon-act danger" onClick={() => remove(r.id)}
+                        aria-label={`Delete review of ${what}`} title="Delete"><Icon name="trash" size={18} /></button>
                     </div>
                   )}
                 </ReviewCard>
               );
             })}
           </div>
+        )
       ) : (
         savedErr ? <Retry msg={`Couldn't load saved places: ${savedErr}`} onRetry={loadSaved} /> :
         saved === null ? <Spinner /> :
-        saved.length === 0 ? <div className="empty"><p>Tap the bookmark on a place to save it.</p><Link to="/" className="btn ghost">Discover places</Link></div> :
-          <div className="list">{saved.map((s) => (
-            <Link key={s.place_id} to={`/p/${s.place_id}`} className="list-item">
-              <div className="grow stack tight"><span className="strong">{s.places?.name || "Place no longer listed"}</span><span className="small muted">{[s.places?.category, s.places?.area].filter(Boolean).join(" · ")}</span></div>
-              <Icon name="chev" size={16} color="var(--muted)" />
-            </Link>
-          ))}</div>
+        saved.length === 0 ? (
+          <div className="card">
+            <EmptyArt icon="bookmark" tone="sky" title="Nothing saved">
+              <Link to="/" className="btn small ghost"><Icon name="search" size={16} />Discover places</Link>
+            </EmptyArt>
+          </div>
+        ) : (
+          <div className="menu">{saved.map((s) => {
+            const look = lookFor(s.places?.category);
+            return <MenuRow key={s.place_id} to={`/p/${s.place_id}`} icon={look.icon} tone={look.tone} title={s.places?.name || "Place no longer listed"} sub={[s.places?.category, s.places?.area].filter(Boolean).join(" · ")} />;
+          })}</div>
+        )
       )}
 
-      {!isGuest && <button type="button" className="btn quiet block" onClick={doSignOut} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button>}
+      {!isGuest && (
+        <div className="menu">
+          <MenuRow icon="logout" tone="coral" title={signingOut ? "Signing out…" : "Sign out"} onClick={doSignOut} right={<span />} />
+        </div>
+      )}
     </div>
   );
 }

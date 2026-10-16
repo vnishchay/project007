@@ -6,8 +6,12 @@ import type { Place, Tag, Topic } from "../lib/types";
 import { Icon, Spinner, StarInput, TopBar } from "../components/ui";
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
+import { ProductPicker } from "../components/ProductPicker";
+import { loadShopItems, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import "../styles/place.css";
 
-interface ItemOpt { id: string; name: string; topic_id: number | null; count: number }
+type ItemOpt = ShopItem & { count: number };
+const RATING_WORDS = ["", "Not good", "Okay", "Good", "Great", "Loved it"];
 
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 type RecognitionCtor = new () => Recognition;
@@ -62,6 +66,7 @@ export default function Review() {
   const [visitOpen, setVisitOpen] = useState(false);
 
   const [itemName, setItemName] = useState("");
+  const [itemId, setItemId] = useState<string | null>(null);
   const [custom, setCustom] = useState(false);
   const [topicId, setTopicId] = useState<number | "">("");
   const topicTouched = useRef(false);
@@ -90,9 +95,10 @@ export default function Review() {
     setPlace(undefined);
     (async () => {
       try {
-        const [p, it, tp, tg, v] = await Promise.all([
+        const [p, it, st, tp, tg, v] = await Promise.all([
           supabase.from("places").select("id, name, area, category, city, google_place_id, status").eq("id", placeId).maybeSingle(),
-          supabase.from("items").select("id, name, topic_id, item_stats(review_count)").eq("place_id", placeId),
+          loadShopItems(placeId),
+          supabase.from("item_stats").select("item_id, review_count").eq("place_id", placeId),
           supabase.from("topics").select("id, name").order("name"),
           supabase.from("tags").select("id, label").order("id"),
           supabase.from("visits").select("id").eq("user_id", uid).eq("place_id", placeId).gt("expires_at", new Date().toISOString()).limit(1),
@@ -108,12 +114,12 @@ export default function Review() {
         }
         const pl = (p.data as Place | null) ?? null;
         setPlace(pl && pl.status === "live" ? pl : null);
-        const opts = ((it.data || []) as unknown as { id: string; name: string; topic_id: number | null; item_stats: { review_count: number } | { review_count: number }[] | null }[]).map((i) => {
-          const st = Array.isArray(i.item_stats) ? i.item_stats[0] : i.item_stats;
-          return { id: i.id, name: i.name, topic_id: i.topic_id, count: st?.review_count ?? 0 };
-        }).sort((a, b) => b.count - a.count);
+        const counts = new Map(((st.data || []) as { item_id: string; review_count: number }[]).map((x) => [x.item_id, x.review_count]));
+        const opts = sortShopItems(it.items.map((i) => ({ ...i, count: counts.get(i.id) ?? 0 })), (i) => i.count);
         setItems(opts);
-        if (!opts.length) setCustom(true);
+        const pre = opts.find((i) => i.id === params.get("item"));
+        if (pre) { setCustom(false); setItemName(pre.name); setItemId(pre.id); }
+        else if (!opts.length) setCustom(true);
         const tps = (tp.data as Topic[]) || [];
         setTopics(tps);
         setTags((tg.data as Tag[]) || []);
@@ -134,6 +140,13 @@ export default function Review() {
 
   // Stop listening if the page goes away.
   useEffect(() => () => rec.current?.stop(), []);
+
+  function pickItem(i: ShopItem) {
+    setCustom(false); setItemName(i.name); setItemId(i.id); setErr("");
+  }
+  function pickOther() {
+    setCustom(true); setItemName(""); setItemId(null);
+  }
 
   function toggleTag(id: number) {
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -272,21 +285,21 @@ export default function Review() {
 
   const bodyLen = withCustomTags(body, customTags).length;
   const busy = Boolean(saving);
+  const look = shopLook(place.category);
+  const picked1 = items.find((i) => i.id === itemId);
 
   return (
     <div className="page">
-      <TopBar title={place.name} sub={visitOpen ? <span className="green strong">✓ Verified visit</span> : "Scan the table code for a verified badge"} />
+      <TopBar title={place.name} sub={visitOpen
+        ? <span className="green strong rv-verified"><Icon name="verified" size={13} />Verified visit</span>
+        : <span className="rv-verified"><Icon name="qr" size={13} />Scan the table QR for a verified badge</span>} />
 
-      <div className="stack">
-        <h2 id="what-h">What did you have?</h2>
-        {items.length > 0 && (
-          <div className="chips" role="group" aria-labelledby="what-h">
-            {items.map((i) => (
-              <button key={i.id} type="button" aria-pressed={!custom && itemName === i.name} className={`chip ${!custom && itemName === i.name ? "on" : ""}`} onClick={() => { setCustom(false); setItemName(i.name); }}>{i.name}</button>
-            ))}
-            <button type="button" aria-pressed={custom} className={`chip dashed ${custom ? "on" : ""}`} onClick={() => { setCustom(true); setItemName(""); }}>+ Other</button>
-          </div>
-        )}
+      <section className="rv-section">
+        <div className="section-title" id="what-h">
+          <span className={`icon-chip sm ${look.tint}`}><Icon name={look.icon} size={16} /></span>
+          <span className="grow">What did you have?</span>
+        </div>
+        {items.length > 0 && <ProductPicker items={items} selected={itemId} other={custom} onPick={pickItem} onOther={pickOther} icon={look.icon} labelledBy="what-h" />}
         {custom && (
           <div className="grid2" style={{ gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)" }}>
             <input
@@ -309,85 +322,104 @@ export default function Review() {
             </select>
           </div>
         )}
-      </div>
+      </section>
 
-      <StarInput value={rating} onChange={setRating} />
+      <section className="rv-card" aria-label="Rating">
+        {picked1 && !custom && <div className="rv-chosen"><Icon name="check" size={16} width={3} /><span className="grow ellipsis">{picked1.name}</span></div>}
+        <StarInput value={rating} onChange={setRating} />
+        <div className="rv-rating-word" aria-live="polite">{RATING_WORDS[rating] || <span className="muted small">Tap to rate</span>}</div>
+        <div className="chips" role="group" aria-label="Tags" style={{ justifyContent: "center" }}>
+          {tags.map((t) => <button key={t.id} type="button" aria-pressed={picked.includes(t.id)} className={`tag ${picked.includes(t.id) ? "" : "off"}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
+          {customTags.map((t) => (
+            <button key={`c-${t}`} type="button" className="tag" aria-label={`Remove tag ${t}`} onClick={() => setCustomTags((c) => c.filter((x) => x !== t))}>
+              {t} <span aria-hidden="true">×</span>
+            </button>
+          ))}
+          {tagDraft === null ? (
+            customTags.length < MAX_CUSTOM_TAGS && <button type="button" className="tag off" style={{ borderStyle: "dashed", display: "inline-flex", alignItems: "center", gap: 3 }} aria-label="Add your own tag" onClick={() => setTagDraft("")}><Icon name="plus" size={12} />tag</button>
+          ) : (
+            <span className="row" style={{ gap: 6 }}>
+              <input
+                className="input"
+                style={{ padding: "5px 10px", fontSize: 13, width: 140, borderRadius: 8 }}
+                value={tagDraft}
+                maxLength={30}
+                autoFocus
+                aria-label="Your own tag"
+                placeholder="e.g. Crispy"
+                onChange={(e) => setTagDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); addCustomTag(); }
+                  if (e.key === "Escape") setTagDraft(null);
+                }}
+                onBlur={addCustomTag}
+              />
+            </span>
+          )}
+        </div>
+      </section>
 
-      <div className="chips" role="group" aria-label="Tags">
-        {tags.map((t) => <button key={t.id} type="button" aria-pressed={picked.includes(t.id)} className={`tag ${picked.includes(t.id) ? "" : "off"}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
-        {customTags.map((t) => (
-          <button key={`c-${t}`} type="button" className="tag" aria-label={`Remove tag ${t}`} onClick={() => setCustomTags((c) => c.filter((x) => x !== t))}>
-            {t} <span aria-hidden="true">×</span>
-          </button>
-        ))}
-        {tagDraft === null ? (
-          customTags.length < MAX_CUSTOM_TAGS && <button type="button" className="tag off" style={{ borderStyle: "dashed" }} onClick={() => setTagDraft("")}>+ tag</button>
-        ) : (
-          <span className="row" style={{ gap: 6 }}>
-            <input
-              className="input"
-              style={{ padding: "5px 10px", fontSize: 13, width: 140, borderRadius: 8 }}
-              value={tagDraft}
-              maxLength={30}
-              autoFocus
-              aria-label="Your own tag"
-              placeholder="e.g. Crispy"
-              onChange={(e) => setTagDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); addCustomTag(); }
-                if (e.key === "Escape") setTagDraft(null);
-              }}
-              onBlur={addCustomTag}
-            />
-          </span>
-        )}
-      </div>
-
-      <div className="stack">
-        <div className="row between">
-          <h2><label htmlFor="review-body">Your review</label></h2>
-          {aiDrafted && <span className="tiny green strong">Drafted with AI, edit freely</span>}
+      <section className="rv-section">
+        <div className="section-title">
+          <span className="icon-chip sm sky"><Icon name="edit" size={16} /></span>
+          <label htmlFor="review-body" className="grow">Your words</label>
+          {aiDrafted && <span className="tiny green strong row" style={{ gap: 4 }}><Icon name="spark" size={13} />AI draft</span>}
         </div>
         <textarea
           id="review-body"
           className="textarea"
-          placeholder={canDictate ? "A few words on what made it good or not. Or tap Talk and just speak." : "A few words on what made it good or not."}
+          placeholder={canDictate ? "What made it good or not? Or tap the mic and speak." : "What made it good or not?"}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           maxLength={MAX_BODY}
         />
         {bodyLen > MAX_BODY - 200 && <span className="tiny muted" style={{ textAlign: "right" }}>{bodyLen}/{MAX_BODY}</span>}
-        <div className="row wrap">
+        <div className="rv-tools">
           {canDictate && (
             <button type="button" aria-pressed={listening} className={`btn small ${listening ? "green" : "ghost"}`} onClick={dictate} disabled={recording || busy}><Icon name="mic" size={16} />{listening ? "Listening… tap to stop" : "Talk"}</button>
           )}
-          <button type="button" className="btn small ghost" onClick={draft} disabled={drafting || busy}><Icon name="spark" size={16} />{drafting ? "Drafting…" : body ? "Polish with AI" : "Draft with AI"}</button>
+          <button type="button" className="btn small ghost" onClick={draft} disabled={drafting || busy}><Icon name="spark" size={16} color="var(--violet)" />{drafting ? "Drafting…" : body ? "Polish with AI" : "Draft with AI"}</button>
         </div>
-      </div>
+      </section>
 
-      <div className="stack">
-        <h2>Add a photo or voice note <span className="tiny muted" style={{ fontWeight: 600 }}>(optional)</span></h2>
+      <section className="rv-section">
+        <div className="section-title">
+          <span className="icon-chip sm coral"><Icon name="camera" size={16} /></span>
+          <span className="grow">Photo or voice</span>
+          <span className="muted">optional</span>
+        </div>
         <ReviewPhotoPicker value={photo} onChange={setPhoto} disabled={busy} />
         {canRecord && <ReviewVoiceRecorder value={voice} onChange={setVoice} disabled={busy || listening} onRecordingChange={setRecording} />}
-      </div>
+      </section>
 
       {isGuest ? (
-        <p className="small muted">Posting anonymously as a guest. No one can see it was you. <a href={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`}>Sign in</a> only if you want your name on it.</p>
-      ) : <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-        <legend className="strong" style={{ fontSize: 16, marginBottom: 10 }}>Who can see it's you</legend>
-        <label className="card row" style={{ cursor: "pointer", flexDirection: "row", alignItems: "flex-start", borderColor: !isPublic ? "var(--green)" : "var(--line)" }}>
-          <input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} style={{ width: 20, height: 20, accentColor: "var(--green)", marginTop: 2 }} />
-          <span className="grow"><b>Post anonymously</b><br /><span className="small muted">Your rating counts, but no one can see you wrote it or that you went there.</span></span>
-        </label>
-        <label className="card row" style={{ cursor: "pointer", flexDirection: "row", alignItems: "flex-start", borderColor: isPublic ? "var(--green)" : "var(--line)" }}>
-          <input type="radio" name="visibility" checked={isPublic} onChange={() => setIsPublic(true)} style={{ width: 20, height: 20, accentColor: "var(--green)", marginTop: 2 }} />
-          <span className="grow"><b>Show my name</b><br /><span className="small muted">Your name and photo appear on this review, like a Google review. Friends who synced contacts see you were here.</span></span>
-        </label>
+        <div className="notice row small" style={{ alignItems: "flex-start" }}>
+          <Icon name="eyeOff" size={18} color="var(--muted)" />
+          <span className="grow">Posting anonymously as a guest. No one can see it was you. <a href={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`}>Sign in</a> only if you want your name on it.</span>
+        </div>
+      ) : <fieldset className="rv-section" style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="section-title" style={{ marginBottom: 12 }}>
+          <span className="icon-chip sm violet"><Icon name="shield" size={16} /></span>Who sees it's you
+        </legend>
+        <div className="rv-who">
+          <label className={!isPublic ? "on" : ""}>
+            <input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} />
+            <span className={`icon-chip ${!isPublic ? "" : "sky"}`}><Icon name="eyeOff" size={20} /></span>
+            <b>Anonymous</b>
+            <span className="tiny">Your rating counts. No one sees it was you.</span>
+          </label>
+          <label className={isPublic ? "on" : ""}>
+            <input type="radio" name="visibility" checked={isPublic} onChange={() => setIsPublic(true)} />
+            <span className={`icon-chip ${isPublic ? "" : "sky"}`}><Icon name="user" size={20} /></span>
+            <b>Show my name</b>
+            <span className="tiny">Name and photo on the review. Friends see you were here.</span>
+          </label>
+        </div>
         <span className="tiny muted">You can change this later from your profile.</span>
       </fieldset>}
 
       {err && <div className="notice err" role="alert">{err}</div>}
-      <button className="btn block" onClick={save} disabled={busy || recording}>{saving || "Save review"}</button>
+      <button className="btn green block" onClick={save} disabled={busy || recording} style={{ height: 56, fontSize: 17 }}>{saving || <><Icon name="send" size={18} />Post review</>}</button>
     </div>
   );
 }

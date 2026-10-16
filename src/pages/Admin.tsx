@@ -4,14 +4,18 @@ import { supabase, errorText } from "../lib/supabase";
 import { useSettings, type AppSettings } from "../lib/settings";
 import type { ListingRequest, Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
-import { Icon, useToast } from "../components/ui";
+import { Icon, useToast, type IconName } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { CoordsField } from "../components/CoordsField";
+import "../styles/manage.css";
+
+type Tab = "requests" | "places" | "reviews" | "settings";
+const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["settings", "settings", "Settings"]];
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
 export default function Admin() {
-  const [tab, setTab] = useState<"requests" | "places" | "reviews" | "settings">("requests");
+  const [tab, setTab] = useState<Tab>("requests");
   const [sum, setSum] = useState<Summary | null>(null);
   const [n, setN] = useState(0);
   const refresh = () => setN((x) => x + 1);
@@ -22,17 +26,20 @@ export default function Admin() {
 
   return (
     <div className="page">
-      <div className="row between"><h1>Admin</h1><Link to="/me" className="btn small ghost"><Icon name="user" size={16} />Your profile</Link></div>
-      <div className="kpis">
-        <div className="kpi"><div className="n">{sum?.to_review ?? "–"}</div><div className="l">to review</div></div>
-        <div className="kpi"><div className="n">{sum?.live_places ?? "–"}</div><div className="l">live places</div></div>
-        <div className="kpi"><div className="n">{sum ? rupees(sum.collected_inr) : "–"}</div><div className="l">collected</div></div>
+      <div className="ad-head">
+        <span className="icon-chip lg violet"><Icon name="shield" size={26} /></span>
+        <h1 className="grow">Admin</h1>
+        <Link to="/me" className="icon-btn" aria-label="Your profile"><Icon name="user" size={20} /></Link>
       </div>
-      <div className="tabs">
-        <button className={tab === "requests" ? "on" : ""} onClick={() => setTab("requests")}>Requests</button>
-        <button className={tab === "places" ? "on" : ""} onClick={() => setTab("places")}>Places</button>
-        <button className={tab === "reviews" ? "on" : ""} onClick={() => setTab("reviews")}>Reviews</button>
-        <button className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Settings</button>
+      <div className="kpis">
+        <div className="kpi ad-kpi"><span className="icon-chip sm amber"><Icon name="ticket" size={16} /></span><div className="n">{sum?.to_review ?? "–"}</div><div className="l">to review</div></div>
+        <div className="kpi ad-kpi"><span className="icon-chip sm"><Icon name="store" size={16} /></span><div className="n">{sum?.live_places ?? "–"}</div><div className="l">live places</div></div>
+        <div className="kpi ad-kpi"><span className="icon-chip sm sky"><Icon name="wallet" size={16} /></span><div className="n">{sum ? rupees(sum.collected_inr) : "–"}</div><div className="l">collected</div></div>
+      </div>
+      <div className="tabs ad-tabs" role="tablist">
+        {TABS.map(([k, icon, label]) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}><Icon name={icon} size={18} />{label}</button>
+        ))}
       </div>
       {tab === "requests" && <Requests key={n} onChange={refresh} />}
       {tab === "places" && <Places key={n} onChange={refresh} />}
@@ -62,7 +69,7 @@ function Requests({ onChange }: { onChange: () => void }) {
         <button className={`chip ${filter === "all" ? "on" : ""}`} onClick={() => setFilter("all")}>All</button>
       </div>
       {err && <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={load}>Retry</button></div>}
-      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><p>{filter === "open" ? "No requests waiting." : "No requests yet."}</p></div> :
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><span className="icon-chip lg"><Icon name="checkCircle" size={26} /></span><p>{filter === "open" ? "No requests waiting." : "No requests yet."}</p></div> :
         rows.map((r) => <RequestAdminCard key={r.id} r={r} onDone={() => { load(); onChange(); }} />)}
     </div>
   );
@@ -124,7 +131,7 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
           {r.status === "pending" && (
             <div className="row">
               <input className="input" placeholder="UPI / payment ref (optional)" value={ref} onChange={(e) => setRef(e.target.value)} />
-              <button className="btn small green" style={{ height: 50 }} disabled={busy} onClick={markPaid}>Mark paid</button>
+              <button className="btn small green" style={{ height: 50 }} disabled={busy} onClick={markPaid}><Icon name="wallet" size={16} />Paid</button>
             </div>
           )}
           {(r.status === "pending" || r.status === "paid") && (
@@ -140,12 +147,17 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
               </div>
               {r.status === "pending" && <div className="notice warn small">Not marked paid yet. Approving anyway records no payment.</div>}
               <div className="row">
-                <button className="btn small grow" disabled={busy} onClick={approve}>Approve and go live</button>
-                <button className="btn small danger" disabled={busy} onClick={decline}>Decline</button>
+                <button className="btn small green grow" disabled={busy} onClick={approve}><Icon name="checkCircle" size={17} />Approve and go live</button>
+                <button className="btn small danger" disabled={busy} onClick={decline} aria-label="Decline"><Icon name="close" size={17} />Decline</button>
               </div>
             </>
           )}
-          {r.place_id && <Link to={`/admin/place/${r.place_id}`} className="link-btn">Manage place and QR codes</Link>}
+          {r.place_id && (
+            <div className="row wrap" style={{ gap: 16 }}>
+              <Link to={`/admin/place/${r.place_id}`} className="link-btn"><Icon name="settings" size={15} />Place and QR codes</Link>
+              <Link to={`/manage/${r.place_id}`} className="link-btn"><Icon name="box" size={15} />Products</Link>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -220,6 +232,7 @@ function Places({ onChange }: { onChange: () => void }) {
         <div className="list">
           {shown.map((p) => (
             <Link key={p.id} to={`/admin/place/${p.id}`} className="list-item">
+              <span className="icon-chip sm"><Icon name="store" size={16} /></span>
               <div className="grow stack tight">
                 <span className="strong">{p.name}</span>
                 <span className="small muted">{[p.category, p.area, p.city].filter(Boolean).join(" · ")}</span>
@@ -271,7 +284,7 @@ function Settings() {
       {field("payee_name", "Payee name")}
       {field("support_phone", "WhatsApp number for businesses", "tel", "919800000000")}
       {field("visit_window_hours", "Hours a QR scan counts as a visit", "number")}
-      <button className="btn block">Save settings</button>
+      <button className="btn green block"><Icon name="check" size={18} />Save settings</button>
       <p className="tiny muted">New prices apply to new requests. Existing requests keep the amount they were sent with.</p>
     </form>
   );
@@ -349,7 +362,7 @@ function Vocabulary() {
 
   const section = (title: string, table: "topics" | "tags", list: { id: number; text: string }[], value: string, setValue: (v: string) => void, ph: string) => (
     <div className="stack">
-      <h2>{title}</h2>
+      <div className="section-title"><span className="icon-chip sm sky"><Icon name={table === "topics" ? "grid" : "tag"} size={16} /></span>{title}</div>
       <div className="chips">{list.map((x) => (
         <span key={x.id} className="chip row" style={{ gap: 6 }}>{x.text}
           <button type="button" className="link-btn" aria-label={`Remove ${x.text}`} onClick={() => remove(table, x.id, x.text)}><Icon name="close" size={14} color="var(--muted)" /></button>
@@ -357,7 +370,7 @@ function Vocabulary() {
       ))}</div>
       <form className="row" onSubmit={(e) => { e.preventDefault(); add(table, value, () => setValue("")); }}>
         <input className="input" placeholder={ph} value={value} onChange={(e) => setValue(e.target.value)} aria-label={ph} />
-        <button className="btn small" style={{ height: 50 }}>Add</button>
+        <button className="btn small" style={{ height: 50 }} aria-label="Add"><Icon name="plus" size={18} /></button>
       </form>
     </div>
   );

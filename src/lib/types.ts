@@ -11,8 +11,6 @@ export interface Profile {
   role: Role;
   created_at: string;
   /** only present on your own profile */
-  phone_set?: boolean;
-  contacts_synced?: boolean;
 }
 
 export interface Place {

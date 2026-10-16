@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { Icon, Spinner, TopBar } from "../components/ui";
+import { Chip, EmptyArt, Glyph, Retry } from "../components/home/Kit";
+import "../styles/home.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label: string | null }
 interface Visit { visit_id: string; expires_at: string }
@@ -61,81 +63,83 @@ export default function QrLanding() {
   if (peekErr) return (
     <div className="page">
       <TopBar />
-      <div className="notice err" role="alert">
-        <div className="stack" style={{ gap: 8 }}>
-          <span>Couldn't check this table code: {peekErr}</span>
-          <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setPeekTry((n) => n + 1)}>Retry</button>
-        </div>
-      </div>
+      <Retry msg={`Couldn't check this table code: ${peekErr}`} onRetry={() => setPeekTry((n) => n + 1)} />
     </div>
   );
   if (peek === undefined) return <div className="page"><Spinner /></div>;
   if (!peek) return (
-    <div className="page"><TopBar /><div className="empty">
-      <h2>This code isn't active</h2>
-      <p>Ask the staff for a new table card, or search for the place instead.</p>
-      <Link className="btn ghost" to="/">Search places</Link>
-    </div></div>
+    <div className="page"><TopBar />
+      <div className="card">
+        <EmptyArt icon="qr" tone="coral" title="This code isn't active">
+          <span className="small">Ask the staff for a new table card.</span>
+          <Link className="btn small ghost" to="/"><Icon name="search" size={16} />Search places</Link>
+        </EmptyArt>
+      </div>
+    </div>
   );
 
-  const where = [peek.table_label, peek.area].filter(Boolean).join(" · ");
   const until = visit?.expires_at ? new Date(visit.expires_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : null;
   const next = `/q/${token}`;
 
+  async function rateAsGuest() {
+    // Start a guest session and unlock the verified visit before moving on.
+    setStarting(true); setGuestErr(""); startingGuest.current = true;
+    const ok = await startGuest();
+    setStarting(false);
+    if (ok) {
+      const { data } = await supabase.auth.getSession();
+      scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
+      await supabase.rpc("scan_qr", { p_token: token });
+      navTo(`/review/${peek!.place_id}`);
+    } else {
+      startingGuest.current = false;
+      setGuestErr("Reviewing without an account isn't switched on yet. Sign in to continue.");
+    }
+  }
+
   return (
-    <div className="page">
-      <TopBar />
-      <div className="stack center" style={{ alignItems: "center", gap: 10, marginTop: 8 }}>
-        <span className="avatar lg" style={{ background: "var(--green-soft)" }}><Icon name={visit ? "check" : "store"} size={28} color="var(--green)" width={2.6} /></span>
+    <div className="page" style={{ gap: 18 }}>
+      <header className="hero" style={{ alignItems: "center", textAlign: "center", paddingTop: 22 }}>
+        <span className="success-burst"><Icon name={visit ? "verified" : "store"} size={36} color="#fff" width={2.2} /></span>
         <h1 style={{ overflowWrap: "anywhere" }}>{peek.place_name}</h1>
-        {where && <span className="muted">{where}</span>}
-      </div>
+        <div className="row wrap" style={{ justifyContent: "center", gap: 6 }}>
+          {peek.table_label && <span className="pill white"><Icon name="qr" size={13} />{peek.table_label}</span>}
+          {peek.area && <span className="pill white"><Icon name="pin" size={13} />{peek.area}</span>}
+        </div>
+      </header>
 
       <div aria-live="polite">
         {loading ? <Spinner /> : session ? (
           visit ? (
-            <div className="notice ok center" role="status"><b>Verified visit unlocked.</b> Reviews you write here{until ? ` until ${until}` : " in the next few hours"} get the verified badge and count for more with people who trust you.</div>
-          ) : scanErr ? (
-            <div className="notice err" role="alert">
-              <div className="stack" style={{ gap: 8 }}>
-                <span>Couldn't unlock a verified visit: {scanErr}. You can still review, just without the badge.</span>
-                <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setScanTry((n) => n + 1)}>Try again</button>
-              </div>
+            <div className="callout sky" role="status">
+              <Chip icon="verified" tone="sky" />
+              <span className="grow stack tight"><span className="strong">Verified visit unlocked</span><span className="tiny row" style={{ gap: 4 }}><Icon name="clock" size={12} />{until ? `Until ${until}` : "For the next few hours"} · counts for more</span></span>
             </div>
+          ) : scanErr ? (
+            <Retry msg={`Couldn't unlock a verified visit: ${scanErr}. You can still review.`} onRetry={() => setScanTry((n) => n + 1)} />
           ) : scanning ? (
-            <div className="row" style={{ justifyContent: "center" }}><span className="small muted">Unlocking your verified visit…</span></div>
+            <div className="callout sky"><Chip icon="verified" tone="sky" /><span className="small grow">Unlocking your verified visit…</span></div>
           ) : null
         ) : (
-          <div className="notice">Rate what you had, no account needed. Your review is anonymous and carries a <b>verified visit</b> badge because you scanned the table code.</div>
+          <div className="stack" style={{ gap: 8 }}>
+            <div className="callout green"><Chip icon="star" size="sm" /><span className="small strong grow">Rate what you had, no account needed</span></div>
+            <div className="callout violet"><Chip icon="eyeOff" tone="violet" size="sm" /><span className="small strong grow">Anonymous by default</span></div>
+            <div className="callout sky"><Chip icon="verified" tone="sky" size="sm" /><span className="small strong grow">Verified visit badge</span></div>
+          </div>
         )}
       </div>
 
       <div className="stack" style={{ marginTop: "auto" }}>
         {loading ? null : session ? (
-          <Link to={`/review/${peek.place_id}`} className="btn block">Rate what you had</Link>
+          <Link to={`/review/${peek.place_id}`} className="btn green block"><Icon name="star" size={18} />Rate what you had</Link>
         ) : (
           <>
-            <button className="btn block" disabled={starting} onClick={async () => {
-              // Start a guest session; the effect above then unlocks the verified visit.
-              setStarting(true); setGuestErr(""); startingGuest.current = true;
-              const ok = await startGuest();
-              setStarting(false);
-              if (ok) {
-                // Unlock the verified visit before moving on (the effect above won't get the chance).
-                const { data } = await supabase.auth.getSession();
-                scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
-                await supabase.rpc("scan_qr", { p_token: token });
-                navTo(`/review/${peek.place_id}`);
-              } else {
-                startingGuest.current = false;
-                setGuestErr("Reviewing without an account isn't switched on yet. Sign in to continue.");
-              }
-            }}>{starting ? "Opening…" : "Rate what you had"}</button>
+            <button className="btn green block" disabled={starting} onClick={rateAsGuest}><Icon name="star" size={18} />{starting ? "Opening…" : "Rate what you had"}</button>
             {guestErr && <div className="notice err">{guestErr}</div>}
-            <Link to={`/signin?next=${encodeURIComponent(next)}`} className="btn ghost block">Sign in (optional)</Link>
+            <Link to={`/signin?next=${encodeURIComponent(next)}`} className="btn ghost block"><Icon name="login" size={18} />Sign in (optional)</Link>
           </>
         )}
-        <Link to={`/p/${peek.place_id}`} className="btn quiet block">See what others loved here</Link>
+        <Link to={`/p/${peek.place_id}`} className="btn quiet block"><Glyph name="heart" size={18} />See what others loved</Link>
       </div>
     </div>
   );

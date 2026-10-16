@@ -307,3 +307,18 @@ returns boolean language sql stable security definer set search_path = public as
   select public.is_admin() or public.is_place_owner(p_place);
 $$;
 grant execute on function public.can_manage_place(uuid) to anon, authenticated;
+
+-- Owners see their own table QR codes and can pin their shop on the map.
+drop policy if exists "owners read own qr" on public.qr_codes;
+create policy "owners read own qr" on public.qr_codes for select to authenticated
+  using (public.is_place_owner(place_id));
+
+create or replace function public.set_place_location(p_place uuid, p_lat double precision, p_lng double precision)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if not (public.is_admin() or public.is_place_owner(p_place)) then raise exception 'only the shop owner can change this'; end if;
+  update public.places
+    set location = case when p_lat is null or p_lng is null then null
+                        else st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography end
+    where id = p_place;
+end $$;

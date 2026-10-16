@@ -20,7 +20,7 @@ const ICONS = {
   login: L.LogIn, crown: L.Crown, box: L.Package, tag: L.Tag, rupee: L.IndianRupee, grip: L.GripVertical,
   flame: L.Flame, trophy: L.Trophy, award: L.Award, lock: L.Lock, send: L.Send, info: L.Info, alert: L.CircleAlert,
   zap: L.Zap, wallet: L.Wallet, dashboard: L.LayoutDashboard, chart: L.ChartBar, filter: L.Filter, list: L.List,
-  grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,
+  grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, cake: L.CakeSlice, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,
 } satisfies Record<string, L.LucideIcon>;
 export type IconName = keyof typeof ICONS;
 
@@ -101,7 +101,7 @@ function BottomNav() {
   return (
     <nav className="nav no-print" aria-label="Main">
       <NavLink to="/" end><Icon name="home" size={22} />Discover</NavLink>
-      <NavLink to="/circle"><Icon name="people" size={22} />Circle</NavLink>
+      <NavLink to="/circle"><Icon name="people" size={22} />Friends</NavLink>
       <NavLink to="/scan" aria-label="Scan a table QR"><span className="scan-dot"><Icon name="scan" size={22} color="#fff" /></span></NavLink>
       <NavLink to="/rate"><Icon name="star" size={22} />Rate</NavLink>
       <NavLink to="/me"><Icon name="user" size={22} />You</NavLink>

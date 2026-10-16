@@ -3,18 +3,25 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import type { ReviewRow } from "../lib/types";
 import { timeAgo } from "../lib/util";
-import { Avatar, Icon, Stars } from "./ui";
+import { Avatar, Icon, Stars, type IconName } from "./ui";
+import { ItemThumb } from "./place/ItemThumb";
+import "../styles/place.css";
 
 export function reviewPhotoUrl(path: string | null | undefined): string | null {
   return path ? supabase.storage.from("review-photos").getPublicUrl(path).data.publicUrl : null;
 }
 
-function VoiceNote({ path }: { path: string }) {
+export function VoiceNote({ path }: { path: string }) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     supabase.storage.from("voice").createSignedUrl(path, 3600).then(({ data }) => setSrc(data?.signedUrl ?? null));
   }, [path]);
-  return src ? <audio controls preload="none" src={src} style={{ width: "100%", height: 36 }} aria-label="Voice note" /> : null;
+  return src ? (
+    <div className="rc-voice">
+      <span className="icon-chip sm sky"><Icon name="mic" size={16} /></span>
+      <audio controls preload="none" src={src} aria-label="Voice note" />
+    </div>
+  ) : null;
 }
 
 // Anonymous reviews show only a rough date, so a time can't point to a person.
@@ -25,41 +32,53 @@ function roughDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 }
 
-export function ReviewCard({ r, mine, friend, expert, showPlace = false, children }: { r: ReviewRow; mine?: boolean; friend?: boolean; expert?: string | null; showPlace?: boolean; children?: ReactNode }) {
+function ReviewPhoto({ path, alt }: { path: string; alt: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return null;
+  return <img className="rc-photo" src={reviewPhotoUrl(path)!} alt={alt} loading="lazy" onError={() => setBroken(true)} />;
+}
+
+export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemImage, itemIcon = "food", children }: {
+  r: ReviewRow; mine?: boolean; friend?: boolean; expert?: string | null; showPlace?: boolean;
+  /** the product's shop photo (place-media path), shown in the item chip */
+  itemImage?: string | null; itemIcon?: IconName; children?: ReactNode;
+}) {
   const anon = !r.user_id;
   const name = mine ? "You" : anon ? "Anonymous" : r.author_name || "Someone";
   const tags = (r.review_tags || []).map((t) => t.tags?.label).filter(Boolean) as string[];
-  const who = anon
-    ? <span className="avatar" style={{ background: "var(--surface)", color: "var(--muted)" }} aria-hidden="true"><Icon name="user" size={18} /></span>
+  const who = anon || !r.author_name
+    ? <span className="avatar rc-anon" aria-hidden="true"><Icon name="user" size={20} /></span>
     : <Link to={`/u/${r.user_id}`} aria-label={`${name}'s profile`}><Avatar id={r.user_id!} name={r.author_name} path={r.author_avatar} /></Link>;
   return (
-    <div className="card">
-      <div className="row">
+    <article className="rc">
+      <div className="rc-head">
         {who}
-        <div className="grow stack tight">
-          <span className="row" style={{ gap: 6 }}>
+        <div className="grow stack" style={{ gap: 3 }}>
+          <span className="row wrap" style={{ gap: 6 }}>
             {anon ? <span className="strong">{name}</span> : <Link to={`/u/${r.user_id}`} className="strong" style={{ color: "inherit" }}>{name}</Link>}
-            {mine && <span className={`badge ${r.is_public ? "" : "gray"}`}>{r.is_public ? "Shown with your name" : "Anonymous"}</span>}
-            {friend && !mine && <span className="badge gray">You follow</span>}
-            {expert && !mine && <span className="badge">{expert} expert</span>}
+            {mine && <span className={`badge ${r.is_public ? "" : "gray"}`}><Icon name={r.is_public ? "eye" : "eyeOff"} size={12} />{r.is_public ? "Named" : "Anonymous"}</span>}
+            {friend && !mine && <span className="badge"><Icon name="people" size={12} />Friend</span>}
+            {expert && !mine && <span className="badge warn"><Icon name="award" size={12} />{expert}</span>}
           </span>
-          <span className="tiny muted">
-            {r.verified ? <span className="green strong">✓ Verified visit · </span> : null}
-            {anon && !mine ? roughDate(r.created_at) : timeAgo(r.created_at)}
+          <span className="row" style={{ gap: 8 }}>
+            <Stars value={r.rating} size={15} />
+            <span className="tiny muted">{anon && !mine ? roughDate(r.created_at) : timeAgo(r.created_at)}</span>
           </span>
         </div>
-        <Stars value={r.rating} />
+        {r.verified && <span className="rc-verified" title="Verified visit" aria-label="Verified visit"><Icon name="verified" size={20} /></span>}
       </div>
-      <div className="small strong">
-        {r.items?.name}
-        {showPlace && r.places ? <> · <Link to={`/p/${r.place_id}`}>{r.places.name}</Link></> : null}
-      </div>
-      {r.body && <p style={{ fontSize: 15, lineHeight: 1.5, color: "var(--ink-2)" }}>{r.body}</p>}
-      {r.photo_path && <img src={reviewPhotoUrl(r.photo_path)!} alt={`Photo of ${r.items?.name || "the order"}`} loading="lazy" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 12 }} />}
+      {(r.items?.name || (showPlace && r.places)) && (
+        <div className="rc-item">
+          {r.items?.name && <span className="rc-chip"><ItemThumb path={itemImage} icon={itemIcon} size={26} />{r.items.name}</span>}
+          {showPlace && r.places ? <Link to={`/p/${r.place_id}`} className="rc-chip place"><Icon name="store" size={14} />{r.places.name}</Link> : null}
+        </div>
+      )}
+      {r.body && <p className="rc-body">{r.body}</p>}
+      {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${r.items?.name || "the order"}`} />}
       {r.voice_path && <VoiceNote path={r.voice_path} />}
-      {tags.length > 0 && <div className="chips">{tags.map((t) => <span key={t} className="tag">{t}</span>)}</div>}
+      {tags.length > 0 && <div className="rc-tags">{tags.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
       {children}
-    </div>
+    </article>
   );
 }
 

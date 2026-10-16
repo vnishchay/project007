@@ -49,7 +49,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/u/:id" element={<Person />} />
                 <Route path="/review/:placeId" element={<RequireAuth guestOk><Review /></RequireAuth>} />
                 <Route path="/saved/:reviewId" element={<RequireAuth guestOk><Saved /></RequireAuth>} />
-                <Route path="/circle" element={<RequireAuth><Circle /></RequireAuth>} />
+                <Route path="/circle" element={<RequireAuth allowGuest><Circle /></RequireAuth>} />
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
                 <Route path="/manage/:placeId" element={<RequireAuth><Manage /></RequireAuth>} />

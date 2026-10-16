@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { supabase, PROFILE_COLS, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useFollowing } from "../lib/follows";
 import type { Profile, ReviewRow } from "../lib/types";
-import { Avatar, Spinner, TopBar, useToast } from "../components/ui";
+import { Avatar, Icon, Spinner, TopBar, useToast } from "../components/ui";
+import { EmptyArt, Retry } from "../components/home/Kit";
+import "../styles/home.css";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,6 +18,7 @@ export default function Person() {
   const { session } = useAuth();
   const me = session?.user.id;
   const toast = useToast();
+  const nav = useNavigate();
   const { following, toggleFollow, pending } = useFollowing(me);
   const [p, setP] = useState<Profile | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
@@ -53,17 +56,18 @@ export default function Person() {
   if (err) return (
     <div className="page">
       <TopBar />
-      <div className="notice err row" role="alert">
-        <span className="grow">Couldn't load this profile: {err}</span>
-        <button type="button" className="link-btn strong" style={{ color: "var(--danger)" }} onClick={retry}>Retry</button>
-      </div>
+      <Retry msg={`Couldn't load this profile: ${err}`} onRetry={retry} />
     </div>
   );
   if (p === undefined) return <div className="page"><TopBar /><Spinner /></div>;
   if (!p) return (
     <div className="page">
       <TopBar />
-      <div className="empty"><h2>Person not found</h2><p>This profile doesn't exist or was removed.</p><Link to="/circle" className="btn ghost">Back to your circle</Link></div>
+      <div className="card">
+        <EmptyArt icon="ghost" tone="sky" title="Person not found">
+          <Link to="/circle" className="btn small ghost"><Icon name="people" size={16} />Friends</Link>
+        </EmptyArt>
+      </div>
     </div>
   );
 
@@ -79,34 +83,39 @@ export default function Person() {
   }
 
   return (
-    <div className="page">
-      <TopBar />
-      <div className="row" style={{ gap: 14 }}>
-        <Avatar id={p.id} name={p.display_name} path={p.avatar_path} size="lg" />
-        <div className="grow stack tight">
-          <span className="strong" style={{ fontSize: 18 }}>{name}</span>
-          {p.city && <span className="small muted">{p.city}</span>}
-          {expertOn.length > 0 && (
-            <span className="row wrap" style={{ gap: 6 }}>{expertOn.map((t) => <span key={t} className="badge">{t} expert</span>)}</span>
+    <div className="page" style={{ gap: 18 }}>
+      <header className="hero sky">
+        <div className="row">
+          <button type="button" className="glass-btn round" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>
+          <span className="grow" />
+          {me ? (
+            <button type="button" className={`btn small ${on ? "glass" : "white"}`} onClick={toggle} disabled={busy}
+              aria-pressed={on} aria-label={`${on ? "Following" : "Follow"} ${name}`} style={on ? undefined : { color: "#1d5fd1" }}>
+              <Icon name={on ? "check" : "userPlus"} size={16} />{on ? "Following" : "Follow"}
+            </button>
+          ) : (
+            <Link to={`/signin?next=${encodeURIComponent(`/u/${id}`)}`} className="btn small white" style={{ color: "#1d5fd1" }}><Icon name="userPlus" size={16} />Follow</Link>
           )}
         </div>
-        {me ? (
-          <button type="button" className={`btn small ${on ? "ghost" : ""}`} onClick={toggle} disabled={busy}
-            aria-pressed={on} aria-label={`${on ? "Following" : "Follow"} ${name}`}>
-            {on ? "Following" : "Follow"}
-          </button>
-        ) : (
-          <Link to={`/signin?next=${encodeURIComponent(`/u/${id}`)}`} className="btn small">Follow</Link>
+        <div className="row" style={{ gap: 14 }}>
+          <Avatar id={p.id} name={p.display_name} path={p.avatar_path} size="lg" />
+          <div className="grow stack tight" style={{ minWidth: 0 }}>
+            <span className="strong ellipsis" style={{ fontSize: 22 }}>{name}</span>
+            {p.city && <span className="hero-sub"><Icon name="pin" size={14} />{p.city}</span>}
+          </div>
+        </div>
+        {expertOn.length > 0 && (
+          <span className="row wrap" style={{ gap: 6 }}>{expertOn.map((t) => <span key={t} className="pill white"><Icon name="award" size={12} />{t} expert</span>)}</span>
         )}
-      </div>
-      <div className="stats">
-        <div><div className="n">{reviews.length}{reviews.length >= 50 ? "+" : ""}</div><div className="l">reviews</div></div>
-        <div><div className="n">{followers ?? "–"}</div><div className="l">followers</div></div>
-        <div><div className="n">{verified}</div><div className="l">verified</div></div>
-      </div>
+        <div className="stat-tiles">
+          <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{reviews.length}{reviews.length >= 50 ? "+" : ""}</span><span className="l">reviews</span></div>
+          <div className="stat-tile"><span className="n"><Icon name="people" size={16} />{followers ?? "–"}</span><span className="l">followers</span></div>
+          <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{verified}</span><span className="l">verified</span></div>
+        </div>
+      </header>
       <div className="stack">
         {reviews.length === 0
-          ? <div className="empty"><p>{name} hasn't reviewed anything yet.</p></div>
+          ? <div className="card"><EmptyArt icon="star" tone="amber" title="No named reviews yet" /></div>
           : reviews.map((r) => <ReviewCard key={r.id} r={r} showPlace />)}
       </div>
     </div>

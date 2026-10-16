@@ -1,55 +1,85 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Place, ReviewRow, SearchResult } from "../lib/types";
 import { fetchGoogleRating, type GoogleRating } from "../lib/google";
-import { copyText, googleMapsUrl, placeUrl, priceText, todaysHours } from "../lib/util";
-import { Icon, Spinner, TopBar, useToast } from "../components/ui";
+import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
+import { placeMediaUrl } from "../lib/media";
+import { shareLink, shareOrCopy } from "../lib/invite";
+import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
-
-interface ItemStat { item_id: string; avg_rating: number; review_count: number; verified_count: number; items: { name: string } | null }
+import { ItemThumb } from "../components/place/ItemThumb";
+import { loadShopItems, missingColumn, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import "../styles/place.css";
 
 export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
+
+interface Stat { sum: number; count: number }
+type Filter = "all" | "photos" | "friends" | `item:${string}`;
+
+async function loadPlace(id: string) {
+  const r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path`).eq("id", id).maybeSingle();
+  return missingColumn(r.error) ? supabase.from("places").select(PLACE_COLS).eq("id", id).maybeSingle() : r;
+}
+
+/** Your friends' ids: invite-link friends, or people you follow on an older database. */
+async function loadFriendIds(me: string): Promise<Set<string>> {
+  const f = await supabase.rpc("my_friends");
+  if (!f.error) return new Set(((f.data || []) as { id: string }[]).map((x) => x.id));
+  const { data } = await supabase.from("follows").select("followee_id").eq("follower_id", me);
+  return new Set((data || []).map((x) => x.followee_id as string));
+}
+
+function Img({ src, className, alt = "" }: { src: string | null; className?: string; alt?: string }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [src]);
+  return src && !broken ? <img src={src} className={className} alt={alt} onError={() => setBroken(true)} /> : null;
+}
 
 export default function PlacePage() {
   const { id = "" } = useParams();
   const { session } = useAuth();
   const toast = useToast();
+  const nav = useNavigate();
   const me = session?.user.id;
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
-  const [stats, setStats] = useState<ItemStat[]>([]);
+  const [items, setItems] = useState<ShopItem[]>([]);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
-  const [following, setFollowing] = useState<Set<string>>(new Set());
+  const [friends, setFriends] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
+  const [canManage, setCanManage] = useState(false);
   const [google, setGoogle] = useState<GoogleRating | null>(null);
   const [summary, setSummary] = useState<SearchResult | null>(null);
   const [experts, setExperts] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
   const [allHours, setAllHours] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [coverOk, setCoverOk] = useState(true);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setErr(""); setLoadErr("");
-      const { data, error } = await supabase.from("places").select(PLACE_COLS).eq("id", id).maybeSingle();
+      const { data, error } = await loadPlace(id);
       if (!alive) return;
       if (error) { setErr(errorText(error)); setPlace(null); return; }
-      setPlace(data as Place | null);
-      if (!data) return;
-      if ((data as Place).google_place_id) fetchGoogleRating((data as Place).google_place_id!).then((g) => alive && setGoogle(g));
-      const [s, r, sc] = await Promise.all([
-        supabase.from("item_stats").select("item_id, avg_rating, review_count, verified_count, items(name)").eq("place_id", id).order("avg_rating", { ascending: false }),
+      const pl = data as Place | null;
+      setPlace(pl);
+      if (!pl) return;
+      if (pl.google_place_id) fetchGoogleRating(pl.google_place_id).then((g) => alive && setGoogle(g));
+      const [it, r, sc] = await Promise.all([
+        loadShopItems(id),
         supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(100),
         // Same score as Discover: one formula, computed in the database.
         searchPlaces({ p_place: id, p_limit: 1 }),
       ]);
       if (!alive) return;
-      const firstErr = s.error || r.error || sc.error;
+      const firstErr = it.error || r.error || sc.error;
       if (firstErr) setLoadErr(errorText(firstErr));
-      setStats((s.data as unknown as ItemStat[]) || []);
+      setItems(it.items);
       const rows = (r.data as unknown as ReviewRow[]) || [];
       setReviews(rows);
       setSummary(((sc.data as SearchResult[]) || [])[0] ?? null);
@@ -63,16 +93,37 @@ export default function PlacePage() {
   }, [id, me, attempt]);
 
   useEffect(() => {
-    if (!me) return;
-    supabase.from("follows").select("followee_id").eq("follower_id", me).then(({ data }) => setFollowing(new Set((data || []).map((f) => f.followee_id as string))));
-    supabase.from("saved_places").select("place_id").eq("user_id", me).eq("place_id", id).maybeSingle().then(({ data }) => setSaved(Boolean(data)));
+    if (!me) { setFriends(new Set()); setSaved(false); setCanManage(false); return; }
+    let alive = true;
+    loadFriendIds(me).then((s) => alive && setFriends(s));
+    supabase.from("saved_places").select("place_id").eq("user_id", me).eq("place_id", id).maybeSingle().then(({ data }) => alive && setSaved(Boolean(data)));
+    supabase.rpc("can_manage_place", { p_place: id }).then(({ data, error }) => alive && setCanManage(!error && data === true), () => {});
+    return () => { alive = false; };
   }, [me, id]);
 
-  const score = summary?.trust_score != null ? Number(summary.trust_score) : null;
-  const friendReviewers = summary?.friend_count ?? 0;
-  const verified = reviews.filter((r) => r.verified).length;
-  const best = stats.filter((s) => s.review_count >= 1).slice(0, 5);
-  const sorted = useMemo(() => [...reviews].sort((a, b) => Number(Boolean(b.user_id && following.has(b.user_id))) - Number(Boolean(a.user_id && following.has(a.user_id)))), [reviews, following]);
+  const look = shopLook(place?.category);
+  const stats = useMemo(() => {
+    const m = new Map<string, Stat>();
+    for (const r of reviews) {
+      const s = m.get(r.item_id) || { sum: 0, count: 0 };
+      s.sum += r.rating; s.count += 1;
+      m.set(r.item_id, s);
+    }
+    return m;
+  }, [reviews]);
+  const products = useMemo(() => sortShopItems(items, (i) => stats.get(i.id)?.count ?? 0), [items, stats]);
+  const imageOf = useMemo(() => new Map(items.map((i) => [i.id, i.image_path])), [items]);
+  const isFriend = (r: ReviewRow) => Boolean(r.user_id && friends.has(r.user_id));
+  const sorted = useMemo(() => [...reviews].sort((a, b) => Number(isFriend(b)) - Number(isFriend(a))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reviews, friends]);
+  const reviewedItems = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of reviews) if (r.items?.name && !seen.has(r.item_id)) seen.set(r.item_id, r.items.name);
+    return [...seen].map(([itemId, name]) => ({ id: itemId, name, count: stats.get(itemId)?.count ?? 0 })).sort((a, b) => b.count - a.count);
+  }, [reviews, stats]);
+  const shown = sorted.filter((r) =>
+    filter === "all" ? true : filter === "photos" ? Boolean(r.photo_path) : filter === "friends" ? isFriend(r) : r.item_id === filter.slice(5));
 
   async function toggleSave() {
     if (!me) { toast("Sign in to save places"); return; }
@@ -86,86 +137,191 @@ export default function PlacePage() {
   }
 
   async function share() {
-    const url = placeUrl(id);
-    if (navigator.share) { try { await navigator.share({ title: place?.name, url }); } catch { /* dismissed */ } }
-    else if (await copyText(url)) toast("Link copied");
+    const res = await shareOrCopy({ title: place?.name, url: await shareLink(`/p/${id}`, "place") });
+    if (res === "copied") toast("Link copied");
   }
 
   if (place === undefined) return <div className="page"><Spinner /></div>;
   if (!place) return <div className="page"><TopBar /><div className="empty"><h2>This place isn't listed</h2><p>{err || "It may have been removed or its listing has lapsed."}</p></div></div>;
 
+  const cover = coverOk ? placeMediaUrl(place.cover_path) : null;
+  const logo = placeMediaUrl(place.logo_path);
+  const score = summary?.trust_score != null ? Number(summary.trust_score) : null;
+  const reviewCount = summary?.review_count ?? reviews.length;
+  const verified = summary?.verified_count ?? reviews.filter((r) => r.verified).length;
+  const friendNamed = (summary?.friend_ids || []).map((fid) => reviews.find((r) => r.user_id === fid)).filter((r): r is ReviewRow => Boolean(r));
+  const friendCount = Math.max(summary?.friend_count ?? 0, friendNamed.length);
+  const today = place.hours && Object.keys(place.hours).length ? todaysHours(place.hours) ?? "Closed today" : null;
+  const photoCount = reviews.filter((r) => r.photo_path).length;
+  const friendReviews = reviews.filter(isFriend).length;
+  const rateUrl = `/review/${place.id}`;
+
   return (
-    <div className="page">
-      <TopBar right={<>
-        <button className="icon-btn" aria-label={saved ? "Unsave" : "Save"} onClick={toggleSave}><Icon name="bookmark" color={saved ? "var(--green)" : "currentColor"} /></button>
-        <button className="icon-btn" aria-label="Share" onClick={share}><Icon name="share" /></button>
-      </>} />
+    <div className="page pl-page">
+      <div className={`pl-hero ${cover ? "has-cover" : ""}`} style={cover ? undefined : { background: look.grad }}>
+        {cover ? <img className="pl-cover" src={cover} alt="" onError={() => setCoverOk(false)} /> : (
+          <span className="pl-hero-art" aria-hidden="true"><Icon name={look.icon} size={150} width={1.2} /></span>
+        )}
+        <div className="pl-hero-bar">
+          <button className="pl-glass" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>
+          <span className="grow" />
+          {canManage && <Link to={`/manage/${place.id}`} className="pl-glass pill"><Icon name="settings" size={18} />Manage shop</Link>}
+          <button className="pl-glass" aria-label={saved ? "Unsave" : "Save"} aria-pressed={saved} onClick={toggleSave}><Icon name="bookmark" fill={saved ? "currentColor" : undefined} /></button>
+          <button className="pl-glass" aria-label="Share" onClick={share}><Icon name="share" /></button>
+        </div>
+      </div>
 
-      <div className="stack" style={{ gap: 6 }}>
+      <section className="pl-head">
+        <span className="pl-logo" style={{ background: look.grad }}>
+          <Img src={logo} alt={`${place.name} logo`} />
+          <span className="pl-logo-txt">{initials(place.name)}</span>
+        </span>
+        {score != null ? (
+          <div className="pl-score" aria-label={`Trust score ${score.toFixed(1)} of 5`}>
+            <span className="n">{score.toFixed(1)}<Icon name="star" size={15} fill="currentColor" /></span>
+            <span className="l"><Icon name="shield" size={11} />Trust</span>
+          </div>
+        ) : (
+          <div className="pl-score none" aria-label="Not rated yet">
+            <span className="n"><Icon name="spark" size={18} /></span>
+            <span className="l">New</span>
+          </div>
+        )}
         <h1>{place.name}</h1>
-        <span className="muted small">{[place.category, place.area, place.city, priceText(place.price_level)].filter(Boolean).join(" · ")}</span>
-        <span className="row wrap" style={{ gap: 6 }}><span className="badge">✓ Listed</span>{summary?.has_qr && <span className="badge">QR on tables</span>}{verified > 0 && <span className="badge gray">{verified} verified visit{verified > 1 ? "s" : ""}</span>}</span>
-      </div>
-
-      {loadErr && <div className="notice err row"><span className="grow">Couldn't load everything: {loadErr}</span><button className="link-btn" onClick={() => setAttempt((n) => n + 1)}>Retry</button></div>}
-
-      <div className="grid2">
-        <div className="card soft" style={{ gap: 2 }}>
-          <span className="tiny muted strong">{me && friendReviewers > 0 ? "Your circle" : "Trusted Picks"}</span>
-          <span style={{ fontSize: 30, fontWeight: 800, color: "var(--green)" }}>{score != null ? score.toFixed(1) : "–"}</span>
-          <span className="tiny muted">{me && friendReviewers ? `from ${friendReviewers} friend${friendReviewers > 1 ? "s" : ""}` : `${reviews.length} review${reviews.length === 1 ? "" : "s"}`}</span>
+        <div className="pl-meta">
+          <span><Icon name={look.icon} size={15} />{place.category}</span>
+          {(place.area || place.city) && <span><Icon name="pin" size={15} />{place.area || place.city}</span>}
+          {priceText(place.price_level) && <span className="pl-price-level">{priceText(place.price_level)}</span>}
         </div>
-        <div className="card soft" style={{ gap: 2 }}>
-          <span className="tiny muted strong">Google</span>
-          {google ? <>
-            <span style={{ fontSize: 30, fontWeight: 800 }}>{google.rating.toFixed(1)}</span>
-            <span className="tiny muted">from {google.count.toLocaleString("en-IN")} people</span>
-          </> : <>
-            <span style={{ fontSize: 30, fontWeight: 800, color: "var(--muted)" }}>–</span>
-            {place.google_place_id ? <a className="tiny" href={googleMapsUrl(place.google_place_id, place.name)} target="_blank" rel="noreferrer">See on Google Maps</a> : <span className="tiny muted">Not linked</span>}
-          </>}
+        {today && (
+          <button type="button" className="pl-hours" onClick={() => setAllHours(!allHours)} aria-expanded={allHours}>
+            <Icon name="clock" size={15} /><span>{today}</span><Icon name={allHours ? "up" : "down"} size={14} />
+          </button>
+        )}
+        {allHours && place.hours && (
+          <div className="pl-hours-all">{Object.entries(place.hours).map(([d, h]) => <div key={d}><b>{d}</b><span>{h}</span></div>)}</div>
+        )}
+
+        <div className="pl-stats">
+          <span title="Reviews"><Icon name="message" size={16} /><b>{reviewCount}</b><span>reviews</span></span>
+          <span title="Verified visits"><Icon name="verified" size={16} /><b>{verified}</b><span>verified</span></span>
+          {google ? <a href={place.google_place_id ? googleMapsUrl(place.google_place_id, place.name) : undefined} target="_blank" rel="noreferrer" title="Google rating"><Icon name="globe" size={16} /><b>{google.rating.toFixed(1)}</b><span>Google</span></a>
+            : summary?.has_qr ? <span title="Table QR"><Icon name="qr" size={16} /><b><Icon name="check" size={14} width={3} /></b><span>table QR</span></span> : null}
         </div>
-      </div>
 
-      {google && score != null && google.rating - score >= 0.5 && (
-        <div className="notice warn small">{google.rating.toFixed(1)} on Google, but {me && friendReviewers > 0 ? "your circle rates" : "Trusted Picks reviewers rate"} it {score.toFixed(1)}{summary?.top_item ? `. Most rated: ${summary.top_item}` : ""}.</div>
-      )}
+        {friendCount > 0 && (
+          <div className="pl-friends">
+            <span className="avatars">
+              {friendNamed.slice(0, 3).map((r) => <Avatar key={r.user_id} id={r.user_id!} name={r.author_name} path={r.author_avatar} size="sm" />)}
+              {!friendNamed.length && <span className="avatar sm pl-fdot"><Icon name="people" size={13} /></span>}
+            </span>
+            <span className="small">
+              {friendNamed.length
+                ? <><b>{friendNamed[0]!.author_name || "A friend"}</b>{friendCount > 1 ? ` + ${friendCount - 1} friend${friendCount > 2 ? "s" : ""}` : ""} rated this</>
+                : <><b>{friendCount} friends</b> rated this</>}
+            </span>
+          </div>
+        )}
 
-      {place.about && <p style={{ lineHeight: 1.55, color: "var(--ink-2)" }}>{place.about}</p>}
-      {place.hours && Object.keys(place.hours).length > 0 && (
-        <div className="small muted stack tight">
-          <span className="row" style={{ gap: 8 }}>
-            <span><b>Today</b> {todaysHours(place.hours) ?? "Closed"}</span>
-            <button className="link-btn tiny" onClick={() => setAllHours(!allHours)} aria-expanded={allHours}>{allHours ? "Hide hours" : "All hours"}</button>
-          </span>
-          {allHours && Object.entries(place.hours).map(([d, h]) => <div key={d}><b>{d}</b> {h}</div>)}
+        <Link to={rateUrl} className="btn green block pl-cta"><Icon name="star" size={20} fill="#fff" />Rate something</Link>
+      </section>
+
+      {loadErr && <div className="notice err row"><span className="grow">Couldn't load everything: {loadErr}</span><button className="link-btn" onClick={() => setAttempt((n) => n + 1)}><Icon name="refresh" size={16} />Retry</button></div>}
+
+      <section className="stack" style={{ gap: 12 }}>
+        <div className="section-title">
+          <span className={`icon-chip sm ${look.tint}`}><Icon name={look.icon} size={16} /></span>
+          <span className="grow">{look.menu}</span>
+          {products.length > 0 && <span className="muted">{products.length}</span>}
         </div>
-      )}
+        {products.length === 0 ? (
+          <Link to={rateUrl} className="pl-empty-products">
+            <span className={`icon-chip lg ${look.tint}`}><Icon name="plus" size={24} /></span>
+            <span className="grow"><b>Nothing rated yet</b><br /><span className="small muted">Be the first to rate an item</span></span>
+            <Icon name="chev" />
+          </Link>
+        ) : (
+          <div className="hscroll pl-products">
+            {products.map((p) => {
+              const s = stats.get(p.id);
+              return (
+                <Link key={p.id} to={`${rateUrl}?item=${p.id}`} className="pl-product" aria-label={`Rate ${p.name}`}>
+                  <span className="pl-product-img">
+                    <ItemThumb path={p.image_path} icon={look.icon} />
+                    {s && <span className="pl-product-rate"><Icon name="star" size={12} fill="currentColor" />{(s.sum / s.count).toFixed(1)}<span>· {s.count}</span></span>}
+                  </span>
+                  <span className="pl-product-body">
+                    <span className="pl-product-name">{p.name}</span>
+                    <span className="pl-product-foot">
+                      {priceLabel(p.price_inr) ? <span className="pl-price">{priceLabel(p.price_inr)}</span> : <span className="muted tiny">{s ? "" : "New"}</span>}
+                      <span className="pl-rate-btn"><Icon name="star" size={14} /></span>
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+            <Link to={rateUrl} className="pl-product pl-product-more" aria-label="Rate something else">
+              <span className="icon-chip lg"><Icon name="plus" size={24} /></span>
+              <span className="small strong">Something else</span>
+            </Link>
+          </div>
+        )}
+      </section>
 
-      {best.length > 0 && (
-        <div className="stack">
-          <h2>Best things here</h2>
-          {best.map((s) => (
-            <div key={s.item_id} className="stack tight">
-              <div className="row between"><span className="small strong">{s.items?.name}</span><span className="small"><b>{Number(s.avg_rating).toFixed(1)}</b> <span className="muted">· {s.review_count}</span></span></div>
-              <div className="bar"><span style={{ width: `${(Number(s.avg_rating) / 5) * 100}%` }} /></div>
-            </div>
+      <section className="stack" style={{ gap: 12 }}>
+        <div className="section-title">
+          <span className="icon-chip sm amber"><Icon name="message" size={16} /></span>
+          <span className="grow">Reviews</span>
+          {reviews.length > 0 && <span className="muted">{reviews.length}</span>}
+        </div>
+        {reviews.length > 1 && (
+          <div className="hscroll pl-filters" role="group" aria-label="Filter reviews">
+            <button type="button" className={`chip ${filter === "all" ? "on" : ""}`} aria-pressed={filter === "all"} onClick={() => setFilter("all")}><Icon name="list" size={15} />All</button>
+            {photoCount > 0 && <button type="button" className={`chip ${filter === "photos" ? "on" : ""}`} aria-pressed={filter === "photos"} onClick={() => setFilter("photos")}><Icon name="camera" size={15} />{photoCount}</button>}
+            {friendReviews > 0 && <button type="button" className={`chip ${filter === "friends" ? "on" : ""}`} aria-pressed={filter === "friends"} onClick={() => setFilter("friends")}><Icon name="people" size={15} />{friendReviews}</button>}
+            {reviewedItems.length > 1 && reviewedItems.map((i) => {
+              const f = `item:${i.id}` as const;
+              return (
+                <button key={i.id} type="button" className={`chip pl-item-chip ${filter === f ? "on" : ""}`} aria-pressed={filter === f} onClick={() => setFilter(filter === f ? "all" : f)}>
+                  <ItemThumb path={imageOf.get(i.id)} icon={look.icon} size={24} />{i.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {reviews.length === 0 ? (
+          <Link to={rateUrl} className="pl-empty-reviews">
+            <span className="icon-chip lg amber"><Icon name="star" size={26} fill="currentColor" /></span>
+            <b>No reviews yet</b>
+            <span className="small muted">Be the first</span>
+          </Link>
+        ) : shown.length === 0 ? <div className="empty"><Icon name="filter" size={28} /><p className="small">Nothing here</p></div> :
+          shown.map((r) => (
+            <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={isFriend(r)} expert={r.user_id ? experts[r.user_id] || null : null}
+              itemImage={imageOf.get(r.item_id)} itemIcon={look.icon} />
           ))}
-        </div>
+      </section>
+
+      {(place.about || place.google_place_id || google) && (
+        <section className="pl-about">
+          <div className="section-title">
+            <span className="icon-chip sm sky"><Icon name="info" size={16} /></span>
+            <span className="grow">About</span>
+          </div>
+          {place.about && <p>{place.about}</p>}
+          {google && (
+            <div className="row small" style={{ gap: 8 }}>
+              <Icon name="globe" size={16} color="var(--muted)" /><b>{google.rating.toFixed(1)}</b><Stars value={google.rating} size={13} /><span className="muted">{google.count.toLocaleString("en-IN")} on Google</span>
+            </div>
+          )}
+          {place.google_place_id && (
+            <a className="btn small ghost" href={googleMapsUrl(place.google_place_id, place.name)} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
+              <Icon name="map" size={16} />Open in Maps<Icon name="external" size={14} />
+            </a>
+          )}
+          {google && <span className="tiny muted">Google rating shown live from Google Maps.</span>}
+        </section>
       )}
-
-      <div className="row">
-        <Link to={`/review/${place.id}`} className="btn grow">Rate something you had</Link>
-        <Link to="/scan" className="btn ghost" aria-label="Scan the table QR for a verified visit"><Icon name="scan" />Scan QR</Link>
-      </div>
-
-      <div className="stack">
-        <h2>Reviews</h2>
-        {sorted.length === 0 ? <div className="empty"><p>No reviews yet. Be the first.</p></div> :
-          sorted.map((r) => <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={Boolean(r.user_id && following.has(r.user_id))} expert={r.user_id ? experts[r.user_id] || null : null} />)}
-      </div>
-
-      {google && <p className="tiny muted center">Google rating shown live from Google Maps.</p>}
     </div>
   );
 }

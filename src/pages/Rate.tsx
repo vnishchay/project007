@@ -4,6 +4,8 @@ import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { timeAgo } from "../lib/util";
 import { Icon } from "../components/ui";
+import { Chip, EmptyArt, SectionTitle, lookFor } from "../components/home/Kit";
+import "../styles/home.css";
 
 interface PlaceLite { id: string; name: string; category: string; area: string | null; city: string }
 interface VisitRow { place_id: string; scanned_at: string; expires_at: string; places: PlaceLite | null }
@@ -41,44 +43,51 @@ export default function Rate() {
     return () => { alive = false; clearTimeout(t); };
   }, [text]);
 
-  const row = (p: PlaceLite, sub?: string, live?: boolean) => (
-    <Link key={p.id} to={`/review/${p.id}`} className="list-item">
-      <div className="grow stack tight">
-        <span className="strong ellipsis">{p.name}</span>
-        <span className="small muted ellipsis">{sub || [p.category, p.area, p.city].filter(Boolean).join(" · ")}</span>
-      </div>
-      {live && <span className="badge">✓ Verified</span>}
-      <Icon name="chev" size={16} color="var(--muted)" width={2.4} />
-    </Link>
-  );
+  const row = (p: PlaceLite, sub?: string, live?: boolean) => {
+    const look = lookFor(p.category);
+    return (
+      <Link key={p.id} to={`/review/${p.id}`} className="menu-row">
+        <Chip icon={look.icon} tone={look.tone} />
+        <span className="grow stack tight" style={{ minWidth: 0 }}>
+          <span className="t ellipsis">{p.name}</span>
+          <span className="s ellipsis">{sub || [p.category, p.area, p.city].filter(Boolean).join(" · ")}</span>
+        </span>
+        {live && <span className="pill verified"><Icon name="verified" size={13} />Verified</span>}
+        <Icon name="chev" size={18} color="var(--muted)" />
+      </Link>
+    );
+  };
 
   return (
-    <div className="page">
-      <div className="stack" style={{ gap: 6 }}>
-        <h1>Rate what you had</h1>
-        <p className="muted">Pick the place. Scan the table QR first to get a verified badge.</p>
-      </div>
-      <Link to="/scan" className="card soft row" style={{ color: "inherit", flexDirection: "row" }}>
-        <Icon name="scan" color="var(--green)" /><span className="grow strong">Scan the table QR</span><Icon name="chev" size={16} color="var(--muted)" width={2.4} />
-      </Link>
+    <div className="page" style={{ gap: 18 }}>
+      <header className="hero sunset compact">
+        <span className="hero-sub"><Icon name="star" size={16} fill="#fff" />Rate</span>
+        <h1>What did you have?</h1>
+        <Link to="/scan" className="btn white block" style={{ color: "#b2401f" }}><Icon name="scan" size={18} />Scan the table QR</Link>
+        <span className="hero-sub" style={{ justifyContent: "center", fontSize: 12 }}><Icon name="verified" size={14} />Scanning adds a verified badge</span>
+      </header>
 
       {visits.length > 0 && (
-        <div className="stack" style={{ gap: 0 }}>
-          <h2>Recent visits</h2>
-          <div className="list">
+        <section className="stack" style={{ gap: 10 }}>
+          <SectionTitle icon="clock" tone="sky">Recent visits</SectionTitle>
+          <div className="menu">
             {visits.map((v) => row(v.places!, `Scanned ${timeAgo(v.scanned_at)}`, new Date(v.expires_at).getTime() > Date.now()))}
           </div>
-        </div>
+        </section>
       )}
 
-      <div className="stack" style={{ gap: 0 }}>
-        <h2 style={{ paddingBottom: 10 }}>Find the place</h2>
+      <section className="stack" style={{ gap: 10 }}>
+        <SectionTitle icon="store" tone="green">Find the place</SectionTitle>
         <div className="search"><Icon name="search" color="var(--muted)" /><input aria-label="Search places" placeholder="Name, area or kind of place" value={text} onChange={(e) => setText(e.target.value)} /></div>
-        {err && <div className="notice err" style={{ marginTop: 10 }}>{err}</div>}
-        {places === null ? <div className="skeleton" style={{ marginTop: 10 }} /> : places.length === 0 ? (
-          <div className="empty"><p>No listed place matches “{text.trim()}”.</p><Link to="/business" className="link-btn">Ask the place to get listed</Link></div>
-        ) : <div className="list">{places.map((p) => row(p))}</div>}
-      </div>
+        {err && <div className="notice err">{err}</div>}
+        {places === null ? <div className="skeleton" /> : places.length === 0 ? (
+          <div className="card">
+            <EmptyArt icon="search" tone="sky" title={`No “${text.trim()}” listed`}>
+              <Link to="/business" className="btn small ghost"><Icon name="store" size={16} />Get it listed</Link>
+            </EmptyArt>
+          </div>
+        ) : <div className="menu">{places.map((p) => row(p))}</div>}
+      </section>
     </div>
   );
 }

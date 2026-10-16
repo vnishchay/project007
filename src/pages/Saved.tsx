@@ -3,9 +3,12 @@ import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
-import { copyText, googleReviewUrl, placeUrl } from "../lib/util";
+import { copyText, googleReviewUrl } from "../lib/util";
+import { shareLink } from "../lib/invite";
 import { Icon, Spinner, Stars, useToast } from "../components/ui";
 import { REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
+import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
+import "../styles/home.css";
 
 function mapsSearchUrl(q: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
@@ -40,7 +43,7 @@ export default function Saved() {
   const [loadErr, setLoadErr] = useState("");
   const [reload, setReload] = useState(0);
   const [city, setCity] = useState<string | null>(null);
-  const [followers, setFollowers] = useState(0);
+  const [friends, setFriends] = useState(0);
   const [opened, setOpened] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
 
@@ -60,31 +63,26 @@ export default function Saved() {
   }, [reviewId, reload]);
 
   useEffect(() => {
-    if (!uid) return;
-    supabase.from("follows").select("follower_id", { count: "exact", head: true }).eq("followee_id", uid).then(({ count }) => setFollowers(count ?? 0));
-  }, [uid]);
+    if (!uid || isGuest) return;
+    supabase.rpc("my_friends").then(({ data, error }) => { if (!error) setFriends(((data as unknown[]) || []).length); });
+  }, [uid, isGuest]);
 
   if (loadErr) return (
     <div className="page">
-      <div className="notice err" role="alert" style={{ marginTop: 16 }}>
-        <div className="stack" style={{ gap: 8 }}>
-          <span>Your review may be saved, but it couldn't be loaded: {loadErr}</span>
-          <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setReload((n) => n + 1)}>Retry</button>
-        </div>
-      </div>
-      <Link to="/me" className="btn ghost block">See your reviews</Link>
+      <Retry msg={`Your review may be saved, but it couldn't be loaded: ${loadErr}`} onRetry={() => setReload((n) => n + 1)} />
+      <Link to="/me" className="btn ghost block"><Icon name="star" size={18} />See your reviews</Link>
     </div>
   );
   if (r === undefined) return <div className="page"><Spinner /></div>;
-  if (!r) return <div className="page"><div className="empty"><h2>Review not found</h2><Link to="/" className="btn ghost">Go home</Link></div></div>;
+  if (!r) return <div className="page"><EmptyArt icon="ghost" tone="sky" title="Review not found"><Link to="/" className="btn ghost small"><Icon name="home" size={16} />Home</Link></EmptyArt></div>;
 
   const gid = r.places?.google_place_id;
   const placeName = r.places?.name || "";
   const googleUrl = gid ? googleReviewUrl(gid) : mapsSearchUrl([placeName, r.places?.area, city].filter(Boolean).join(" "));
   const text = r.body || `${r.items?.name}: ${r.rating}/5`;
-  const steps = gid
-    ? ["We copy your review", `Google opens on ${placeName}`, "You paste, tap the stars and post"]
-    : ["We copy your review", `Google Maps searches for ${placeName}`, "Pick the place, then tap Write a review and paste"];
+  const steps: [GlyphName, string][] = gid
+    ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", "Paste, tap the stars, post"]]
+    : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review, paste"]];
 
   function openGoogle() {
     // Start the copy while this click still counts as a user gesture and the page still has
@@ -112,7 +110,7 @@ export default function Saved() {
   }
 
   async function share() {
-    const url = placeUrl(r!.place_id);
+    const url = await shareLink(`/p/${r!.place_id}`, "review");
     const msg = `${r!.items?.name} at ${r!.places?.name}: ${"★".repeat(r!.rating)}\n${r!.body}`.trim();
     if (navigator.share) {
       try {
@@ -124,53 +122,67 @@ export default function Saved() {
     else toast("Couldn't copy the link");
   }
 
+  const who: { icon: GlyphName; text: string } = isGuest || !r.is_public
+    ? { icon: "eyeOff", text: isGuest ? "Anonymous, no account needed" : "Posted anonymously" }
+    : { icon: "eye", text: friends > 0 ? `With your name · ${friends} friend${friends === 1 ? "" : "s"} will see it` : "Posted with your name" };
+
   return (
-    <div className="page">
-      <div className="stack" style={{ gap: 8, marginTop: 16 }}>
-        <span className="avatar lg" style={{ background: "var(--green-soft)" }}><Icon name="check" size={26} color="var(--green)" width={2.6} /></span>
+    <div className="page" style={{ gap: 18 }}>
+      <header className="hero compact" style={{ alignItems: "center", textAlign: "center" }}>
+        <span className="success-burst"><Icon name="checkCircle" size={38} color="#fff" width={2.4} /></span>
         <h1>Saved</h1>
-        <p className="muted">{isGuest ? "Posted anonymously, no account needed. Your rating counts, but no one can see it was you." : !r.is_public ? "Posted anonymously. Your rating counts, but no one can see it was you." : followers > 0 ? `Posted with your name. ${followers} ${followers === 1 ? "person follows" : "people follow"} you and will see it.` : "Posted with your name. You can make it anonymous from your profile."}</p>
-      </div>
+        <span className="pill white"><Glyph name={who.icon} size={13} />{who.text}</span>
+      </header>
 
       <div className="card">
-        <div className="row between" style={{ alignItems: "flex-start" }}><span className="strong grow" style={{ overflowWrap: "anywhere" }}>{r.items?.name} · {placeName}</span><Stars value={r.rating} /></div>
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <Chip icon={r.verified ? "verified" : "star"} tone={r.verified ? "sky" : "amber"} />
+          <div className="grow stack tight" style={{ minWidth: 0 }}>
+            <span className="strong" style={{ overflowWrap: "anywhere" }}>{r.items?.name}</span>
+            <span className="small muted row" style={{ gap: 4 }}><Icon name="store" size={13} />{placeName}</span>
+          </div>
+          <Stars value={r.rating} />
+        </div>
         {r.body && <p style={{ lineHeight: 1.5, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.body}</p>}
-        <button type="button" className="link-btn" style={{ alignSelf: "flex-start" }} onClick={share}><Icon name="share" size={16} />Share with friends</button>
+        <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={share}><Icon name="share" size={16} />Share with friends</button>
       </div>
 
-      <div className="stack">
-        <h2>Post it on Google too</h2>
-        <ol className="stack" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {steps.map((s, i) => (
-            <li key={s} className="row">
-              <span className="avatar sm" aria-hidden="true" style={{ width: 24, height: 24, background: i === 0 || opened ? "var(--green)" : "var(--surface)", color: i === 0 || opened ? "#fff" : "var(--muted)", border: 0 }}>{i + 1}</span>
-              <span className="small">{s}</span>
+      <section className="card" aria-labelledby="google-h">
+        <SectionTitle icon="globe" tone="sky"><span id="google-h">Post it on Google too</span></SectionTitle>
+        <ol className="step-list">
+          {steps.map(([icon, s], i) => (
+            <li key={s}>
+              <span className={`icon-chip sm ${i === 0 || opened ? "" : "sky"}`} aria-hidden="true">{i === 0 || opened ? <Icon name="check" size={16} width={2.6} /> : <Glyph name={icon} size={16} />}</span>
+              <span>{s}</span>
             </li>
           ))}
         </ol>
-        <p className="tiny muted">{gid ? "Google only lets you post reviews yourself, so the last tap is yours." : "Pick the place, then tap Write a review. Google only lets you post reviews yourself."}</p>
+        <p className="tiny muted row" style={{ gap: 6, alignItems: "flex-start" }}><Icon name="info" size={14} />Google only lets you post yourself, so the last tap is yours.</p>
         {copyFailed && (
           <label className="stack tight">
-            <span className="small strong">Your review, to copy by hand</span>
+            <span className="small strong row" style={{ gap: 6 }}><Icon name="copy" size={14} />Copy by hand</span>
             <textarea className="textarea" readOnly value={text} onFocus={(e) => e.currentTarget.select()} />
           </label>
         )}
         {copyFailed && (
           <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ alignSelf: "flex-start" }}><Icon name="external" size={16} />Open {gid ? "Google" : "Google Maps"}</a>
         )}
-      </div>
+      </section>
 
       <div className="stack" style={{ marginTop: "auto" }}>
-        <button type="button" className="btn block" onClick={openGoogle}><Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}</button>
-        <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? "Back to the place" : "Not now"}</Link>
+        <button type="button" className="btn green block" onClick={openGoogle}><Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}</button>
+        <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Not now"}</Link>
       </div>
 
       {isGuest && opened && (
-        <div className="card soft">
-          <span className="strong">Want to keep your reviews? (optional)</span>
-          <span className="small muted">You're reviewing as a guest. Sign in to keep your reviews on any device and see what friends loved. Nothing changes if you don't.</span>
-          <Link to={`/signin?next=${encodeURIComponent(`/p/${r.place_id}`)}`} className="btn small ghost" style={{ alignSelf: "flex-start" }}>Sign in</Link>
-        </div>
+        <Link to={`/signin?next=${encodeURIComponent(`/p/${r.place_id}`)}`} className="callout violet">
+          <Chip icon="lock" tone="violet" />
+          <span className="grow stack tight">
+            <span className="strong">Keep your reviews? (optional)</span>
+            <span className="tiny">Sign in to keep them on any device. Nothing changes if you don't.</span>
+          </span>
+          <Icon name="login" size={18} />
+        </Link>
       )}
     </div>
   );

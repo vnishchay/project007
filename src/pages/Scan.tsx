@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon, Spinner, TopBar } from "../components/ui";
+import { Chip, Glyph } from "../components/home/Kit";
+import "../styles/home.css";
 
 // BarcodeDetector is built into Chrome on Android and some Safari versions. Everywhere
 // else (iPhone Safari, Firefox, desktop) frames are decoded with jsQR instead.
@@ -207,34 +209,36 @@ export default function Scan() {
           {torchOk && (
             <button
               type="button"
-              className="btn small"
               onClick={toggleTorch}
               aria-pressed={torchOn}
               aria-label="Flashlight"
+              className="icon-btn"
               style={{ position: "absolute", right: 12, bottom: 12, background: torchOn ? "#fff" : "rgba(0,0,0,0.6)", color: torchOn ? "var(--ink)" : "#fff" }}
             >
-              {torchOn ? "Flashlight on" : "Flashlight"}
+              <Glyph name="flashlight" size={20} />
             </button>
           )}
         </div>
       )}
       {state === "scanning" && (
-        <p className="small muted center" role="status" aria-live="polite">
-          {foreign ? "That QR code isn't a Trusted Picks table code." : "Point the camera at the QR code on your table."}
-        </p>
-      )}
-      {!live && (
-        <div className={`notice ${problem[state].cls}`} role="alert">
-          <div className="stack" style={{ gap: 8 }}>
-            <span>{problem[state].text}</span>
-            {problem[state].retry && (
-              <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setAttempt((n) => n + 1)}>Try the camera again</button>
-            )}
-          </div>
+        <div className={`callout ${foreign ? "coral" : "green"}`} role="status" aria-live="polite">
+          <Chip icon={foreign ? "alert" : "qr"} tone={foreign ? "coral" : "green"} size="sm" />
+          <span className="small strong grow">{foreign ? "Not a Trusted Picks table code" : "Point at the QR on your table"}</span>
         </div>
       )}
-      <form className="stack" onSubmit={submit} noValidate>
-        <label className="small strong" htmlFor="code">Or type the code or paste the link</label>
+      {!live && (
+        <div className="card" role="alert">
+          <div className="row" style={{ alignItems: "flex-start" }}>
+            <Chip icon="camera" tone="coral" />
+            <span className="small grow">{problem[state].text}</span>
+          </div>
+          {problem[state].retry && (
+            <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setAttempt((n) => n + 1)}><Icon name="refresh" size={16} />Try again</button>
+          )}
+        </div>
+      )}
+      <form className="card" onSubmit={submit} noValidate>
+        <label className="small strong row" style={{ gap: 8 }} htmlFor="code"><Chip icon="keyboard" tone="sky" size="sm" />Or type the code</label>
         <div className="row">
           <input
             id="code"
@@ -249,7 +253,7 @@ export default function Scan() {
             aria-describedby={bad ? "code-err" : undefined}
             onChange={(e) => { setCode(e.target.value); setBad(false); }}
           />
-          <button className="btn small" style={{ height: 50 }} disabled={!code.trim()}>Go <Icon name="chev" size={16} /></button>
+          <button className="btn green small" style={{ height: 50, width: 50, padding: 0 }} disabled={!code.trim()} aria-label="Go"><Icon name="chev" size={20} /></button>
         </div>
         {bad && <span id="code-err" className="small" role="alert" style={{ color: "var(--danger)" }}>That doesn't look like a Trusted Picks code.</span>}
       </form>

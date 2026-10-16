@@ -19,12 +19,12 @@ export function CoordsField({ value, onChange }: { value: string; onChange: (v: 
 
   return (
     <div className="field">
-      <label htmlFor={id}>Map location</label>
+      <label htmlFor={id} style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="pin" size={15} color="var(--muted)" />Map location</label>
       <input id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)} placeholder="18.5362, 73.8940 or a Google Maps link"
         onBlur={() => { if (c) onChange(`${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`); }} />
       <div className="row wrap" style={{ gap: 14 }}>
         <button type="button" className="link-btn tiny" disabled={busy} onClick={here}><Icon name="locate" size={14} />{busy ? "Locating…" : "Use my current location"}</button>
-        {c && <a className="tiny" href={`https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}`} target="_blank" rel="noreferrer">Check on map</a>}
+        {c && <a className="tiny" href={`https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="map" size={14} />Check on map</a>}
       </div>
       {value.trim() && !c && <span className="tiny" style={{ color: "var(--danger)" }}>That doesn't look like a location. Use “lat, lng” or a Google Maps link.</span>}
       {msg && <span className="tiny" style={{ color: "var(--danger)" }}>{msg}</span>}

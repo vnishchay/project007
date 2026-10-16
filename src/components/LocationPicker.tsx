@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import type { Where } from "../lib/location";
 import { Icon } from "./ui";
+import { Chip } from "./home/Kit";
 
 interface Spot { city: string; areas: string[] }
 
@@ -45,7 +46,7 @@ export function LocationPicker({ current, onPick, onClose }: { current: Where; o
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Choose location" onClick={(e) => e.stopPropagation()}>
         <div className="row between">
-          <h2>Choose location</h2>
+          <span className="section-title"><Chip icon="mapPinned" tone="sky" size="sm" />Choose location</span>
           <button className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
         </div>
         <div className="search">
@@ -54,26 +55,26 @@ export function LocationPicker({ current, onPick, onClose }: { current: Where; o
         </div>
         <div className="list sheet-list">
           <button className={`list-item pick ${isOn({ kind: "near" }) ? "on" : ""}`} onClick={() => pick({ kind: "near" })}>
-            <Icon name="locate" color="var(--green)" /><span className="grow strong">Near me</span><span className="tiny muted">uses GPS</span>
+            <Chip icon="locate" size="sm" /><span className="grow strong">Near me</span><Icon name="navigate" size={14} color="var(--muted)" />
           </button>
           <button className={`list-item pick ${isOn({ kind: "all" }) ? "on" : ""}`} onClick={() => pick({ kind: "all" })}>
-            <Icon name="globe" color="var(--green)" /><span className="grow strong">Everywhere</span>
+            <Chip icon="globe" tone="sky" size="sm" /><span className="grow strong">Everywhere</span>
           </button>
           {spots === null ? <div className="skeleton" style={{ marginTop: 10 }} /> : shown.map((s) => (
             <div key={s.city} className="stack" style={{ gap: 0 }}>
               <button className={`list-item pick ${isOn({ kind: "city", city: s.city }) ? "on" : ""}`} onClick={() => pick({ kind: "city", city: s.city })}>
-                <Icon name="pin" color="var(--green)" /><span className="grow strong">{s.city}</span><span className="tiny muted">All areas</span>
+                <Chip icon="pin" tone="coral" size="sm" /><span className="grow strong">{s.city}</span><span className="tiny muted">All areas</span>
               </button>
               {s.areas.map((a) => (
                 <button key={a} className={`list-item pick sub ${isOn({ kind: "area", city: s.city, area: a }) ? "on" : ""}`} onClick={() => pick({ kind: "area", city: s.city, area: a })}>
-                  <span className="grow">{a}</span>
+                  <Icon name="pin" size={14} color="var(--muted)" /><span className="grow">{a}</span>
                 </button>
               ))}
             </div>
           ))}
           {spots && t && !exact && (
             <button className="list-item pick" onClick={() => pick({ kind: "city", city: text.trim() })}>
-              <Icon name="search" color="var(--green)" /><span className="grow">Search in “{text.trim()}”</span>
+              <Chip icon="search" tone="violet" size="sm" /><span className="grow">Search in “{text.trim()}”</span>
             </button>
           )}
           {spots && spots.length === 0 && !t && <p className="small muted" style={{ padding: "12px 0" }}>No places are listed yet.</p>}

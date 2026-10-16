@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "./ui";
+import { Chip } from "./home/Kit";
 
 const MAX_SIDE = 1600;
 
@@ -89,13 +90,15 @@ export function ReviewPhotoPicker({ value, onChange, disabled }: { value: Blob |
           </button>
         </div>
       ) : (
-        <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} disabled={disabled || busy} onClick={() => input.current?.click()}>
-          <Icon name="plus" size={16} />{busy ? "Preparing photo…" : "Add a photo"}
+        <button type="button" className="photo-drop" disabled={disabled || busy} onClick={() => input.current?.click()}>
+          <Chip icon="camera" tone="sky" />
+          <span className="grow">{busy ? "Preparing photo…" : "Add a photo"}</span>
+          <Icon name="imagePlus" size={18} color="var(--muted)" />
         </button>
       )}
       {preview && (
         <button type="button" className="link-btn" style={{ alignSelf: "flex-start" }} disabled={disabled || busy} onClick={() => input.current?.click()}>
-          {busy ? "Preparing photo…" : "Change photo"}
+          <Icon name="camera" size={16} />{busy ? "Preparing photo…" : "Change photo"}
         </button>
       )}
       {err && <span className="small" role="alert" style={{ color: "var(--danger)" }}>{err}</span>}

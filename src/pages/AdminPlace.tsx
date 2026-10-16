@@ -3,9 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import type { Place, QrCode, QrStyle } from "../lib/types";
 import { qrUrl, parseCoords, QR_STYLES, extractPlaceId } from "../lib/util";
-import { Icon, QrImage, Spinner, TopBar, qrPngDataUrl, useToast } from "../components/ui";
+import { Icon, QrImage, Spinner, TopBar, useToast } from "../components/ui";
 import { CoordsField } from "../components/CoordsField";
+import { downloadQr, QrPrintSheet } from "../components/manage/ShopQr";
 import { PLACE_COLS } from "./Place";
+import "../styles/manage.css";
 
 const STYLE_COLORS: Record<QrStyle, { dark: string; light: string }> = QR_STYLES;
 
@@ -91,24 +93,24 @@ export default function AdminPlace() {
     if (error) toast(errorText(error)); else loadCodes();
   }
 
-  async function download(c: QrCode) {
-    const col = STYLE_COLORS[c.style];
-    const url = await qrPngDataUrl(qrUrl(c.token), col.dark, col.light);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${p!.name}-${c.table_label || "qr"}.png`.replace(/[^\w.-]+/g, "_");
-    a.click();
-  }
+  const download = (c: QrCode) => downloadQr(p!.name, c);
 
   const active = codes.filter((c) => c.active);
 
   return (
     <div className="page">
       <div className="no-print stack" style={{ gap: 20 }}>
-        <TopBar title={p.name} sub={<Link to={`/p/${p.id}`}>Open public page</Link>} />
+        <TopBar title={p.name} sub={[p.category, p.area, p.city].filter(Boolean).join(" · ")}
+          right={<Link to={`/p/${p.id}`} className="icon-btn" aria-label="Open public page"><Icon name="eye" size={20} /></Link>} />
 
-        <div className="stack">
-          <h2>Details</h2>
+        <Link to={`/manage/${p.id}`} className="ad-manage-link">
+          <span className="icon-chip lg"><Icon name="box" size={24} /></span>
+          <span className="grow stack tight"><span className="strong" style={{ fontSize: 16 }}>Products and photos</span><span className="small" style={{ opacity: 0.9 }}>Cover, logo, menu, hours</span></span>
+          <Icon name="chev" size={22} />
+        </Link>
+
+        <div className="mg-section">
+          <div className="mg-section-head"><span className="icon-chip sm"><Icon name="settings" size={16} /></span>Details</div>
           <div className="grid2">
             <div className="field"><label>Name</label><input className="input" value={p.name} onChange={(e) => set("name", e.target.value)} /></div>
             <div className="field"><label>Category</label><input className="input" value={p.category} onChange={(e) => set("category", e.target.value)} /></div>
@@ -132,11 +134,11 @@ export default function AdminPlace() {
             </div>
             <div className="field"><label>Listed until</label><input className="input" type="date" value={p.listed_until || ""} onChange={(e) => set("listed_until", e.target.value)} /></div>
           </div>
-          <div className="row"><button className="btn grow" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button><button className="btn ghost" onClick={renew}>Renew 1 year</button></div>
+          <div className="row"><button className="btn green grow" disabled={busy} onClick={save}><Icon name="check" size={18} />{busy ? "Saving…" : "Save"}</button><button className="btn ghost" onClick={renew}><Icon name="refresh" size={18} />Renew</button></div>
         </div>
 
-        <div className="stack">
-          <div className="row between"><h2>Table QR codes</h2>{active.length > 0 && <button className="link-btn" onClick={() => window.print()}><Icon name="print" size={16} />Print all</button>}</div>
+        <div className="mg-section">
+          <div className="mg-section-head"><span className="icon-chip sm amber"><Icon name="qr" size={16} /></span><span className="grow">Table QR codes</span>{active.length > 0 && <button className="btn small ghost" onClick={() => window.print()}><Icon name="print" size={16} />Print all</button>}</div>
           <form className="row" onSubmit={addCode}>
             <input className="input" placeholder="Label, e.g. Table 6" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
             <select className="select" style={{ width: 130 }} value={newStyle} onChange={(e) => setNewStyle(e.target.value as QrStyle)}>
@@ -144,7 +146,7 @@ export default function AdminPlace() {
             </select>
             <button className="btn small" style={{ height: 50 }}><Icon name="plus" size={18} /></button>
           </form>
-          {codes.length === 0 ? <div className="empty"><p>No codes yet.</p></div> : (
+          {codes.length === 0 ? <div className="empty"><Icon name="qr" size={28} /><p>No codes yet.</p></div> : (
             <div className="list">
               {codes.map((c) => (
                 <div key={c.id} className="list-item">
@@ -154,7 +156,7 @@ export default function AdminPlace() {
                     <span className="tiny muted">{c.style} · {c.active ? "active" : "turned off"}</span>
                   </div>
                   <button className="icon-btn" aria-label="Download PNG" onClick={() => download(c)}><Icon name="download" size={18} /></button>
-                  <button className="btn small ghost" onClick={() => toggleCode(c)}>{c.active ? "Turn off" : "Turn on"}</button>
+                  <button className={`mg-act ${c.active ? "on" : ""}`} style={{ width: 44, height: 44 }} aria-label={c.active ? "Turn off" : "Turn on"} aria-pressed={c.active} onClick={() => toggleCode(c)}><Icon name={c.active ? "eye" : "eyeOff"} size={18} /></button>
                 </div>
               ))}
             </div>
@@ -162,22 +164,7 @@ export default function AdminPlace() {
         </div>
       </div>
 
-      {/* Print sheet: one card per active code */}
-      <div className="print-only stack" style={{ gap: 24 }}>
-        {active.map((c) => {
-          const col = STYLE_COLORS[c.style];
-          return (
-            <div key={c.id} className={`qr-card ${c.style === "paper" ? "" : "neon"}`} style={{ maxWidth: 380, margin: "0 auto" }}>
-              <span className="small strong" style={{ opacity: 0.7 }}>{[c.table_label, p.area].filter(Boolean).join(" · ")}</span>
-              <span style={{ fontWeight: 800, fontSize: 28, letterSpacing: "-0.02em" }}>{p.name}</span>
-              <QrImage text={qrUrl(c.token)} size={200} dark={col.dark} light={col.light} />
-              <span className="strong">Scan to rate what you had</span>
-              {topItem && <span className="small" style={{ opacity: 0.7 }}>{topItem}</span>}
-              <span className="small strong" style={{ color: c.style === "paper" ? "var(--green)" : col.dark }}>● Trusted Picks</span>
-            </div>
-          );
-        })}
-      </div>
+      <QrPrintSheet place={p} codes={codes} topItem={topItem} />
     </div>
   );
 }

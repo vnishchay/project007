@@ -3,6 +3,8 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { Icon, Spinner } from "../components/ui";
+import { Chip, Glyph } from "../components/home/Kit";
+import "../styles/home.css";
 
 function GoogleLogo() {
   return (
@@ -67,15 +69,20 @@ export default function SignIn() {
   const alreadyHasAccount = Boolean(authError && /already|exists/i.test(authError));
 
   return (
-    <div className="page" style={{ justifyContent: "center" }}>
-      <div className="stack" style={{ gap: 8 }}>
-        <span className="avatar lg" style={{ background: "var(--green-soft)", color: "var(--green)" }}><Icon name="check" size={26} width={2.6} /></span>
-        <h1>{isGuest ? "Keep your reviews" : "Sign in to Trusted Picks"}</h1>
-        <p className="muted">
-          {isGuest
-            ? "Optional. Sign in to keep your reviews on any device, show your name if you want to, and see what friends loved. Your reviews stay anonymous unless you choose otherwise."
-            : "Optional. You can rate places and post to Google without an account. Sign in to keep your reviews on every device and see what friends loved."}
-        </p>
+    <div className="page" style={{ gap: 16 }}>
+      <header className="hero" style={{ alignItems: "center", textAlign: "center", paddingTop: 26 }}>
+        <span className="success-burst"><Icon name={isGuest ? "lock" : "login"} size={34} color="#fff" /></span>
+        <h1>{isGuest ? "Keep your reviews" : "Sign in"}</h1>
+        <span className="pill white"><Icon name="info" size={13} />Optional</span>
+      </header>
+      <div className="menu">
+        {([
+          ["star", "amber", isGuest ? "Keep your reviews on any device" : "Your reviews on every device"],
+          ["people", "violet", "See what friends loved"],
+          ["eyeOff", "green", "Anonymous unless you show your name"],
+        ] as const).map(([icon, tone, t]) => (
+          <div key={t} className="menu-row" style={{ cursor: "default" }}><Chip icon={icon} tone={tone} size="sm" /><span className="small strong grow">{t}</span></div>
+        ))}
       </div>
 
       {authError && <div className="notice err">Sign-in didn't finish: {authError}</div>}
@@ -86,16 +93,16 @@ export default function SignIn() {
       )}
 
       {sent === "link" ? (
-        <div className="notice ok">Check <b>{email}</b> for a sign-in link. You stay signed in on this device after you tap it.</div>
+        <div className="notice ok"><Icon name="checkCircle" size={16} /> Check <b>{email}</b> for a sign-in link. You stay signed in on this device after you tap it.</div>
       ) : sent === "confirm" ? (
-        <div className="notice ok">Check <b>{email}</b> and tap the link to confirm. Your reviews move to that account.</div>
+        <div className="notice ok"><Icon name="checkCircle" size={16} /> Check <b>{email}</b> and tap the link to confirm. Your reviews move to that account.</div>
       ) : (
         <form className="stack" onSubmit={sendLink}>
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email" className="row" style={{ gap: 6 }}><Glyph name="mail" size={14} />Email</label>
             <input id="email" className="input" type="email" required autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <button className="btn block" disabled={busy}>{busy ? "Sending…" : "Email me a sign-in link"}</button>
+          <button className="btn green block" disabled={busy}><Icon name="send" size={18} />{busy ? "Sending…" : "Email me a sign-in link"}</button>
         </form>
       )}
 
@@ -106,7 +113,7 @@ export default function SignIn() {
       {isGuest
         ? <button className="btn quiet block" onClick={() => nav(skipTo, { replace: true })}>Not now</button>
         : <Link to={skipTo} className="btn quiet block">Continue without signing in</Link>}
-      <p className="tiny muted center">One sign-in keeps you signed in on this device until you sign out.</p>
+      <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={12} />You stay signed in on this device</p>
     </div>
   );
 }
