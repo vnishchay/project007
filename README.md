@@ -9,7 +9,7 @@ If you already ran an earlier copy, run only the migration files you haven't run
 
 ## 2. Supabase settings
 
-- **Authentication > URL Configuration**: set **Site URL** to your Vercel URL (for example `https://trustedpicks.vercel.app`) and add `https://*.vercel.app/**` and `http://localhost:5173/**` to **Redirect URLs**.
+- **Authentication > URL Configuration**: set **Site URL** to your Vercel URL (for example `https://trustedpicks.vercel.app`) and add your exact site address followed by `/**` (for example `https://project007.vercel.app/**`) and `http://localhost:5173/**` to **Redirect URLs**. Avoid a `*.vercel.app` wildcard: it would let any Vercel site receive your users' sign-in tokens. If the Supabase project is shared with other apps, leave Site URL as it is and only add Redirect URLs.
 - **Authentication > Sign In / Providers**: Email is on by default (magic link). For "Continue with Google", turn on Google and paste a Google OAuth client ID and secret.
 - Make yourself admin: sign in once on the site, then run in SQL Editor:
   ```sql
