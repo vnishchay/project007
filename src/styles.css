@@ -190,3 +190,13 @@ a.list-item:hover { color: inherit; background: linear-gradient(90deg, transpare
   .page { padding: 0; }
   .qr-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 24px; }
 }
+
+/* Bottom sheet (location picker) */
+.sheet-backdrop { position: fixed; inset: 0; background: rgba(17, 19, 17, 0.4); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 520px; max-height: 85dvh; background: var(--bg); border-radius: 24px 24px 0 0; padding: 18px 20px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; }
+.sheet-list { overflow-y: auto; margin: 0 -20px; padding: 0 20px; }
+button.list-item { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line-soft); text-align: left; cursor: pointer; font-size: 15px; }
+.list-item.pick.sub { padding-left: 34px; color: var(--ink-2); }
+.list-item.pick.on { color: var(--green-dark); font-weight: 700; }
+.list-item.pick.on::after { content: "✓"; color: var(--green); font-weight: 800; }
+.where-btn { background: none; border: 0; padding: 6px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }

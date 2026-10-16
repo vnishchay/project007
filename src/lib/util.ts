@@ -59,9 +59,12 @@ export interface Coords { lat: number; lng: number }
 export function getLocation(): Promise<Coords | null> {
   return new Promise((resolve) => {
     if (!("geolocation" in navigator)) return resolve(null);
+    // The browser's own timeout only starts after the permission prompt is answered,
+    // so give up on our own if the prompt is ignored.
+    const giveUp = setTimeout(() => resolve(null), 10000);
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => resolve(null),
+      (p) => { clearTimeout(giveUp); resolve({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+      () => { clearTimeout(giveUp); resolve(null); },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60 * 1000 },
     );
   });
@@ -78,4 +81,14 @@ export function avatarColor(id: string): string {
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return AVATAR_COLORS[h % AVATAR_COLORS.length]!;
+}
+
+/** Reads "18.53, 73.89" or a Google Maps link (…/@18.53,73.89,17z or …!3d18.53!4d73.89). */
+export function parseCoords(text: string): Coords | null {
+  const t = text.trim();
+  const m = t.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/) || t.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) || t.match(/(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/);
+  if (!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
 }

@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import type { Place, QrCode, QrStyle } from "../lib/types";
-import { qrUrl } from "../lib/util";
+import { qrUrl, parseCoords } from "../lib/util";
 import { Icon, QrImage, Spinner, TopBar, qrPngDataUrl, useToast } from "../components/ui";
+import { CoordsField } from "../components/CoordsField";
 import { PLACE_COLS } from "./Place";
 
 const STYLE_COLORS: Record<QrStyle, { dark: string; light: string }> = {
@@ -65,8 +66,8 @@ export default function AdminPlace() {
     }).eq("id", id);
     let err = error;
     if (!err) {
-      const m = coords.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
-      const r = await supabase.rpc("set_place_location", { p_place: id, p_lat: m ? Number(m[1]) : null, p_lng: m ? Number(m[2]) : null });
+      const m = parseCoords(coords);
+      const r = await supabase.rpc("set_place_location", { p_place: id, p_lat: m ? m.lat : null, p_lng: m ? m.lng : null });
       err = r.error;
     }
     setBusy(false);
@@ -119,7 +120,7 @@ export default function AdminPlace() {
                 <option value="">Not set</option><option value="1">₹</option><option value="2">₹₹</option><option value="3">₹₹₹</option><option value="4">₹₹₹₹</option>
               </select>
             </div>
-            <div className="field"><label>Lat, lng</label><input className="input" value={coords} onChange={(e) => setCoords(e.target.value)} placeholder="18.5362, 73.8940" /></div>
+            <CoordsField value={coords} onChange={setCoords} />
           </div>
           <div className="field"><label>Google Place ID</label><input className="input" value={p.google_place_id || ""} onChange={(e) => set("google_place_id", e.target.value)} placeholder="ChIJ…" /></div>
           <div className="field"><label>About</label><textarea className="textarea" style={{ minHeight: 80 }} value={p.about || ""} onChange={(e) => set("about", e.target.value)} /></div>

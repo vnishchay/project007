@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useSettings, type AppSettings } from "../lib/settings";
 import type { ListingRequest, Place } from "../lib/types";
-import { rupees, timeAgo } from "../lib/util";
+import { rupees, timeAgo, parseCoords } from "../lib/util";
 import { Icon, useToast } from "../components/ui";
+import { CoordsField } from "../components/CoordsField";
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
@@ -87,10 +88,10 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
       const u = await supabase.from("listing_requests").update({ google_place_id: id || null }).eq("id", r.id);
       if (u.error) return u;
     }
-    const m = coords.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+    const m = parseCoords(coords);
     const n = Math.max(0, Math.min(200, parseInt(tables, 10) || 0));
     const labels = r.wants_qr ? Array.from({ length: n }, (_, i) => `Table ${i + 1}`) : [];
-    return await supabase.rpc("approve_listing", { p_request: r.id, p_lat: m ? Number(m[1]) : null, p_lng: m ? Number(m[2]) : null, p_table_labels: labels });
+    return await supabase.rpc("approve_listing", { p_request: r.id, p_lat: m ? m.lat : null, p_lng: m ? m.lng : null, p_table_labels: labels });
   }, "Approved and live");
 
   const badge = r.status === "pending" ? "warn" : r.status === "paid" ? "" : r.status === "declined" ? "red" : "gray";
@@ -127,11 +128,10 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
                 <a className="tiny" href="https://developers.google.com/maps/documentation/places/web-service/place-id#find-id" target="_blank" rel="noreferrer">Find a Place ID</a>
               </div>
               <div className="grid2">
-                <div className="field"><label>Lat, lng</label><input className="input" value={coords} onChange={(e) => setCoords(e.target.value)} placeholder="18.5362, 73.8940" /></div>
+                <CoordsField value={coords} onChange={setCoords} />
                 {r.wants_qr && <div className="field"><label>Tables</label><input className="input" type="number" min={0} max={200} value={tables} onChange={(e) => setTables(e.target.value)} /></div>}
               </div>
-              <span className="tiny muted">Right-click the spot in Google Maps and click the numbers to copy them.</span>
-              {r.status === "pending" && <div className="notice warn small">Not marked paid yet. Approving anyway records no payment.</div>}
+                            {r.status === "pending" && <div className="notice warn small">Not marked paid yet. Approving anyway records no payment.</div>}
               <div className="row">
                 <button className="btn small grow" disabled={busy} onClick={approve}>Approve and go live</button>
                 <button className="btn small danger" disabled={busy} onClick={decline}>Decline</button>

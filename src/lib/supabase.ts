@@ -5,6 +5,22 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
 export const configured = Boolean(url && key);
 
+// Supabase sends sign-in failures back as ?error=…&error_description=… or #error=….
+// Read them before the client starts, and take them out of the address bar.
+function readUrlAuthError(): string | null {
+  if (typeof window === "undefined") return null;
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search);
+  const desc = hash.get("error_description") || query.get("error_description");
+  const code = hash.get("error") || query.get("error");
+  if (!desc && !code) return null;
+  for (const k of ["error", "error_code", "error_description"]) query.delete(k);
+  const qs = query.toString();
+  window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  return (desc || code || "").replace(/\+/g, " ");
+}
+export const urlAuthError = readUrlAuthError();
+
 export const supabase = createClient(url || "http://localhost", key || "missing-key", {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });

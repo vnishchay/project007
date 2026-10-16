@@ -1,31 +1,49 @@
 import { useState } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { Icon } from "../components/ui";
+import { Avatar, Icon, Spinner } from "../components/ui";
 
 export default function SignIn() {
   const [params] = useSearchParams();
-  const next = params.get("next") || "/";
-  const { session } = useAuth();
+  const nextParam = params.get("next");
+  // Only follow same-site paths, never an outside URL.
+  const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+  const { session, profile, loading, authError, clearAuthError, signOut } = useAuth();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  if (session) return <Navigate to={next} replace />;
+  if (loading) return <div className="page"><Spinner /></div>;
+  if (session && nextParam) return <Navigate to={next} replace />;
+  if (session) {
+    const who = profile?.display_name || session.user.user_metadata?.full_name || session.user.email || "your account";
+    return (
+      <div className="page" style={{ justifyContent: "center" }}>
+        <div className="stack center" style={{ alignItems: "center", gap: 10 }}>
+          <Avatar id={session.user.id} name={who} path={profile?.avatar_path} size="lg" />
+          <h1>You're signed in</h1>
+          <p className="muted">as <b>{who}</b>{session.user.email && who !== session.user.email ? ` (${session.user.email})` : ""}</p>
+        </div>
+        <Link to="/" className="btn block">Continue</Link>
+        <Link to="/me" className="btn ghost block">Your profile</Link>
+        <button className="btn quiet block" onClick={signOut}>Sign out</button>
+      </div>
+    );
+  }
   const redirectTo = `${window.location.origin}${next}`;
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); clearAuthError();
     const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirectTo } });
     setBusy(false);
     if (error) setErr(errorText(error)); else setSent(true);
   }
 
   async function google() {
-    setErr("");
+    setErr(""); clearAuthError();
     const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
     if (error) setErr(errorText(error));
   }
@@ -37,6 +55,8 @@ export default function SignIn() {
         <h1>Sign in to Trusted Picks</h1>
         <p className="muted">Rate what you had, see what your friends loved, and get a verified badge when you scan a table QR.</p>
       </div>
+
+      {authError && <div className="notice err">Sign-in didn't finish: {authError}</div>}
 
       {sent ? (
         <div className="notice ok">Check <b>{email}</b> for a sign-in link. You can close this tab after you tap it.</div>

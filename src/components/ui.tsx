@@ -10,6 +10,9 @@ const paths: Record<string, ReactNode> = {
   search: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></>,
   back: <path d="M15 5l-7 7 7 7" />,
   chev: <path d="M9 5l7 7-7 7" />,
+  down: <path d="M6 9l6 6 6-6" />,
+  locate: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="7" /></>,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   home: <path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z" />,
   scan: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M8 12h8" /></>,
@@ -75,8 +78,16 @@ export function Avatar({ id, name, path, size = "" }: { id: string; name: string
 
 /* ---------- Layout ---------- */
 export function Layout({ children }: { children: ReactNode }) {
+  const { authError, clearAuthError } = useAuth();
+  const loc = useLocation();
   return (
     <div className="app">
+      {authError && loc.pathname !== "/signin" && (
+        <div className="notice err row no-print" style={{ margin: "12px 20px 0" }} role="alert">
+          <span className="grow">Sign-in didn't finish: {authError}. <Link to="/signin">Try again</Link></span>
+          <button className="link-btn" aria-label="Dismiss" onClick={clearAuthError}><Icon name="close" size={16} color="var(--danger)" /></button>
+        </div>
+      )}
       {children}
       <BottomNav />
     </div>

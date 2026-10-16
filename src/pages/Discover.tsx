@@ -1,43 +1,49 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase, PROFILE_COLS, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Profile, SearchResult, Topic } from "../lib/types";
-import { distanceText, getLocation, priceText, type Coords } from "../lib/util";
+import { distanceText, priceText } from "../lib/util";
+import { useWhere, whereLabel } from "../lib/location";
 import { Avatar, Icon } from "../components/ui";
+import { LocationPicker } from "../components/LocationPicker";
 
 export default function Discover() {
-  const { profile, session } = useAuth();
+  const { profile, session, loading } = useAuth();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
   const [text, setText] = useState(q);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [coords, setCoords] = useState<Coords | null>(null);
-  const [locState, setLocState] = useState<"asking" | "on" | "off">("asking");
+  const { where, effective, coords, locating, denied, setWhere } = useWhere(profile?.city);
+  const [picking, setPicking] = useState(false);
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [people, setPeople] = useState<Record<string, Profile>>({});
   const [err, setErr] = useState("");
 
   useEffect(() => {
     supabase.from("topics").select("id, name").order("name").then(({ data }) => setTopics((data as Topic[]) || []));
-    getLocation().then((c) => { setCoords(c); setLocState(c ? "on" : "off"); });
   }, []);
 
+  const whereKey = JSON.stringify(effective);
   useEffect(() => {
-    if (locState === "asking") return;
     let cancelled = false;
     setResults(null); setErr("");
+    const near = effective.kind === "near" && coords;
     supabase.rpc("search_places", {
       p_query: q || null,
-      p_lat: coords?.lat ?? null,
-      p_lng: coords?.lng ?? null,
-      p_radius_m: 8000,
-      p_city: coords ? null : profile?.city || null,
-      p_limit: 30,
+      p_lat: near ? coords.lat : null,
+      p_lng: near ? coords.lng : null,
+      p_radius_m: 15000,
+      p_city: effective.kind === "city" || effective.kind === "area" ? effective.city : null,
+      p_limit: 50,
     }).then(async ({ data, error }) => {
       if (cancelled) return;
       if (error) { setErr(errorText(error)); setResults([]); return; }
-      const rows = (data as SearchResult[]) || [];
+      let rows = (data as SearchResult[]) || [];
+      if (effective.kind === "area") {
+        const a = effective.area.toLowerCase();
+        rows = rows.filter((r) => (r.area || "").toLowerCase() === a);
+      }
       setResults(rows);
       const ids = [...new Set(rows.flatMap((r) => r.friend_ids || []))].slice(0, 100);
       if (ids.length) {
@@ -46,9 +52,11 @@ export default function Discover() {
       }
     });
     return () => { cancelled = true; };
-  }, [q, coords, locState, profile?.city, session?.user.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, whereKey, coords, session?.user.id]);
 
-  const where = useMemo(() => (coords ? "Near you" : profile?.city ? profile.city : "Everywhere"), [coords, profile?.city]);
+  const label = locating ? "Finding you…" : whereLabel(effective);
+  const nearYou = effective.kind === "near";
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,15 +67,21 @@ export default function Discover() {
   return (
     <div className="page">
       <div className="row between">
-        <div className="row" style={{ gap: 6 }}>
+        <button className="where-btn" onClick={() => setPicking(true)} aria-haspopup="dialog" aria-label={`Location: ${label}. Change location`}>
           <Icon name="pin" size={16} color="var(--green)" />
-          <span className="small strong">{where}</span>
-          {locState === "off" && <button className="link-btn tiny" onClick={() => getLocation().then((c) => { setCoords(c); setLocState(c ? "on" : "off"); })}>Use my location</button>}
-        </div>
-        {!session && <Link to="/signin" className="small strong">Sign in</Link>}
+          <span className="small strong ellipsis" style={{ maxWidth: 220 }}>{label}</span>
+          <Icon name="down" size={16} color="var(--muted)" width={2.4} />
+        </button>
+        {loading ? null : session ? (
+          <Link to="/me" aria-label="Your profile"><Avatar id={session.user.id} name={profile?.display_name || session.user.email} path={profile?.avatar_path} /></Link>
+        ) : <Link to="/signin" className="btn small ghost">Sign in</Link>}
       </div>
+      {denied && where.kind === "near" && (
+        <div className="notice small">Location is off, so we're showing {whereLabel(effective)}. <button className="link-btn" onClick={() => setPicking(true)}>Choose a location</button></div>
+      )}
+      {picking && <LocationPicker current={where} onPick={setWhere} onClose={() => setPicking(false)} />}
 
-      <h1>{q ? <>Best <span className="green">{q}</span> {coords ? "near you" : ""}</> : "What are you craving?"}</h1>
+      <h1>{q ? <>Best <span className="green">{q}</span> {nearYou && coords ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}</> : "What are you craving?"}</h1>
 
       <form className="search" onSubmit={submit} role="search">
         <Icon name="search" color="var(--muted)" />
@@ -86,14 +100,16 @@ export default function Discover() {
       <div className="stack" style={{ gap: 0 }}>
         <div className="row between" style={{ paddingBottom: 4 }}>
           <h2>{q ? "Ranked by people you trust" : "Places on Trusted Picks"}</h2>
-          {session ? null : <span className="tiny muted">Sign in to rank by friends</span>}
+          {loading || session ? null : <Link to="/signin" className="tiny">Sign in to rank by friends</Link>}
         </div>
         {err && <div className="notice err">{err}</div>}
         {results === null ? (
           <div className="stack" style={{ marginTop: 10 }}><div className="skeleton" /><div className="skeleton" /><div className="skeleton" /></div>
         ) : results.length === 0 ? (
           <div className="empty">
-            <p>{q ? `No listed places match “${q}” yet.` : "No places are listed here yet."}</p>
+            <p>{q ? `No listed places match “${q}” in ${whereLabel(effective)} yet.` : `No places are listed in ${whereLabel(effective)} yet.`}</p>
+            {effective.kind !== "all" && <button className="link-btn" onClick={() => setWhere({ kind: "all" })}>Search everywhere</button>}
+            <button className="link-btn" onClick={() => setPicking(true)}>Choose another location</button>
             <Link to="/business" className="link-btn">Own a business? Get listed</Link>
           </div>
         ) : (

@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase, PROFILE_COLS } from "./supabase";
+import { supabase, PROFILE_COLS, urlAuthError } from "./supabase";
 import type { Profile } from "./types";
 
 interface AuthState {
@@ -8,6 +8,8 @@ interface AuthState {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
+  authError: string | null;
+  clearAuthError: () => void;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -18,8 +20,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(urlAuthError);
+  const uidRef = useRef<string | undefined>(undefined);
 
   const loadProfile = useCallback(async (uid: string | undefined) => {
+    uidRef.current = uid;
     if (!uid) { setProfile(null); return; }
     let { data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).maybeSingle();
     if (!data) {
@@ -27,21 +32,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.rpc("ensure_profile");
       ({ data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", uid).maybeSingle());
     }
+    if (uidRef.current !== uid) return; // signed out or switched account meanwhile
     setProfile((data as Profile) ?? { id: uid, display_name: "", avatar_path: null, city: null, role: "user", created_at: new Date().toISOString() });
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
+    let alive = true;
+    // getSession waits for the client to finish reading a sign-in redirect from the URL.
+    supabase.auth.getSession().then(async ({ data, error }) => {
+      if (!alive) return;
+      if (error) setAuthError(error.message);
       setSession(data.session);
       await loadProfile(data.session?.user.id);
-      setLoading(false);
+      if (alive) setLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (!alive) return;
       setSession(s);
-      // Defer the query so it doesn't run inside the auth callback.
-      setTimeout(() => loadProfile(s?.user.id), 0);
+      if (event === "SIGNED_IN") setAuthError(null);
+      // Only refetch the profile when the user changes, and outside the auth callback.
+      if (s?.user.id !== uidRef.current) setTimeout(() => loadProfile(s?.user.id), 0);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => { alive = false; sub.subscription.unsubscribe(); };
   }, [loadProfile]);
 
   const value: AuthState = {
@@ -49,8 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     isAdmin: profile?.role === "admin",
+    authError,
+    clearAuthError: () => setAuthError(null),
     refreshProfile: () => loadProfile(session?.user.id),
-    signOut: async () => { await supabase.auth.signOut(); setProfile(null); },
+    signOut: async () => { await supabase.auth.signOut(); setSession(null); setProfile(null); uidRef.current = undefined; },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
