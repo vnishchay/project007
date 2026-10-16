@@ -40,6 +40,7 @@ export interface SearchResult {
   friend_count: number;
   friend_ids: string[];
   top_item: string | null;
+  has_qr?: boolean;
 }
 
 export interface Topic { id: number; name: string }
@@ -54,6 +55,8 @@ export interface ReviewRow {
   body: string;
   ai_drafted: boolean;
   visit_id: string | null;
+  photo_path?: string | null;
+  voice_path?: string | null;
   status: "published" | "hidden";
   created_at: string;
   items?: { name: string } | null;
