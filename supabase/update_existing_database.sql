@@ -3247,7 +3247,7 @@ begin
   lim := public.place_qr_limit(p_place);
   select count(*) into have from public.qr_codes where place_id = p_place and active;
   for n in (have + 1)..least(greatest(coalesce(p_tables, 1), 1), lim, 200) loop
-    insert into public.qr_codes (place_id, style, table_label) values (p_place, coalesce(nullif(p_style, ''), 'paper'), 'Table ' || n);
+    insert into public.qr_codes (place_id, style, table_label) values (p_place, coalesce(nullif(p_style, ''), 'paper')::public.qr_style, 'Table ' || n);
   end loop;
   select count(*) into have from public.qr_codes where place_id = p_place and active;
   return have;
