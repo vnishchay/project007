@@ -1,4 +1,4 @@
-import { allowedInFocus, focusShop } from "../lib/focus";
+import { allowedInFocus, clearFocusShop, focusShop } from "../lib/focus";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
@@ -67,9 +67,13 @@ export function Avatar({ id, name, path, size = "" }: { id: string; name: string
 
 /* ---------- Layout ---------- */
 export function Layout({ children }: { children: ReactNode }) {
-  const { authError, clearAuthError } = useAuth();
+  const { authError, clearAuthError, session, isGuest, loading } = useAuth();
   const loc = useLocation();
-  const shop = focusShop();
+  // Shop mode keeps customers (guests, signed-out visitors) with the shop they scanned. A signed-in
+  // account may be the owner, so it always gets the full app, never a redirect to the shop page.
+  const account = Boolean(session) && !isGuest;
+  useEffect(() => { if (account) clearFocusShop(); }, [account, loc.pathname]);
+  const shop = account || loading ? null : focusShop();
   return (
     <div className="app">
       {authError && loc.pathname !== "/signin" && (

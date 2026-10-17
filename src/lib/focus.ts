@@ -10,9 +10,13 @@ export function focusShop(): string | null {
   try { return sessionStorage.getItem(KEY); } catch { return null; }
 }
 
+export function clearFocusShop() {
+  try { sessionStorage.removeItem(KEY); } catch { /* storage blocked */ }
+}
+
 /** Pages a customer in shop mode may open. */
 export function allowedInFocus(path: string, shop: string): boolean {
   return path === `/p/${shop}` || path.startsWith(`/review/${shop}`) || path.startsWith("/saved/")
-    || path.startsWith("/q/") || path.startsWith("/r/") || path === "/signin"
+    || path.startsWith("/q/") || path.startsWith("/r/") || path === "/signin" || path === "/check"
     || ["/privacy", "/terms"].includes(path);
 }

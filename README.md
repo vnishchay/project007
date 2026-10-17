@@ -19,7 +19,7 @@ If you already ran an earlier copy, run only the migration files you haven't run
 
 Or run `supabase/update_existing_database.sql`, which bundles 0006 onwards.
 
-For test data, run `supabase/demo_data.sql`: twelve Pune shops with menus and table QR codes, 28 demo people, friendships, and a few hundred reviews. It is safe to run again, and the removal queries are at the bottom of the file.
+For test data, run `supabase/demo_data.sql`: 34 Pune shops of every kind with menus, prices and table QR codes, 56 demo people, friendships, about 1,600 reviews, saved places, plans, payments, review links, reports, requests and claims. It is safe to run again, and the removal queries are at the bottom of the file.
 
 ## 2. Supabase settings
 
