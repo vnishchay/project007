@@ -149,3 +149,13 @@ export function categoryFromTypes(types: string[]): string {
   const t = types.find((x) => !skip.has(x)) || types[0] || "";
   return t.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
+
+export interface GoogleLocation { lat: number; lng: number }
+
+/** The business's exact pin on Google Maps. Cached by us for at most ~25 days (Google allows 30). */
+export async function fetchGoogleLocation(placeId: string): Promise<GoogleLocation | null> {
+  if (!placeId) return null;
+  const j = await get<{ location?: { latitude?: number; longitude?: number } }>(`places/${encodeURIComponent(placeId)}`, "location");
+  const { latitude, longitude } = j?.location ?? {};
+  return typeof latitude === "number" && typeof longitude === "number" ? { lat: latitude, lng: longitude } : null;
+}

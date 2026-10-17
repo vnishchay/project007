@@ -54,38 +54,76 @@ export default function Discover() {
   }, []);
 
   const whereKey = JSON.stringify(effective);
+  const PAGE = 30;
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [widened, setWidened] = useState(0);
+
+  const near = effective.kind === "near" && coords;
+  const searchArgs = (radius: number, offset: number) => ({
+    p_query: q || null,
+    p_lat: near ? coords.lat : null,
+    p_lng: near ? coords.lng : null,
+    p_radius_m: radius,
+    p_city: effective.kind === "city" || effective.kind === "area" ? effective.city : null,
+    p_area: effective.kind === "area" ? effective.area : null,
+    ...(type ? { p_kind: type } : {}),
+    // One extra row tells us whether there is another page.
+    p_limit: PAGE + 1,
+    p_offset: offset,
+  });
+
+  // Photos and friend avatars for the rows just loaded, merged into what is already shown.
+  async function hydrate(rows: SearchResult[], isCancelled: () => boolean) {
+    const placeIds = rows.map((r) => r.place_id);
+    const ids = [...new Set(rows.flatMap((r) => r.friend_ids || []))].slice(0, 100);
+    const [ps, pm] = await Promise.all([
+      ids.length ? supabase.from("profiles").select(PROFILE_COLS).in("id", ids) : null,
+      // Older databases have no cover photos yet: just show the icon tiles.
+      placeIds.length ? supabase.from("places").select("id, cover_path, logo_path").in("id", placeIds) : null,
+    ]);
+    if (isCancelled()) return;
+    if (ps && !ps.error) setPeople((prev) => ({ ...prev, ...Object.fromEntries(((ps.data as Profile[]) || []).map((p) => [p.id, p])) }));
+    if (pm && !pm.error) setMedia((prev) => ({ ...prev, ...Object.fromEntries(((pm.data as unknown as (Media & { id: string })[]) || []).map((m) => [m.id, m])) }));
+  }
+
   useEffect(() => {
     let cancelled = false;
-    setResults(null); setErr("");
-    const near = effective.kind === "near" && coords;
-    searchPlaces({
-      p_query: q || null,
-      p_lat: near ? coords.lat : null,
-      p_lng: near ? coords.lng : null,
-      p_radius_m: 15000,
-      p_city: effective.kind === "city" || effective.kind === "area" ? effective.city : null,
-      p_area: effective.kind === "area" ? effective.area : null,
-      ...(type ? { p_kind: type } : {}),
-      p_limit: 60,
-    }).then(async ({ data, error }) => {
+    setResults(null); setErr(""); setHasMore(false); setWidened(0);
+    (async () => {
+      let radius = 15000;
+      let res = await searchPlaces(searchArgs(radius, 0));
+      // Few places close by: look further out, and say so.
+      if (!cancelled && near && !res.error && ((res.data as SearchResult[]) || []).length < 6) {
+        const wide = await searchPlaces(searchArgs(60000, 0));
+        if (!wide.error && ((wide.data as SearchResult[]) || []).length > ((res.data as SearchResult[]) || []).length) { res = wide; radius = 60000; }
+      }
       if (cancelled) return;
-      if (error) { setErr(errorText(error)); setResults([]); return; }
-      const rows = (data as SearchResult[]) || [];
+      if (res.error) { setErr(errorText(res.error)); setResults([]); return; }
+      const all = (res.data as SearchResult[]) || [];
+      setWidened(radius > 15000 ? radius / 1000 : 0);
+      setHasMore(all.length > PAGE);
+      const rows = all.slice(0, PAGE);
       setResults(rows);
-      const placeIds = rows.map((r) => r.place_id);
-      const ids = [...new Set(rows.flatMap((r) => r.friend_ids || []))].slice(0, 100);
-      const [ps, pm] = await Promise.all([
-        ids.length ? supabase.from("profiles").select(PROFILE_COLS).in("id", ids) : null,
-        // Older databases have no cover photos yet: just show the icon tiles.
-        placeIds.length ? supabase.from("places").select("id, cover_path, logo_path").in("id", placeIds) : null,
-      ]);
-      if (cancelled) return;
-      if (ps && !ps.error) setPeople(Object.fromEntries(((ps.data as Profile[]) || []).map((p) => [p.id, p])));
-      if (pm && !pm.error) setMedia(Object.fromEntries(((pm.data as unknown as (Media & { id: string })[]) || []).map((m) => [m.id, m])));
-    });
+      hydrate(rows, () => cancelled);
+    })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, type, whereKey, coords, session?.user.id]);
+
+  async function loadMore() {
+    if (!results || loadingMore) return;
+    setLoadingMore(true);
+    const res = await searchPlaces(searchArgs(widened ? widened * 1000 : 15000, results.length));
+    setLoadingMore(false);
+    if (res.error) { setErr(errorText(res.error)); return; }
+    const all = (res.data as SearchResult[]) || [];
+    const seen = new Set(results.map((r) => r.place_id));
+    const rows = all.slice(0, PAGE).filter((r) => !seen.has(r.place_id));
+    setHasMore(all.length > PAGE);
+    setResults([...results, ...rows]);
+    hydrate(rows, () => false);
+  }
 
   // Flag when Google's rating hides a weaker one from people you trust.
   const [gap, setGap] = useState<{ name: string; google: number; ours: number; item: string | null; id: string } | null>(null);
@@ -220,7 +258,7 @@ export default function Discover() {
 
       <section className="stack" style={{ gap: 12 }} aria-label="Places">
         <SectionTitle icon={q ? "trophy" : "flame"} tone={q ? "amber" : "coral"} right={results && results.length > 0 ? (
-          <span className="count-pill"><Icon name="store" size={13} />{results.length}{nearYou && farthest > 0 ? <> · <Icon name="navigate" size={11} />{Math.max(1, Math.ceil(farthest / 1000))} km</> : null}</span>
+          <span className="count-pill"><Icon name="store" size={13} />{results.length}{hasMore ? "+" : ""}{nearYou && farthest > 0 ? <> · <Icon name="navigate" size={11} />{Math.max(1, Math.ceil(farthest / 1000))} km</> : null}</span>
         ) : null}>
           {q ? "Ranked by people you trust" : "Top picks"}
         </SectionTitle>
@@ -247,7 +285,9 @@ export default function Discover() {
           </EmptyArt>
         ) : (
           <div className="stack" style={{ gap: 12 }}>
+            {widened > 0 && <div className="notice small">Not many places close by, so this reaches up to {widened} km.</div>}
             {results.map((r) => <PlaceCard key={r.place_id} r={r} people={people} coverUrl={cover(r.place_id)} />)}
+            {hasMore && <button type="button" className="btn ghost block" disabled={loadingMore} onClick={loadMore}><Icon name="down" size={18} />{loadingMore ? "Loading…" : "Show more places"}</button>}
           </div>
         )}
       </section>

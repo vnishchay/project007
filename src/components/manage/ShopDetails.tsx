@@ -8,9 +8,14 @@ import { parseCoords } from "../../lib/util";
 import { KINDS, MODES, modeOf, type Kind } from "../../lib/modes";
 import { HoursEditor, readHours, writeHours, type DayHours } from "./HoursEditor";
 import { assist } from "../../lib/assist";
+import { googleConfigured } from "../../lib/google";
+import type { PinInfo } from "../../lib/pin";
+import { timeAgo } from "../../lib/util";
 
 /** About, hours, category, area and price level: what owners may change themselves. */
-export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin: boolean; onSaved: (p: Partial<Place>) => void }) {
+export interface PinState { pin: PinInfo | null | undefined; syncing: boolean; error: string; refresh: () => Promise<boolean>; reload: () => Promise<void> }
+
+export function ShopDetails({ place, isAdmin, onSaved, pinState }: { place: Place; isAdmin: boolean; onSaved: (p: Partial<Place>) => void; pinState: PinState }) {
   const toast = useToast();
   const [about, setAbout] = useState(place.about || "");
   const [writing, setWriting] = useState(false);
@@ -32,8 +37,9 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!category.trim()) { toast("Add a category"); return; }
-    const c = coords.trim() ? parseCoords(coords) : null;
-    if (coords.trim() && !c) { toast("Check the map location"); return; }
+    const googlePin = Boolean(place.google_place_id) && googleConfigured;
+    const c = !googlePin && coords.trim() ? parseCoords(coords) : null;
+    if (!googlePin && coords.trim() && !c) { toast("Check the map location"); return; }
     setBusy(true);
     const change: Partial<Place> = {
       about: about.trim() || null, category: category.trim(), ...(kind !== place.kind ? { kind } : {}), area: area.trim() || null, price_level: price,
@@ -46,6 +52,7 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
       const r = await supabase.rpc("set_place_location", { p_place: place.id, p_lat: c.lat, p_lng: c.lng });
       if (r.error) { toast(errorText(r.error)); return; }
       setCoords("");
+      pinState.reload();
     }
     onSaved(change);
     toast("Saved");
@@ -98,11 +105,7 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
         </div>
       </div>
 
-      <div className="mg-section">
-        <div className="mg-section-head"><span className="icon-chip sm sky"><Icon name="map" size={16} /></span>Map pin</div>
-        <p className="tiny muted">Leave empty to keep the current pin. Stand in your shop and tap "Use my current location".</p>
-        <CoordsField value={coords} onChange={setCoords} />
-      </div>
+      <MapPin place={place} pinState={pinState} coords={coords} setCoords={setCoords} />
 
       <div className="mg-section">
         <div className="mg-section-head">
@@ -117,5 +120,42 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
         <button className="btn green block" disabled={busy}><Icon name="check" size={19} />{busy ? "Saving…" : "Save"}</button>
       </div>
     </form>
+  );
+}
+
+const mapsLink = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+/** The shop's pin: Google's own when the shop is linked to Google, otherwise typed in or taken from this phone. */
+function MapPin({ place, pinState, coords, setCoords }: { place: Place; pinState: PinState; coords: string; setCoords: (v: string) => void }) {
+  const { pin, syncing, error, refresh } = pinState;
+  const fromGoogle = Boolean(place.google_place_id) && googleConfigured;
+  return (
+    <div className="mg-section">
+      <div className="mg-section-head"><span className="icon-chip sm sky"><Icon name="map" size={16} /></span><span className="grow">Map pin</span>
+        {pin?.has_pin ? <span className="badge"><Icon name="check" size={11} />Set</span> : pin ? <span className="badge warn">Missing</span> : null}
+      </div>
+      {pin && !pin.has_pin && <div className="notice warn small">Without a pin, people nearby can't find you under “Near you”.</div>}
+      {fromGoogle ? (
+        <>
+          <p className="small muted">Your pin is taken from your Google profile, so it always matches Google Maps. If it's wrong, fix it on Google.</p>
+          <div className="row wrap" style={{ gap: 12 }}>
+            {pin?.has_pin && pin.source === "google" && pin.lat != null && pin.lng != null && (
+              <span className="small row" style={{ gap: 6 }}><Icon name="globe" size={15} />From Google{pin.updated_at ? `, ${timeAgo(pin.updated_at)}` : ""}</span>
+            )}
+            {pin?.lat != null && pin.lng != null && <a className="small" href={mapsLink(pin.lat, pin.lng)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="map" size={14} />Check on map</a>}
+          </div>
+          {error && <div className="notice err small">{error}</div>}
+          <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} disabled={syncing} onClick={() => { refresh(); }}><Icon name="locate" size={16} />{syncing ? "Reading Google…" : "Refresh from Google"}</button>
+        </>
+      ) : (
+        <>
+          <p className="tiny muted">{pin?.has_pin ? "Leave empty to keep the current pin. " : ""}Stand in your shop and tap "Use my current location", or paste a Google Maps link.{place.google_place_id ? "" : " Connect your Google profile and we'll use Google's pin instead."}</p>
+          {pin?.has_pin && pin.lat != null && pin.lng != null && (
+            <a className="small" href={mapsLink(pin.lat, pin.lng)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, alignSelf: "flex-start" }}><Icon name="map" size={14} />Current pin on the map</a>
+          )}
+          <CoordsField value={coords} onChange={setCoords} />
+        </>
+      )}
+    </div>
   );
 }

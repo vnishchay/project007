@@ -16,6 +16,7 @@ import { ReviewLinks } from "../components/manage/ReviewLinks";
 import { Plan } from "../components/manage/Plan";
 import type { IconName } from "../components/ui";
 import { modeOf } from "../lib/modes";
+import { usePin } from "../lib/pin";
 import "../styles/manage.css";
 
 const COLS = "id, google_place_id, name, kind, category, area, city, about, hours, price_level, status, listed_until, created_at, cover_path, logo_path";
@@ -41,6 +42,8 @@ export default function Manage() {
   const [count, setCount] = useState<number | null>(null);
   const [codes, setCodes] = useState<QrCode[]>([]);
   const [attempt, setAttempt] = useState(0);
+  // The shop's map pin; a Google-linked shop fills in and refreshes it from Google by itself.
+  const pinState = usePin(placeId, place?.google_place_id);
 
   useEffect(() => {
     let alive = true;
@@ -86,6 +89,13 @@ export default function Manage() {
         <TopBar title="Manage shop" sub={isAdmin ? "Admin view" : undefined}
           right={<Link to="/business" className="icon-btn" aria-label="All your shops"><Icon name="store" size={20} /></Link>} />
         <ShopHeader place={place} onChange={merge} />
+        {pinState.pin && !pinState.pin.has_pin && !pinState.syncing && tab !== "details" && (
+          <button type="button" className="callout amber" style={{ border: 0, textAlign: "left", cursor: "pointer", font: "inherit" }} onClick={() => setTab("details")}>
+            <span className="icon-chip sm amber"><Icon name="pin" size={16} /></span>
+            <span className="grow small"><b>Add your map pin.</b> People nearby can't find you until you do.</span>
+            <Icon name="chev" size={18} />
+          </button>
+        )}
         <div className="mg-tabs" role="tablist" aria-label="Manage">
           {TABS.map((t) => (
             <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} ref={tab === t.id ? (el) => el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }) : undefined} onClick={() => setTab(t.id)}>
@@ -100,7 +110,7 @@ export default function Manage() {
         {tab === "updates" && <Updates placeId={place.id} live={place.status === "live"} />}
         {tab === "details" && <>
           <GoogleConnect place={place} isAdmin={isAdmin} onSaved={merge} />
-          <ShopDetails place={place} isAdmin={isAdmin} onSaved={merge} />
+          <ShopDetails place={place} isAdmin={isAdmin} onSaved={merge} pinState={pinState} />
         </>}
         {tab === "qr" && <>
           <ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} />

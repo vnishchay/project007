@@ -11,15 +11,21 @@ export function LocationPicker({ current, onPick, onClose }: { current: Where; o
   const [text, setText] = useState("");
 
   useEffect(() => {
-    supabase.from("places").select("city, area").eq("status", "live").limit(2000).then(({ data }) => {
+    // One grouped query (city, area, shops) instead of reading every shop; older databases fall back to a capped read.
+    const build = (rows: { city: string | null; area: string | null }[]) => {
       const byCity = new Map<string, Set<string>>();
-      for (const r of (data as { city: string | null; area: string | null }[]) || []) {
+      for (const r of rows) {
         const city = (r.city || "").trim();
         if (!city) continue;
         if (!byCity.has(city)) byCity.set(city, new Set());
         if (r.area?.trim()) byCity.get(city)!.add(r.area.trim());
       }
       setSpots([...byCity.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([city, a]) => ({ city, areas: [...a].sort() })));
+    };
+    supabase.rpc("place_areas").then(async (r) => {
+      if (!r.error) { build((r.data as { city: string | null; area: string | null }[]) || []); return; }
+      const old = await supabase.from("places").select("city, area").eq("status", "live").limit(2000);
+      build((old.data as { city: string | null; area: string | null }[]) || []);
     });
   }, []);
 

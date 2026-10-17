@@ -29,6 +29,9 @@ export default function Me() {
   const [uploading, setUploading] = useState(false);
   const [reviews, setReviews] = useState<ReviewRow[] | null>(null);
   const [reviewsErr, setReviewsErr] = useState<string | null>(null);
+  const PAGE = 30;
+  const [moreReviews, setMoreReviews] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [saved, setSaved] = useState<SavedRow[] | null>(null);
   const [savedErr, setSavedErr] = useState<string | null>(null);
   const [tab, setTab] = useState<"reviews" | "saved">("reviews");
@@ -42,12 +45,29 @@ export default function Me() {
 
   const loadReviews = useCallback(() => {
     setReviewsErr(null);
-    supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).order("created_at", { ascending: false }).limit(100)
-      .then(({ data, error }) => { if (error) setReviewsErr(errorText(error)); else setReviews((data as unknown as ReviewRow[]) || []); });
+    supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).order("created_at", { ascending: false }).limit(PAGE + 1)
+      .then(({ data, error }) => {
+        if (error) { setReviewsErr(errorText(error)); return; }
+        const all = (data as unknown as ReviewRow[]) || [];
+        setMoreReviews(all.length > PAGE);
+        setReviews(all.slice(0, PAGE));
+      });
   }, [me]);
+  async function showMoreReviews() {
+    const last = reviews?.[reviews.length - 1];
+    if (!last || loadingMore) return;
+    setLoadingMore(true);
+    const { data, error } = await supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).lt("created_at", last.created_at)
+      .order("created_at", { ascending: false }).limit(PAGE + 1);
+    setLoadingMore(false);
+    if (error) { toast(errorText(error)); return; }
+    const all = (data as unknown as ReviewRow[]) || [];
+    setMoreReviews(all.length > PAGE);
+    setReviews((rs) => { const seen = new Set((rs || []).map((x) => x.id)); return [...(rs || []), ...all.slice(0, PAGE).filter((x) => !seen.has(x.id))]; });
+  }
   const loadSaved = useCallback(() => {
     setSavedErr(null);
-    supabase.from("saved_places").select("place_id, places(name, area, category)").eq("user_id", me).order("created_at", { ascending: false })
+    supabase.from("saved_places").select("place_id, places(name, area, category)").eq("user_id", me).order("created_at", { ascending: false }).limit(300)
       .then(({ data, error }) => { if (error) setSavedErr(errorText(error)); else setSaved((data as unknown as SavedRow[]) || []); });
   }, [me]);
   useEffect(() => { loadReviews(); loadSaved(); }, [loadReviews, loadSaved]);
@@ -247,7 +267,7 @@ export default function Me() {
 
       <div className="tabs" role="tablist" aria-label="Your activity">
         <button type="button" role="tab" aria-selected={tab === "reviews"} className={tab === "reviews" ? "on" : ""} onClick={() => setTab("reviews")}>
-          <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="star" size={16} />Reviews{reviews ? ` ${reviews.length}` : ""}</span>
+          <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="star" size={16} />Reviews{reviews ? ` ${reviews.length}${moreReviews ? "+" : ""}` : ""}</span>
         </button>
         <button type="button" role="tab" aria-selected={tab === "saved"} className={tab === "saved" ? "on" : ""} onClick={() => setTab("saved")}>
           <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="bookmark" size={16} />Saved{saved ? ` ${saved.length}` : ""}</span>
@@ -306,6 +326,7 @@ export default function Me() {
                 </ReviewCard>
               );
             })}
+            {moreReviews && <button type="button" className="btn ghost block" disabled={loadingMore} onClick={showMoreReviews}><Icon name="down" size={18} />{loadingMore ? "Loading…" : "Show older reviews"}</button>}
           </div>
         )
       ) : (

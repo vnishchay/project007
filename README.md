@@ -49,6 +49,11 @@ Never put the Supabase **secret** key anywhere in this app.
 
 3. Deploy. Then in the app: **Admin > Settings**, add your UPI ID so businesses can pay you.
 
+## Speed and map pins
+
+- **Search stays fast as data grows.** `search_places` scores only the 250 nearest (or most reviewed) shops, reads each one's newest 80 matching reviews plus your friends' reviews, and pages with `p_offset`. On a test database of 1,700 shops and 200,000 reviews it went from 5 to 10 seconds down to about 0.3 seconds. Lists (home, shop reviews, your reviews, admin) load a page at a time with a "Show more" button. Migration 28 also adds the missing indexes.
+- **Map pins.** A shop linked to Google uses Google's own pin: it is read from Google when the shop is linked, refreshed about every 25 days (Google lets us keep a pin for 30), and owners can't type over it. Shops without a Google link use a pin typed in or taken from the owner's phone. Owners and admins see when a shop has no pin, because such a shop can't appear under "Near you".
+
 ## AI (Supabase Edge Function)
 
 Every AI feature (review drafts, menu photos, shop updates, About text, review tips, "What people say")

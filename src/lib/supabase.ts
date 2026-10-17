@@ -68,6 +68,12 @@ export function errorText(e: unknown): string {
  */
 export async function searchPlaces(params: Record<string, unknown>) {
   let res = await supabase.rpc("search_places", params);
+  // Before the paging update there's no p_offset: ask for the first page only.
+  if (res.error?.code === "PGRST202" && "p_offset" in params) {
+    const { p_offset, ...rest } = params;
+    params = rest;
+    res = p_offset ? { ...res, error: null, data: [] } as typeof res : await supabase.rpc("search_places", params);
+  }
   // Before migration 0013 there's no business-type filter: search without it.
   if (res.error?.code === "PGRST202" && "p_kind" in params) {
     const { p_kind: _kind, ...rest } = params;

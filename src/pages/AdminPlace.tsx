@@ -8,6 +8,7 @@ import { CoordsField } from "../components/CoordsField";
 import { downloadQr, QrPrintSheet } from "../components/manage/ShopQr";
 import { PLACE_COLS } from "./Place";
 import { googleConfigured } from "../lib/google";
+import { syncPinFromGoogle } from "../lib/pin";
 import { GoogleFind, GooglePreview } from "../components/manage/Google";
 import { LinkIcon, linkLabel } from "../components/LinkIcon";
 import type { PlaceLink } from "../components/manage/LinksEditor";
@@ -23,6 +24,7 @@ export default function AdminPlace() {
   const [p, setP] = useState<Place | null | undefined>(undefined);
   const [codes, setCodes] = useState<QrCode[]>([]);
   const [coords, setCoords] = useState("");
+  const [coords0, setCoords0] = useState("");
   const [hours, setHours] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [newStyle, setNewStyle] = useState<QrStyle>("paper");
@@ -43,7 +45,7 @@ export default function AdminPlace() {
     });
     supabase.rpc("place_latlng", { p_place: id }).then(({ data }) => {
       const c = ((data as { lat: number; lng: number }[]) || [])[0];
-      if (c) setCoords(`${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`);
+      if (c) { const t = `${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`; setCoords(t); setCoords0(t); }
     });
     supabase.from("item_stats").select("avg_rating, review_count, items(name)").eq("place_id", id).gte("review_count", 3).order("avg_rating", { ascending: false }).limit(1)
       .then(({ data }) => {
@@ -80,9 +82,17 @@ export default function AdminPlace() {
     }).eq("id", id);
     let err = error;
     if (!err) {
-      const m = parseCoords(coords);
-      const r = await supabase.rpc("set_place_location", { p_place: id, p_lat: m ? m.lat : null, p_lng: m ? m.lng : null });
-      err = r.error;
+      // Google's pin for a Google-linked place; the typed one only when it changed (or Google can't be read).
+      const g = gid && googleConfigured ? await syncPinFromGoogle(id, gid) : null;
+      if (!(g && g.ok) && coords.trim() !== coords0) {
+        const m = parseCoords(coords);
+        const r = await supabase.rpc("set_place_location", { p_place: id, p_lat: m ? m.lat : null, p_lng: m ? m.lng : null });
+        err = r.error;
+        if (!r.error) setCoords0(coords.trim());
+      } else if (g && g.ok) {
+        const t = `${g.lat.toFixed(6)}, ${g.lng.toFixed(6)}`;
+        setCoords(t); setCoords0(t);
+      }
     }
     setBusy(false);
     toast(err ? errorText(err) : "Saved");

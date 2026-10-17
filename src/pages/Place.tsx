@@ -66,6 +66,9 @@ export default function PlacePage() {
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const REVIEW_PAGE = 30;
+  const [moreReviews, setMoreReviews] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   const [aiSummary, setAiSummary] = useState<PlaceSummary | null>(null);
   const withText = reviews.filter((r) => (r.body || "").trim()).length;
   // Only worth asking once there's something to summarise; the answer is cached for a day.
@@ -108,7 +111,7 @@ export default function PlacePage() {
       // The Google rating is billed per lookup, so it loads only when someone taps "See on Google".
       const [it, r, sc] = await Promise.all([
         loadShopItems(id),
-        supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(100),
+        supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(REVIEW_PAGE + 1),
         // Same score as Discover: one formula, computed in the database.
         searchPlaces({ p_place: id, p_limit: 1 }),
       ]);
@@ -116,7 +119,9 @@ export default function PlacePage() {
       const firstErr = it.error || r.error || sc.error;
       if (firstErr) setLoadErr(errorText(firstErr));
       setItems(it.items);
-      const rows = (r.data as unknown as ReviewRow[]) || [];
+      const all = (r.data as unknown as ReviewRow[]) || [];
+      const rows = all.slice(0, REVIEW_PAGE);
+      setMoreReviews(all.length > REVIEW_PAGE);
       setReviews(rows);
       if (!rows.length && it.items.length && !tabChosen.current) setTab("menu");
       setSummary(((sc.data as SearchResult[]) || [])[0] ?? null);
@@ -128,6 +133,26 @@ export default function PlacePage() {
     })();
     return () => { alive = false; };
   }, [id, me, attempt]);
+
+  async function showMoreReviews() {
+    const last = reviews[reviews.length - 1];
+    if (!last || loadingReviews) return;
+    setLoadingReviews(true);
+    // Keyset paging: everything older than the oldest review shown, so new reviews arriving never shift the pages.
+    const r = await supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published")
+      .lt("created_at", last.created_at).order("created_at", { ascending: false }).limit(REVIEW_PAGE + 1);
+    setLoadingReviews(false);
+    if (r.error) { toast(errorText(r.error)); return; }
+    const all = (r.data as unknown as ReviewRow[]) || [];
+    const rows = all.slice(0, REVIEW_PAGE);
+    setMoreReviews(all.length > REVIEW_PAGE);
+    setReviews((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...rows.filter((x) => !seen.has(x.id))]; });
+    const uids = [...new Set(rows.map((x) => x.user_id).filter((u): u is string => Boolean(u)))];
+    if (uids.length) {
+      const { data: ex } = await supabase.from("user_topic_stats").select("user_id, topics(name)").eq("is_expert", true).in("user_id", uids);
+      setExperts((prev) => ({ ...prev, ...Object.fromEntries(((ex || []) as unknown as { user_id: string; topics: { name: string } | null }[]).map((e) => [e.user_id, e.topics?.name || ""])) }));
+    }
+  }
 
   useEffect(() => {
     if (!me) { setFriends(new Set()); setSaved(false); setCanManage(false); setCanRate(false); return; }
@@ -422,7 +447,7 @@ export default function PlacePage() {
         )}
         {reviews.length > 1 && (
           <div className="row" style={{ gap: 8 }}>
-            <span className="small muted">{shown.length === reviews.length ? "All reviews" : `${shown.length} of ${reviews.length}`}</span>
+            <span className="small muted">{shown.length === reviews.length ? (moreReviews ? "Newest reviews" : "All reviews") : `${shown.length} of ${reviews.length}`}</span>
             <select className="select pl-sort" style={{ width: "auto", padding: "6px 10px", fontSize: 13 }} value={sort} onChange={(e) => setSort(e.target.value as ReviewSort)} aria-label="Sort reviews">
               <option value="useful">Most useful</option>
               <option value="newest">Newest</option>
@@ -457,6 +482,9 @@ export default function PlacePage() {
             <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={isFriend(r)} expert={r.user_id ? experts[r.user_id] || null : null}
               itemImage={imageOf.get(r.item_id)} itemIcon={look.icon} />
           ))}
+        {moreReviews && reviews.length > 0 && (
+          <button type="button" className="btn ghost block" disabled={loadingReviews} onClick={showMoreReviews}><Icon name="down" size={18} />{loadingReviews ? "Loading…" : "Show older reviews"}</button>
+        )}
       </section>
 
           </>

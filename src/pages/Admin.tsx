@@ -5,6 +5,7 @@ import { demoArtUrl, isDemoArt } from "../lib/demoArt";
 import { useSettings, type AppSettings } from "../lib/settings";
 import type { ListingRequest, Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
+import { syncPinFromGoogle } from "../lib/pin";
 import { Icon, useToast, type IconName } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { CoordsField } from "../components/CoordsField";
@@ -109,7 +110,10 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
     const m = parseCoords(coords);
     const n = Math.max(0, Math.min(200, parseInt(tables, 10) || 0));
     const labels = r.wants_qr ? Array.from({ length: n }, (_, i) => `Table ${i + 1}`) : [];
-    return await supabase.rpc("approve_listing", { p_request: r.id, p_lat: m ? m.lat : null, p_lng: m ? m.lng : null, p_table_labels: labels });
+    const res = await supabase.rpc("approve_listing", { p_request: r.id, p_lat: m ? m.lat : null, p_lng: m ? m.lng : null, p_table_labels: labels });
+    // A Google-linked shop takes Google's own pin; the typed one stays only if Google can't be read.
+    if (!res.error && id && res.data) await syncPinFromGoogle((res.data as { id: string }).id, id);
+    return res;
   }, "Approved and live");
 
   const badge = r.status === "pending" ? "warn" : r.status === "paid" ? "" : r.status === "declined" ? "red" : "gray";
@@ -178,12 +182,49 @@ function Places({ onChange }: { onChange: () => void }) {
   const [coords, setCoords] = useState("");
   const [show, setShow] = useState<"all" | "renewals">("all");
   const [find, setFind] = useState("");
+  const [more, setMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [noPin, setNoPin] = useState<Set<string>>(new Set());
+  const PAGE = 50;
+  const COLS = "id, name, category, area, city, status, listed_until, google_place_id, about, hours, price_level, created_at";
 
-  const load = () => {
-    supabase.from("places").select("id, name, category, area, city, status, listed_until, google_place_id, about, hours, price_level, created_at").order("created_at", { ascending: false }).limit(300)
-      .then(({ data }) => setRows((data as Place[]) || []));
+  // Search and the renewals filter run in the database, a page at a time, so the list stays quick with thousands of places.
+  const query = (from: number) => {
+    let q = supabase.from("places").select(COLS).order("created_at", { ascending: false }).range(from, from + PAGE);
+    const t = find.trim().replace(/[%,()*]/g, " ").trim();
+    if (t) q = q.or(["name", "category", "area", "city"].map((c) => `${c}.ilike.%${t}%`).join(","));
+    if (show === "renewals") {
+      const soonDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+      q = q.or(`status.eq.lapsed,and(status.eq.live,listed_until.lte.${soonDate})`);
+    }
+    return q;
   };
-  useEffect(load, []);
+  const load = () => {
+    setRows(null);
+    query(0).then(({ data }) => {
+      const all = (data as Place[]) || [];
+      setMore(all.length > PAGE);
+      setRows(all.slice(0, PAGE));
+    });
+  };
+  async function loadMore() {
+    if (!rows || loadingMore) return;
+    setLoadingMore(true);
+    const { data } = await query(rows.length);
+    setLoadingMore(false);
+    const all = (data as Place[]) || [];
+    setMore(all.length > PAGE);
+    setRows((prev) => { const seen = new Set((prev || []).map((x) => x.id)); return [...(prev || []), ...all.slice(0, PAGE).filter((x) => !seen.has(x.id))]; });
+  }
+  useEffect(() => {
+    const t = setTimeout(load, find ? 300 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [find, show]);
+  // Live shops without a map pin can't show up under "Near you".
+  useEffect(() => {
+    supabase.rpc("places_without_pin").then(({ data, error }) => { if (!error) setNoPin(new Set(((data as { place_id: string }[]) || []).map((r) => r.place_id))); });
+  }, []);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -197,20 +238,18 @@ function Places({ onChange }: { onChange: () => void }) {
       status: "live", listed_until: until.toISOString().slice(0, 10),
     }).select("id").single();
     if (error) { toast(errorText(error)); return; }
-    if (c) {
-      const r = await supabase.rpc("set_place_location", { p_place: (data as { id: string }).id, p_lat: c.lat, p_lng: c.lng });
+    const newId = (data as { id: string }).id;
+    // Google's pin when the place is linked to Google; otherwise the one typed in.
+    const g = gid ? await syncPinFromGoogle(newId, gid) : null;
+    if (c && !(g && g.ok)) {
+      const r = await supabase.rpc("set_place_location", { p_place: newId, p_lat: c.lat, p_lng: c.lng });
       if (r.error) toast(errorText(r.error));
     }
     toast("Place added"); setAdding(false); setF({ name: "", category: "", area: "", city: "", google_place_id: "" }); setCoords(""); load(); onChange();
   }
 
   const soon = (d: string | null) => d && new Date(d).getTime() - Date.now() < 30 * 86400000;
-  const due = (p: Place) => p.status === "lapsed" || (p.status === "live" && Boolean(soon(p.listed_until)));
-  const t = find.trim().toLowerCase();
-  const shown = (rows || [])
-    .filter((p) => show === "all" || due(p))
-    .filter((p) => !t || [p.name, p.category, p.area, p.city].some((x) => (x || "").toLowerCase().includes(t)))
-    .sort((a, b) => show === "renewals" ? String(a.listed_until).localeCompare(String(b.listed_until)) : 0);
+  const shown = rows || [];
 
   return (
     <div className="stack">
@@ -230,7 +269,7 @@ function Places({ onChange }: { onChange: () => void }) {
       ) : <button className="btn ghost block" onClick={() => setAdding(true)}><Icon name="plus" size={18} />Add a place directly</button>}
       <div className="chips">
         <button className={`chip ${show === "all" ? "on" : ""}`} onClick={() => setShow("all")}>All</button>
-        <button className={`chip ${show === "renewals" ? "on" : ""}`} onClick={() => setShow("renewals")}>Renewals due ({(rows || []).filter(due).length})</button>
+        <button className={`chip ${show === "renewals" ? "on" : ""}`} onClick={() => setShow("renewals")}>Renewals due</button>
       </div>
       <div className="search"><Icon name="search" color="var(--muted)" /><input aria-label="Find a place" placeholder="Find a place" value={find} onChange={(e) => setFind(e.target.value)} /></div>
       {rows === null ? <div className="skeleton" /> : shown.length === 0 ? <div className="empty"><p>{show === "renewals" ? "No renewals due in the next 30 days." : "No places found."}</p></div> : (
@@ -244,10 +283,12 @@ function Places({ onChange }: { onChange: () => void }) {
               </div>
               <span className="stack tight" style={{ alignItems: "flex-end" }}>
                 <span className={`badge ${p.status === "live" ? "" : p.status === "lapsed" ? "warn" : "red"}`}>{p.status}</span>
+                {noPin.has(p.id) && <span className="badge warn"><Icon name="pin" size={11} />No pin</span>}
                 {p.listed_until && <span className={`tiny ${soon(p.listed_until) ? "strong" : "muted"}`} style={soon(p.listed_until) ? { color: "#7a5410" } : undefined}>until {p.listed_until}</span>}
               </span>
             </Link>
           ))}
+          {more && <button type="button" className="btn ghost block" style={{ marginTop: 10 }} disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Loading…" : "Show more places"}</button>}
         </div>
       )}
     </div>
@@ -292,13 +333,36 @@ function Reviews() {
   const [show, setShow] = useState<"recent" | "hidden">("recent");
   const [err, setErr] = useState("");
 
+  const [more, setMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE = 40;
+  const page = (before?: string) => {
+    let q = supabase.from(REVIEW_FEED).select(REVIEW_SELECT).order("created_at", { ascending: false }).limit(PAGE + 1);
+    if (show === "hidden") q = q.eq("status", "hidden");
+    if (before) q = q.lt("created_at", before);
+    return q;
+  };
   const load = () => {
     setRows(null);
-    let q = supabase.from(REVIEW_FEED).select(REVIEW_SELECT).order("created_at", { ascending: false }).limit(100);
-    if (show === "hidden") q = q.eq("status", "hidden");
-    q.then(({ data, error }) => { setErr(error ? errorText(error) : ""); setRows((data as unknown as ReviewRow[]) || []); });
+    page().then(({ data, error }) => {
+      setErr(error ? errorText(error) : "");
+      const all = (data as unknown as ReviewRow[]) || [];
+      setMore(all.length > PAGE);
+      setRows(all.slice(0, PAGE));
+    });
   };
   useEffect(load, [show]);
+  async function loadMore() {
+    const last = rows?.[rows.length - 1];
+    if (!last || loadingMore) return;
+    setLoadingMore(true);
+    const { data, error } = await page(last.created_at);
+    setLoadingMore(false);
+    if (error) { toast(errorText(error)); return; }
+    const all = (data as unknown as ReviewRow[]) || [];
+    setMore(all.length > PAGE);
+    setRows((prev) => { const seen = new Set((prev || []).map((x) => x.id)); return [...(prev || []), ...all.slice(0, PAGE).filter((x) => !seen.has(x.id))]; });
+  }
 
   async function setStatus(r: ReviewRow, status: "published" | "hidden") {
     const { error } = await supabase.from("reviews").update({ status }).eq("id", r.id);
@@ -325,6 +389,7 @@ function Reviews() {
             </div>
           </ReviewCard>
         ))}
+      {more && <button type="button" className="btn ghost block" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Loading…" : "Show older reviews"}</button>}
     </div>
   );
 }

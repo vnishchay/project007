@@ -39,6 +39,7 @@ export function GoogleConnect({ place, isAdmin, onSaved }: { place: Place; isAdm
     if (error) { setErr(errorText(error)); return; }
     onSaved({ google_place_id: pick.id });
     setPick(null);
+    // The page then takes the shop's pin from Google by itself (see usePin).
     toast("Google profile connected");
   }
 
