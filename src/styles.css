@@ -254,3 +254,11 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 1px 
 .legal ul { padding-left: 20px; margin: 0; display: grid; gap: 6px; }
 .legal-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .legal-table th, .legal-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+
+/* Claim slides */
+.cl-dots { display: flex; gap: 6px; justify-content: center; }
+.cl-dots span { width: 28px; height: 5px; border-radius: 99px; background: var(--line); }
+.cl-dots span.on { background: var(--green); }
+.cl-slide { animation: cl-in 0.25s ease; }
+@keyframes cl-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+.cl-photo { width: 100%; max-height: 240px; object-fit: cover; border-radius: 16px; }

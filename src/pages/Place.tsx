@@ -405,6 +405,8 @@ export default function PlacePage() {
       )}
 
       {onGoogle && <OnGoogle key={place.google_place_id!} googlePlaceId={place.google_place_id!} />}
+
+      <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>
     </div>
   );
 }

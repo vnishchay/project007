@@ -11,6 +11,7 @@ import PlacePage from "./pages/Place";
 import SignIn from "./pages/SignIn";
 import QrLanding from "./pages/QrLanding";
 import { Contact, Pricing, Privacy, Refunds, Terms } from "./pages/Legal";
+import Claim from "./pages/Claim";
 import Review from "./pages/Review";
 import Saved from "./pages/Saved";
 import Circle from "./pages/Circle";
@@ -56,6 +57,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/manage/:placeId" element={<RequireAuth><Manage /></RequireAuth>} />
                 <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
                 <Route path="/admin/place/:id" element={<RequireAuth admin><AdminPlace /></RequireAuth>} />
+                <Route path="/claim/:placeId" element={<Claim />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/refunds" element={<Refunds />} />

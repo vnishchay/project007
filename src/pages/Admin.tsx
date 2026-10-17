@@ -9,8 +9,8 @@ import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard
 import { CoordsField } from "../components/CoordsField";
 import "../styles/manage.css";
 
-type Tab = "requests" | "places" | "reviews" | "alerts" | "billing" | "settings";
-const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["billing", "wallet", "Billing"], ["settings", "settings", "Settings"]];
+type Tab = "requests" | "places" | "reviews" | "alerts" | "claims" | "billing" | "settings";
+const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["claims", "shield", "Claims"], ["billing", "wallet", "Billing"], ["settings", "settings", "Settings"]];
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
@@ -45,6 +45,7 @@ export default function Admin() {
       {tab === "places" && <Places key={n} onChange={refresh} />}
       {tab === "reviews" && <Reviews />}
       {tab === "alerts" && <Alerts />}
+      {tab === "claims" && <Claims />}
       {tab === "billing" && <Billing />}
       {tab === "settings" && <><Settings /><Vocabulary /></>}
     </div>
@@ -393,6 +394,59 @@ function Alerts() {
             </div>
           );
         })}
+    </div>
+  );
+}
+
+/* ---------- Shop claims ---------- */
+interface ClaimRow { id: string; place_id: string; place_name: string; area: string | null; kind: string; near: boolean | null; photo_path: string | null; role: string | null; phone: string | null; claimer_name: string | null; has_owner: boolean; created_at: string }
+
+function ClaimPhoto({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => { supabase.storage.from("claim-photos").createSignedUrl(path, 600).then(({ data }) => setSrc(data?.signedUrl ?? null)); }, [path]);
+  return src ? <img src={src} alt="Shop front" className="cl-photo" /> : null;
+}
+
+function Claims() {
+  const toast = useToast();
+  const [rows, setRows] = useState<ClaimRow[] | null>(null);
+  const [err, setErr] = useState("");
+  const load = () => {
+    supabase.rpc("admin_claims").then(({ data, error }) => {
+      setErr(error ? (error.code === "PGRST202" ? "Run the latest database update to see claims." : errorText(error)) : "");
+      setRows((data as ClaimRow[]) || []);
+    });
+  };
+  useEffect(load, []);
+  async function decide(c: ClaimRow, ok: boolean) {
+    if (ok && c.has_owner && !confirm("This shop already has an owner. Give it to this person instead?")) return;
+    const { error } = await supabase.rpc("decide_claim", { p_claim: c.id, p_approve: ok });
+    if (error) toast(errorText(error)); else { toast(ok ? "Approved. They can manage the shop now." : "Rejected"); load(); }
+  }
+  return (
+    <div className="stack">
+      {err && <div className="notice err">{err}</div>}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>No claims waiting.</p></div> :
+        rows.map((c) => (
+          <div key={c.id} className="card stack" style={{ gap: 8 }}>
+            <div className="row">
+              <span className={`icon-chip sm ${c.kind === "access" ? "amber" : ""}`}><Icon name={c.kind === "access" ? "lock" : "store"} size={16} /></span>
+              <span className="grow stack tight">
+                <Link to={`/p/${c.place_id}`} className="strong" style={{ color: "inherit" }}>{c.place_name}</Link>
+                <span className="tiny muted">{c.claimer_name || "Someone"}{c.role ? `, ${c.role}` : ""}{c.phone ? ` · ${c.phone}` : ""} · {timeAgo(c.created_at)}</span>
+              </span>
+            </div>
+            <div className="row wrap" style={{ gap: 6 }}>
+              <span className={`badge ${c.near ? "" : "warn"}`}><Icon name="pin" size={12} />{c.near === true ? "Was at the shop" : c.near === false ? "Far from the shop" : "Location unknown"}</span>
+              {c.kind === "access" && <span className="badge warn"><Icon name="alert" size={12} />Shop already has an owner</span>}
+            </div>
+            {c.photo_path && <ClaimPhoto path={c.photo_path} />}
+            <div className="row" style={{ gap: 8 }}>
+              <button className="btn small green grow" onClick={() => decide(c, true)}>Approve</button>
+              <button className="btn small ghost grow" onClick={() => decide(c, false)}>Reject</button>
+            </div>
+          </div>
+        ))}
     </div>
   );
 }
