@@ -88,7 +88,7 @@ export default function Manage() {
         <ShopHeader place={place} onChange={merge} />
         <div className="mg-tabs" role="tablist" aria-label="Manage">
           {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
+            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} ref={tab === t.id ? (el) => el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }) : undefined} onClick={() => setTab(t.id)}>
               <span className="ico"><Icon name={t.icon} size={19} />{t.id === "products" && count != null && count > 0 && <span className="count">{count}</span>}</span>
               {t.label}
             </button>

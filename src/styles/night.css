@@ -150,9 +150,7 @@ button.pn-chip { cursor: pointer; }
 .pn-foot-btn:hover { color: #0d0a1a; }
 .pn-foot-btn b { font-size: 15px; }
 .pn-pulse { width: 46px; height: 46px; border-radius: 16px; display: grid; place-items: center; flex: none; background: #0d0a1a; color: var(--lime); animation: pn-pulse 1.8s ease-in-out infinite; }
-.app:has(.pl-night) .nav { background: rgba(13, 10, 26, 0.9); border-top-color: rgba(255, 255, 255, 0.12); box-shadow: none; }
-.app:has(.pl-night) .nav a { color: #a9a1c2; } .app:has(.pl-night) .nav a.active { color: #c6ff3d; }
-.app:has(.nav) .pn-foot { bottom: 82px; }
+
 
 @keyframes pn-rise { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
 @keyframes pn-fade { from { opacity: 0; } to { opacity: 1; } }

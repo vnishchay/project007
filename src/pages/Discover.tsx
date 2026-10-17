@@ -150,7 +150,7 @@ export default function Discover() {
             <Icon name="down" size={16} width={2.4} />
           </button>
           {loading ? null : signedIn ? (
-            <Link to="/me" aria-label="Your profile"><Avatar id={session!.user.id} name={profile?.display_name || session!.user.email} path={profile?.avatar_path} /></Link>
+            <Link to="/me" className="me-btn" aria-label="Your profile"><Avatar id={session!.user.id} name={profile?.display_name || session!.user.email} path={profile?.avatar_path} /></Link>
           ) : <Link to="/signin" className="glass-btn" aria-label="Sign in"><Icon name="login" size={16} />Sign in</Link>}
         </div>
         <div className="stack" style={{ gap: 4 }}>

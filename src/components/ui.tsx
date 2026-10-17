@@ -1,6 +1,6 @@
 import { allowedInFocus, focusShop } from "../lib/focus";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { Link, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import * as L from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -80,7 +80,6 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
       <InviteAcceptor />
       {shop && !allowedInFocus(loc.pathname, shop) ? <Navigate to={`/p/${shop}`} replace /> : children}
-      {!shop && !/^\/[qr]\//.test(loc.pathname) && <BottomNav />}
     </div>
   );
 }
@@ -97,15 +96,6 @@ function InviteAcceptor() {
     });
   }, [uid, toast]);
   return null;
-}
-
-function BottomNav() {
-  return (
-    <nav className="nav no-print" aria-label="Main">
-      <NavLink to="/" end><Icon name="home" size={22} />Discover</NavLink>
-      <NavLink to="/me"><Icon name="user" size={22} />You</NavLink>
-    </nav>
-  );
 }
 
 export function TopBar({ title, sub, right }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode }) {
