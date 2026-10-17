@@ -162,7 +162,7 @@ a.list-item:hover { color: inherit; background: linear-gradient(90deg, transpare
 .nav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 520px; z-index: 20;
   background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(14px); border-top: 1px solid var(--line); box-shadow: 0 -4px 20px rgba(17, 40, 24, 0.06);
-  display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: repeat(2, 1fr); padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
 }
 .nav a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; color: var(--muted); font-size: 11px; font-weight: 700; }
 .nav a.active { color: var(--green); }

@@ -241,3 +241,5 @@ a.gg-name:hover { color: var(--ink); text-decoration: underline; }
 .rc-report-menu button:hover { background: #f3f4f2; }
 .pl-cta-note { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 10px 14px; border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 600; }
 .pl-claim { justify-content: center; gap: 6px; padding: 8px; color: var(--muted); }
+.pl-fliked { display: grid; gap: 6px; padding: 12px; border-radius: 16px; background: var(--coral-soft); }
+.pl-fliked-row { display: flex; align-items: center; gap: 10px; border: 0; background: var(--card); border-radius: 12px; padding: 7px 10px; font: inherit; color: inherit; text-align: left; cursor: pointer; }

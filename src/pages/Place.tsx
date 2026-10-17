@@ -1,3 +1,4 @@
+import { focusShop } from "../lib/focus";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
@@ -181,6 +182,9 @@ export default function PlacePage() {
   const today = place.hours && Object.keys(place.hours).length ? todaysHours(place.hours) ?? "Closed today" : null;
   const photoCount = reviews.filter((r) => r.photo_path).length;
   const friendReviews = reviews.filter(isFriend).length;
+  // What friends (people you're connected with through an invite link) loved here. Only reviews
+  // they posted with their name, so an anonymous review never points to a friend.
+  const friendLiked = reviews.filter((r) => isFriend(r) && r.rating >= 4 && r.author_name).slice(0, 6);
   const rateUrl = `/review/${place.id}`;
   const links = cleanLinks((place as Place & { links?: unknown }).links);
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
@@ -192,7 +196,7 @@ export default function PlacePage() {
           <span className="pl-hero-art" aria-hidden="true"><Icon name={look.icon} size={150} width={1.2} /></span>
         )}
         <div className="pl-hero-bar">
-          <button className="pl-glass" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>
+          {!focusShop() && <button className="pl-glass" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>}
           <span className="grow" />
           {canManage && <Link to={`/manage/${place.id}`} className="pl-glass pill"><Icon name="settings" size={18} />Manage shop</Link>}
           <button className="pl-glass" aria-label={saved ? "Unsave" : "Save"} aria-pressed={saved} onClick={toggleSave}><Icon name="bookmark" fill={saved ? "currentColor" : undefined} /></button>
@@ -249,6 +253,19 @@ export default function PlacePage() {
                 ? <><b>{friendNamed[0]!.author_name || "A friend"}</b>{friendCount > 1 ? ` + ${friendCount - 1} friend${friendCount > 2 ? "s" : ""}` : ""} rated this</>
                 : <><b>{friendCount} friends</b> rated this</>}
             </span>
+          </div>
+        )}
+
+        {friendLiked.length > 0 && (
+          <div className="pl-fliked" aria-label="Your friends liked">
+            <span className="strong small row" style={{ gap: 6 }}><Icon name="heart" size={15} color="var(--coral)" />Your friends liked</span>
+            {friendLiked.map((r) => (
+              <button key={r.id} type="button" className="pl-fliked-row" onClick={() => { setFilter("friends"); document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" }); }}>
+                <Avatar id={r.user_id!} name={r.author_name} path={r.author_avatar} size="sm" />
+                <span className="grow small ellipsis"><b>{r.author_name!.split(" ")[0]}</b> loved {r.items?.name || "it here"}</span>
+                <Stars value={r.rating} size={12} />
+              </button>
+            ))}
           </div>
         )}
 

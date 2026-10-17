@@ -14,7 +14,6 @@ import { Contact, Pricing, Privacy, Refunds, Terms } from "./pages/Legal";
 import Claim from "./pages/Claim";
 import Review from "./pages/Review";
 import Saved from "./pages/Saved";
-import Circle from "./pages/Circle";
 import Person from "./pages/Person";
 import Me from "./pages/Me";
 import Business from "./pages/Business";
@@ -51,7 +50,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/u/:id" element={<Person />} />
                 <Route path="/review/:placeId" element={<Review />} />
                 <Route path="/saved/:reviewId" element={<RequireAuth guestOk><Saved /></RequireAuth>} />
-                <Route path="/circle" element={<RequireAuth allowGuest><Circle /></RequireAuth>} />
+                <Route path="/circle" element={<Navigate to="/me" replace />} />
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
                 <Route path="/manage/:placeId" element={<RequireAuth><Manage /></RequireAuth>} />

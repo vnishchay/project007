@@ -1,3 +1,4 @@
+import { setFocusShop } from "../lib/focus";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
@@ -50,7 +51,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     supabase.rpc(link ? "peek_review_link" : "peek_qr", { p_token: token }).then(({ data, error }) => {
       if (!alive) return;
       if (error) { setPeekErr(friendly(error)); return; }
-      setPeek(((data as Peek[]) || [])[0] ?? null);
+      const pk = ((data as Peek[]) || [])[0] ?? null;
+      if (pk?.place_id) setFocusShop(pk.place_id);
+      setPeek(pk);
     }, (e: unknown) => { if (alive) setPeekErr(friendly(e)); });
     return () => { alive = false; };
   }, [token, peekTry, link]);

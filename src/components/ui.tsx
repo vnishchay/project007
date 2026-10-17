@@ -1,3 +1,4 @@
+import { allowedInFocus, focusShop } from "../lib/focus";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
@@ -68,6 +69,7 @@ export function Avatar({ id, name, path, size = "" }: { id: string; name: string
 export function Layout({ children }: { children: ReactNode }) {
   const { authError, clearAuthError } = useAuth();
   const loc = useLocation();
+  const shop = focusShop();
   return (
     <div className="app">
       {authError && loc.pathname !== "/signin" && (
@@ -77,8 +79,8 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       )}
       <InviteAcceptor />
-      {children}
-      <BottomNav />
+      {shop && !allowedInFocus(loc.pathname, shop) ? <Navigate to={`/p/${shop}`} replace /> : children}
+      {!shop && !/^\/[qr]\//.test(loc.pathname) && <BottomNav />}
     </div>
   );
 }
@@ -101,7 +103,6 @@ function BottomNav() {
   return (
     <nav className="nav no-print" aria-label="Main">
       <NavLink to="/" end><Icon name="home" size={22} />Discover</NavLink>
-      <NavLink to="/circle"><Icon name="people" size={22} />Friends</NavLink>
       <NavLink to="/me"><Icon name="user" size={22} />You</NavLink>
     </nav>
   );
@@ -111,7 +112,7 @@ export function TopBar({ title, sub, right }: { title?: ReactNode; sub?: ReactNo
   const nav = useNavigate();
   return (
     <div className="topbar">
-      <button className="icon-btn" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>
+      {!focusShop() && <button className="icon-btn" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>}
       <div className="grow">
         {title && <div className="strong ellipsis" style={{ fontSize: 16 }}>{title}</div>}
         {sub && <div className="tiny muted ellipsis">{sub}</div>}

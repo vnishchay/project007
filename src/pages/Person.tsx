@@ -65,7 +65,7 @@ export default function Person() {
       <TopBar />
       <div className="card">
         <EmptyArt icon="ghost" tone="sky" title="Person not found">
-          <Link to="/circle" className="btn small ghost"><Icon name="people" size={16} />Friends</Link>
+          <Link to="/" className="btn small ghost"><Icon name="home" size={16} />Discover</Link>
         </EmptyArt>
       </div>
     </div>
@@ -88,14 +88,12 @@ export default function Person() {
         <div className="row">
           <button type="button" className="glass-btn round" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>
           <span className="grow" />
-          {me ? (
+          {me && on ? (
             <button type="button" className={`btn small ${on ? "glass" : "white"}`} onClick={toggle} disabled={busy}
               aria-pressed={on} aria-label={`${on ? "Following" : "Follow"} ${name}`} style={on ? undefined : { color: "#1d5fd1" }}>
               <Icon name={on ? "check" : "userPlus"} size={16} />{on ? "Following" : "Follow"}
             </button>
-          ) : (
-            <Link to={`/signin?next=${encodeURIComponent(`/u/${id}`)}`} className="btn small white" style={{ color: "#1d5fd1" }}><Icon name="userPlus" size={16} />Follow</Link>
-          )}
+          ) : null}
         </div>
         <div className="row" style={{ gap: 14 }}>
           <Avatar id={p.id} name={p.display_name} path={p.avatar_path} size="lg" />

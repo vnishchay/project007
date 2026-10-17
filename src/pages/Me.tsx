@@ -1,3 +1,4 @@
+import { InviteCard } from "../components/home/InviteCard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
@@ -187,7 +188,7 @@ export default function Me() {
             <div className="stat-tiles">
               <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{reviews?.length ?? "–"}</span><span className="l">reviews</span></div>
               <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
-              <Link to="/circle" className="stat-tile" style={{ color: "#fff" }}><span className="n"><Icon name="people" size={16} />{friendCount ?? "–"}</span><span className="l">{friendCount === 1 ? "friend" : "friends"}</span></Link>
+              <div className="stat-tile"><span className="n"><Icon name="people" size={16} />{friendCount ?? "–"}</span><span className="l">{friendCount === 1 ? "friend" : "friends"}</span></div>
             </div>
           </header>
 
@@ -202,8 +203,9 @@ export default function Me() {
             </form>
           )}
 
+          <InviteCard />
+
           <div className="menu">
-            <MenuRow to="/circle" icon="userPlus" tone="violet" title="Invite friends" sub={friendCount ? `${friendCount} friend${friendCount === 1 ? "" : "s"}` : "Share your link or QR"} />
             {shops.map((s) => (
               <Link key={s.id} to={`/manage/${s.id}`} className="menu-row">
                 <span className="thumb" style={{ width: 40, height: 40, borderRadius: 12 }}><Cover url={placeMediaUrl(s.logo_path) || placeMediaUrl(s.cover_path)} category={s.name} size={20} /></span>
