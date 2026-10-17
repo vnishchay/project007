@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase, errorText } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { timeAgo } from "../lib/util";
 import { Icon } from "../components/ui";
@@ -10,13 +10,10 @@ import "../styles/home.css";
 interface PlaceLite { id: string; name: string; category: string; area: string | null; city: string }
 interface VisitRow { place_id: string; scanned_at: string; expires_at: string; places: PlaceLite | null }
 
-// "Write a review": pick the place, recent verified visits first.
+// "Rate": reviews come only from a table QR scan, so this is a scan button plus your visits.
 export default function Rate() {
   const { session } = useAuth();
   const [visits, setVisits] = useState<VisitRow[]>([]);
-  const [text, setText] = useState("");
-  const [places, setPlaces] = useState<PlaceLite[] | null>(null);
-  const [err, setErr] = useState("");
 
   useEffect(() => {
     if (!session) return;
@@ -28,31 +25,17 @@ export default function Rate() {
       });
   }, [session]);
 
-  useEffect(() => {
-    let alive = true;
-    const t = setTimeout(() => {
-      const q = text.trim().replace(/[%,()]/g, " ");
-      let req = supabase.from("places").select("id, name, category, area, city").eq("status", "live").order("name").limit(40);
-      if (q) req = req.or(`name.ilike.%${q}%,category.ilike.%${q}%,area.ilike.%${q}%,city.ilike.%${q}%`);
-      req.then(({ data, error }) => {
-        if (!alive) return;
-        setErr(error ? errorText(error) : "");
-        setPlaces((data as PlaceLite[]) || []);
-      });
-    }, 200);
-    return () => { alive = false; clearTimeout(t); };
-  }, [text]);
-
-  const row = (p: PlaceLite, sub?: string, live?: boolean) => {
+  // An open visit goes to the review form; an old one only to the place page (reading).
+  const row = (p: PlaceLite, sub: string, live: boolean) => {
     const look = lookFor(p.category);
     return (
-      <Link key={p.id} to={`/review/${p.id}`} className="menu-row">
+      <Link key={p.id} to={live ? `/review/${p.id}` : `/p/${p.id}`} className="menu-row">
         <Chip icon={look.icon} tone={look.tone} />
         <span className="grow stack tight" style={{ minWidth: 0 }}>
           <span className="t ellipsis">{p.name}</span>
           <span className="s ellipsis">{sub || [p.category, p.area, p.city].filter(Boolean).join(" · ")}</span>
         </span>
-        {live && <span className="pill verified"><Icon name="verified" size={13} />Verified</span>}
+        {live && <span className="pill verified"><Icon name="star" size={13} />Rate now</span>}
         <Icon name="chev" size={18} color="var(--muted)" />
       </Link>
     );
@@ -62,31 +45,32 @@ export default function Rate() {
     <div className="page" style={{ gap: 18 }}>
       <header className="hero sunset compact">
         <span className="hero-sub"><Icon name="star" size={16} fill="#fff" />Rate</span>
-        <h1>What did you have?</h1>
+        <h1>At a shop? Scan to rate</h1>
         <Link to="/scan" className="btn white block" style={{ color: "#b2401f" }}><Icon name="scan" size={18} />Scan the table QR</Link>
-        <span className="hero-sub" style={{ justifyContent: "center", fontSize: 12 }}><Icon name="verified" size={14} />Scanning adds a verified badge</span>
+        <span className="hero-sub" style={{ justifyContent: "center", fontSize: 12 }}><Icon name="verified" size={14} />Reviews come only from real visits</span>
       </header>
 
       {visits.length > 0 && (
         <section className="stack" style={{ gap: 10 }}>
-          <SectionTitle icon="clock" tone="sky">Recent visits</SectionTitle>
+          <SectionTitle icon="clock" tone="sky">Your visits</SectionTitle>
           <div className="menu">
             {visits.map((v) => row(v.places!, `Scanned ${timeAgo(v.scanned_at)}`, new Date(v.expires_at).getTime() > Date.now()))}
           </div>
         </section>
       )}
 
+      <section className="card soft stack" style={{ gap: 8 }}>
+        <div className="row"><span className="icon-chip sm"><Icon name="shield" size={16} /></span><span className="strong grow">Why scan?</span></div>
+        <p className="small muted">Only people at the shop can review it, so every rating here is from a real visit. Reviews stay anonymous unless you choose to show your name.</p>
+      </section>
+
       <section className="stack" style={{ gap: 10 }}>
-        <SectionTitle icon="store" tone="green">Find the place</SectionTitle>
-        <div className="search"><Icon name="search" color="var(--muted)" /><input aria-label="Search places" placeholder="Name, area or kind of place" value={text} onChange={(e) => setText(e.target.value)} /></div>
-        {err && <div className="notice err">{err}</div>}
-        {places === null ? <div className="skeleton" /> : places.length === 0 ? (
-          <div className="card">
-            <EmptyArt icon="search" tone="sky" title={`No “${text.trim()}” listed`}>
-              <Link to="/business" className="btn small ghost"><Icon name="store" size={16} />Get it listed</Link>
-            </EmptyArt>
-          </div>
-        ) : <div className="menu">{places.map((p) => row(p))}</div>}
+        <SectionTitle icon="store" tone="green">Shop not listed?</SectionTitle>
+        <div className="card">
+          <EmptyArt icon="store" tone="sky" title="Ask them to join Trusted Picks">
+            <Link to="/business" className="btn small ghost"><Icon name="store" size={16} />List a business</Link>
+          </EmptyArt>
+        </div>
       </section>
     </div>
   );

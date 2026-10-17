@@ -47,7 +47,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/scan" element={<Scan />} />
                 <Route path="/rate" element={<Rate />} />
                 <Route path="/u/:id" element={<Person />} />
-                <Route path="/review/:placeId" element={<RequireAuth guestOk><Review /></RequireAuth>} />
+                <Route path="/review/:placeId" element={<Review />} />
                 <Route path="/saved/:reviewId" element={<RequireAuth guestOk><Saved /></RequireAuth>} />
                 <Route path="/circle" element={<RequireAuth allowGuest><Circle /></RequireAuth>} />
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />

@@ -29,6 +29,9 @@ export interface Place {
   owner_id?: string | null;
   cover_path?: string | null;
   logo_path?: string | null;
+  links?: { kind: string; url: string; label?: string | null }[] | null;
+  /** business type, see src/lib/modes.ts */
+  kind?: string;
 }
 
 /** A product or dish at a place. Shops add their own with photos (is_listed). */
@@ -43,6 +46,7 @@ export interface Item {
   sort_order: number;
   is_listed: boolean;
   is_hidden: boolean;
+  section?: string | null;
 }
 
 export interface Friend {
@@ -69,10 +73,11 @@ export interface SearchResult {
   friend_ids: string[];
   top_item: string | null;
   has_qr?: boolean;
+  kind?: string;
 }
 
 export interface Topic { id: number; name: string }
-export interface Tag { id: number; label: string }
+export interface Tag { id: number; label: string; kinds?: string[] | null }
 
 export interface ReviewRow {
   id: string;

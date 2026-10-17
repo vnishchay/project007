@@ -11,7 +11,7 @@ const EXTRA = {
   shirt: L.Shirt, dumbbell: L.Dumbbell, iceCream: L.IceCreamCone, compass: L.Compass, mail: L.Mail,
   userMinus: L.UserMinus, userCheck: L.UserRoundCheck, handshake: L.HeartHandshake, party: L.PartyPopper,
   flashlight: L.Flashlight, keyboard: L.Keyboard, mapPinned: L.MapPinned, ghost: L.Ghost, wand: L.WandSparkles,
-  basket: L.ShoppingBasket, salad: L.Salad,
+  basket: L.ShoppingBasket, salad: L.Salad, megaphone: L.Megaphone, news: L.Newspaper,
 } satisfies Record<string, L.LucideIcon>;
 export type GlyphName = IconName | keyof typeof EXTRA;
 

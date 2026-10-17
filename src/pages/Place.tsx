@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Place, ReviewRow, SearchResult } from "../lib/types";
-import { fetchGoogleRating, type GoogleRating } from "../lib/google";
+import { fetchGoogleRating, googleConfigured, type GoogleRating } from "../lib/google";
 import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
 import { placeMediaUrl } from "../lib/media";
 import { shareLink, shareOrCopy } from "../lib/invite";
@@ -11,6 +11,10 @@ import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { ItemThumb } from "../components/place/ItemThumb";
 import { loadShopItems, missingColumn, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
+import { ShopUpdates } from "../components/place/ShopUpdates";
+import { OnGoogle } from "../components/place/OnGoogle";
+import { deviceId } from "../lib/device";
 import "../styles/place.css";
 
 export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
@@ -18,9 +22,13 @@ export const PLACE_COLS = "id, google_place_id, name, category, area, city, abou
 interface Stat { sum: number; count: number }
 type Filter = "all" | "photos" | "friends" | `item:${string}`;
 
+/** Newest columns first; older databases lack kind, then links, then cover/logo. */
 async function loadPlace(id: string) {
-  const r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path`).eq("id", id).maybeSingle();
-  return missingColumn(r.error) ? supabase.from("places").select(PLACE_COLS).eq("id", id).maybeSingle() : r;
+  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
+  if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links`).eq("id", id).maybeSingle();
+  if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path`).eq("id", id).maybeSingle();
+  if (missingColumn(r.error)) r = await supabase.from("places").select(PLACE_COLS).eq("id", id).maybeSingle();
+  return r;
 }
 
 /** Your friends' ids: invite-link friends, or people you follow on an older database. */
@@ -49,6 +57,8 @@ export default function PlacePage() {
   const [friends, setFriends] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  // Reviewing is only open during a visit started by scanning this shop's table QR.
+  const [canRate, setCanRate] = useState(false);
   const [google, setGoogle] = useState<GoogleRating | null>(null);
   const [summary, setSummary] = useState<SearchResult | null>(null);
   const [experts, setExperts] = useState<Record<string, string>>({});
@@ -93,15 +103,18 @@ export default function PlacePage() {
   }, [id, me, attempt]);
 
   useEffect(() => {
-    if (!me) { setFriends(new Set()); setSaved(false); setCanManage(false); return; }
+    if (!me) { setFriends(new Set()); setSaved(false); setCanManage(false); setCanRate(false); return; }
     let alive = true;
     loadFriendIds(me).then((s) => alive && setFriends(s));
     supabase.from("saved_places").select("place_id").eq("user_id", me).eq("place_id", id).maybeSingle().then(({ data }) => alive && setSaved(Boolean(data)));
     supabase.rpc("can_manage_place", { p_place: id }).then(({ data, error }) => alive && setCanManage(!error && data === true), () => {});
+    supabase.rpc("can_review", { p_place: id, p_device: deviceId() }).then(({ data, error }) => {
+      if (alive) setCanRate(!error && Boolean((data as { allowed: boolean }[] | null)?.[0]?.allowed));
+    }, () => {});
     return () => { alive = false; };
   }, [me, id]);
 
-  const look = shopLook(place?.category);
+  const look = shopLook(place?.category, place?.kind);
   const stats = useMemo(() => {
     const m = new Map<string, Stat>();
     for (const r of reviews) {
@@ -155,6 +168,8 @@ export default function PlacePage() {
   const photoCount = reviews.filter((r) => r.photo_path).length;
   const friendReviews = reviews.filter(isFriend).length;
   const rateUrl = `/review/${place.id}`;
+  const links = cleanLinks((place as Place & { links?: unknown }).links);
+  const onGoogle = Boolean(googleConfigured && place.google_place_id);
 
   return (
     <div className="page pl-page">
@@ -205,7 +220,7 @@ export default function PlacePage() {
         <div className="pl-stats">
           <span title="Reviews"><Icon name="message" size={16} /><b>{reviewCount}</b><span>reviews</span></span>
           <span title="Verified visits"><Icon name="verified" size={16} /><b>{verified}</b><span>verified</span></span>
-          {google ? <a href={place.google_place_id ? googleMapsUrl(place.google_place_id, place.name) : undefined} target="_blank" rel="noreferrer" title="Google rating"><Icon name="globe" size={16} /><b>{google.rating.toFixed(1)}</b><span>Google</span></a>
+          {google ? <a href={onGoogle ? "#on-google" : place.google_place_id ? googleMapsUrl(place.google_place_id, place.name) : undefined} {...(onGoogle ? { onClick: (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("on-google")?.scrollIntoView({ behavior: "smooth", block: "start" }); } } : { target: "_blank", rel: "noreferrer" })} title="Google rating"><Icon name="globe" size={16} /><b>{google.rating.toFixed(1)}</b><span>Google</span></a>
             : summary?.has_qr ? <span title="Table QR"><Icon name="qr" size={16} /><b><Icon name="check" size={14} width={3} /></b><span>table QR</span></span> : null}
         </div>
 
@@ -223,8 +238,13 @@ export default function PlacePage() {
           </div>
         )}
 
-        <Link to={rateUrl} className="btn green block pl-cta"><Icon name="star" size={20} fill="#fff" />Rate something</Link>
+        {canRate
+          ? <Link to={rateUrl} className="btn green block pl-cta"><Icon name="star" size={20} fill="#fff" />Rate what you had</Link>
+          : <Link to="/scan" className="btn ghost block pl-cta"><Icon name="scan" size={20} />At the shop? Scan the table QR to review</Link>}
       </section>
+
+      <ShopLinks links={links} />
+      <ShopUpdates placeId={place.id} />
 
       {loadErr && <div className="notice err row"><span className="grow">Couldn't load everything: {loadErr}</span><button className="link-btn" onClick={() => setAttempt((n) => n + 1)}><Icon name="refresh" size={16} />Retry</button></div>}
 
@@ -234,7 +254,7 @@ export default function PlacePage() {
           <span className="grow">{look.menu}</span>
           {products.length > 0 && <span className="muted">{products.length}</span>}
         </div>
-        {products.length === 0 ? (
+        {products.length === 0 ? (canRate &&
           <Link to={rateUrl} className="pl-empty-products">
             <span className={`icon-chip lg ${look.tint}`}><Icon name="plus" size={24} /></span>
             <span className="grow"><b>Nothing rated yet</b><br /><span className="small muted">Be the first to rate an item</span></span>
@@ -245,7 +265,8 @@ export default function PlacePage() {
             {products.map((p) => {
               const s = stats.get(p.id);
               return (
-                <Link key={p.id} to={`${rateUrl}?item=${p.id}`} className="pl-product" aria-label={`Rate ${p.name}`}>
+                <Link key={p.id} to={canRate ? `${rateUrl}?item=${p.id}` : `#reviews`} className="pl-product" aria-label={canRate ? `Rate ${p.name}` : `Reviews of ${p.name}`}
+                  onClick={canRate ? undefined : (e) => { e.preventDefault(); if (s) { setFilter(`item:${p.id}`); document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" }); } }}>
                   <span className="pl-product-img">
                     <ItemThumb path={p.image_path} icon={look.icon} />
                     {s && <span className="pl-product-rate"><Icon name="star" size={12} fill="currentColor" />{(s.sum / s.count).toFixed(1)}<span>· {s.count}</span></span>}
@@ -254,21 +275,21 @@ export default function PlacePage() {
                     <span className="pl-product-name">{p.name}</span>
                     <span className="pl-product-foot">
                       {priceLabel(p.price_inr) ? <span className="pl-price">{priceLabel(p.price_inr)}</span> : <span className="muted tiny">{s ? "" : "New"}</span>}
-                      <span className="pl-rate-btn"><Icon name="star" size={14} /></span>
+                      {canRate && <span className="pl-rate-btn"><Icon name="star" size={14} /></span>}
                     </span>
                   </span>
                 </Link>
               );
             })}
-            <Link to={rateUrl} className="pl-product pl-product-more" aria-label="Rate something else">
+            {canRate && <Link to={rateUrl} className="pl-product pl-product-more" aria-label="Rate something else">
               <span className="icon-chip lg"><Icon name="plus" size={24} /></span>
               <span className="small strong">Something else</span>
-            </Link>
+            </Link>}
           </div>
         )}
       </section>
 
-      <section className="stack" style={{ gap: 12 }}>
+      <section className="stack" style={{ gap: 12 }} id="reviews">
         <div className="section-title">
           <span className="icon-chip sm amber"><Icon name="message" size={16} /></span>
           <span className="grow">Reviews</span>
@@ -302,26 +323,28 @@ export default function PlacePage() {
           ))}
       </section>
 
-      {(place.about || place.google_place_id || google) && (
+      {(place.about || (!onGoogle && (place.google_place_id || google))) && (
         <section className="pl-about">
           <div className="section-title">
             <span className="icon-chip sm sky"><Icon name="info" size={16} /></span>
             <span className="grow">About</span>
           </div>
           {place.about && <p>{place.about}</p>}
-          {google && (
+          {!onGoogle && google && (
             <div className="row small" style={{ gap: 8 }}>
               <Icon name="globe" size={16} color="var(--muted)" /><b>{google.rating.toFixed(1)}</b><Stars value={google.rating} size={13} /><span className="muted">{google.count.toLocaleString("en-IN")} on Google</span>
             </div>
           )}
-          {place.google_place_id && (
+          {!onGoogle && place.google_place_id && (
             <a className="btn small ghost" href={googleMapsUrl(place.google_place_id, place.name)} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
               <Icon name="map" size={16} />Open in Maps<Icon name="external" size={14} />
             </a>
           )}
-          {google && <span className="tiny muted">Google rating shown live from Google Maps.</span>}
+          {!onGoogle && google && <span className="tiny muted">Google rating shown live from Google Maps.</span>}
         </section>
       )}
+
+      {onGoogle && <OnGoogle key={place.google_place_id!} googlePlaceId={place.google_place_id!} />}
     </div>
   );
 }

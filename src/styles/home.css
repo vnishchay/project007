@@ -154,3 +154,15 @@ a.menu-row:hover { color: inherit; }
 /* Keep the first card off the screen edge when the strip snaps. */
 .hscroll { scroll-padding-inline: 20px; }
 .cat-strip { scroll-padding-inline: 20px; }
+
+/* News from your places */
+.news-card {
+  width: 250px; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-radius: 20px;
+  background: linear-gradient(160deg, #fff 0%, #fff 55%, #fff6e3 100%); box-shadow: var(--shadow); color: inherit; border: 1px solid rgba(243, 167, 18, 0.18);
+}
+a.news-card:hover { color: inherit; }
+.news-head { display: flex; align-items: center; gap: 10px; }
+.news-logo { width: 38px; height: 38px; border-radius: 12px; overflow: hidden; flex: none; display: grid; place-items: center; background: var(--amber-soft); color: #8a5a00; font-weight: 800; font-size: 14px; }
+.news-logo img { width: 100%; height: 100%; object-fit: cover; }
+.news-body { font-size: 14px; line-height: 1.45; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.type-strip { margin-top: -6px; }

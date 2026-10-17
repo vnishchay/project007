@@ -10,6 +10,8 @@ import { Avatar, Icon } from "../components/ui";
 import { LocationPicker } from "../components/LocationPicker";
 import { Chip, EmptyArt, Glyph, SectionTitle, greeting, lookFor, type GlyphName, type Tone } from "../components/home/Kit";
 import { PickCard, PlaceCard, type Media } from "../components/home/PlaceCard";
+import { NewsStrip } from "../components/home/NewsStrip";
+import { KINDS, MODES } from "../lib/modes";
 import "../styles/home.css";
 
 interface Cat { label: string; q: string; icon: GlyphName; tone: Tone }
@@ -35,6 +37,7 @@ export default function Discover() {
   const { profile, session, loading, isGuest } = useAuth();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
+  const type = params.get("type") || "";
   const [text, setText] = useState(q);
   const [topics, setTopics] = useState<Topic[]>([]);
   const { where, effective, coords, locating, denied, setWhere } = useWhere(profile?.city);
@@ -62,6 +65,7 @@ export default function Discover() {
       p_radius_m: 15000,
       p_city: effective.kind === "city" || effective.kind === "area" ? effective.city : null,
       p_area: effective.kind === "area" ? effective.area : null,
+      ...(type ? { p_kind: type } : {}),
       p_limit: 60,
     }).then(async ({ data, error }) => {
       if (cancelled) return;
@@ -81,7 +85,7 @@ export default function Discover() {
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, whereKey, coords, session?.user.id]);
+  }, [q, type, whereKey, coords, session?.user.id]);
 
   // Flag when Google's rating hides a weaker one from people you trust.
   const [gap, setGap] = useState<{ name: string; google: number; ours: number; item: string | null; id: string } | null>(null);
@@ -116,9 +120,14 @@ export default function Discover() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const v = text.trim();
-    setParams(v ? { q: v } : {});
+    setParams({ ...(v ? { q: v } : {}), ...(type ? { type } : {}) });
   }
-  const go = (v: string) => { const next = q.toLowerCase() === v.toLowerCase() ? "" : v; setText(next); setParams(next ? { q: next } : {}); };
+  const go = (v: string) => {
+    const next = q.toLowerCase() === v.toLowerCase() ? "" : v;
+    setText(next);
+    setParams({ ...(next ? { q: next } : {}), ...(type ? { type } : {}) });
+  };
+  const setType = (k: string) => setParams({ ...(q ? { q } : {}), ...(k ? { type: k } : {}) });
 
   const label = locating ? "Finding you…" : whereLabel(effective);
   const nearYou = effective.kind === "near" && coords;
@@ -165,6 +174,15 @@ export default function Discover() {
       )}
       {picking && <LocationPicker current={where} onPick={setWhere} onClose={() => setPicking(false)} />}
 
+      <nav className="chips scroll type-strip" aria-label="Type of business">
+        <button type="button" className={`chip ${!type ? "on" : ""}`} aria-pressed={!type} onClick={() => setType("")}><Icon name="grid" size={15} />All</button>
+        {KINDS.filter((k) => k !== "other").map((k) => (
+          <button key={k} type="button" className={`chip ${type === k ? "on" : ""}`} aria-pressed={type === k} onClick={() => setType(type === k ? "" : k)}>
+            <Icon name={MODES[k].icon} size={15} />{MODES[k].label}
+          </button>
+        ))}
+      </nav>
+
       <nav className="cat-strip" aria-label="Categories">
         {CATS.map((c) => (
           <button key={c.label} type="button" className={`cat ${q.toLowerCase() === c.q ? "on" : ""}`} aria-pressed={q.toLowerCase() === c.q} onClick={() => go(c.q)}>
@@ -188,6 +206,8 @@ export default function Discover() {
           <span className="grow small"><b>{gap.name}</b>: Google {gap.google.toFixed(1)}, {session ? "your circle" : "reviewers here"} {gap.ours.toFixed(1)}{gap.item ? ` for the ${gap.item.toLowerCase()}` : ""}.</span>
         </Link>
       )}
+
+      {signedIn && !q && <NewsStrip userId={session!.user.id} />}
 
       {picks.length > 0 && (
         <section className="stack" style={{ gap: 10 }} aria-label="Friends' picks">

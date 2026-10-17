@@ -2086,3 +2086,385 @@ begin
                         else st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography end
     where id = p_place;
 end $$;
+
+-- ===== 20261016000012_links_updates.sql =====
+-- Trusted Picks: a shop's links (Swiggy, Zomato, Instagram, website...), short updates
+-- from the shop to its customers, and numbers that show the owner what the app brings in.
+
+-- ---------- Links ----------
+-- [{ "kind": "zomato", "url": "https://...", "label": "Order on Zomato" }, ...]
+alter table public.places add column if not exists links jsonb not null default '[]'::jsonb;
+
+create or replace function public.check_place_links()
+returns trigger language plpgsql set search_path = public as $$
+declare l jsonb;
+begin
+  if jsonb_typeof(new.links) <> 'array' then raise exception 'links must be a list'; end if;
+  if jsonb_array_length(new.links) > 12 then raise exception 'up to 12 links'; end if;
+  for l in select * from jsonb_array_elements(new.links) loop
+    if coalesce(l ->> 'url', '') !~* '^(https?://|tel:|mailto:)' or length(l ->> 'url') > 500 then
+      raise exception 'each link needs a web address starting with https://';
+    end if;
+    if length(coalesce(l ->> 'label', '')) > 40 then raise exception 'keep link names under 40 characters'; end if;
+  end loop;
+  return new;
+end $$;
+drop trigger if exists places_check_links on public.places;
+create trigger places_check_links before insert or update of links on public.places
+  for each row execute function public.check_place_links();
+
+grant select (links) on public.places to anon, authenticated;
+
+-- ---------- Updates from the shop ----------
+create table if not exists public.place_updates (
+  id         uuid primary key default gen_random_uuid(),
+  place_id   uuid not null references public.places (id) on delete cascade,
+  body       text not null check (length(btrim(body)) between 1 and 280),
+  link_url   text check (link_url is null or (link_url ~* '^https?://' and length(link_url) <= 500)),
+  created_by uuid default auth.uid() references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists place_updates_place_idx on public.place_updates (place_id, created_at desc);
+alter table public.place_updates enable row level security;
+
+drop policy if exists "updates readable" on public.place_updates;
+create policy "updates readable" on public.place_updates for select
+  using (exists (select 1 from public.places p where p.id = place_id and p.status = 'live'));
+drop policy if exists "owners post updates" on public.place_updates;
+create policy "owners post updates" on public.place_updates for insert to authenticated
+  with check ((public.is_place_owner(place_id) or public.is_admin()) and created_by = auth.uid());
+drop policy if exists "owners delete updates" on public.place_updates;
+create policy "owners delete updates" on public.place_updates for delete to authenticated
+  using (public.is_place_owner(place_id) or public.is_admin());
+-- Who posted is not shown to customers.
+revoke select on public.place_updates from anon, authenticated;
+grant select (id, place_id, body, link_url, created_at) on public.place_updates to anon, authenticated;
+grant insert (place_id, body, link_url, created_by), delete on public.place_updates to authenticated;
+
+-- A few a day is plenty; stops a shop from spamming its customers.
+create or replace function public.limit_place_updates()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if (select count(*) from public.place_updates where place_id = new.place_id and created_at > now() - interval '1 day') >= 3 then
+    raise exception 'you can post 3 updates a day';
+  end if;
+  return new;
+end $$;
+drop trigger if exists place_updates_limit on public.place_updates;
+create trigger place_updates_limit before insert on public.place_updates
+  for each row execute function public.limit_place_updates();
+
+-- Updates from shops you saved or reviewed. The shop never learns who you are.
+create or replace function public.my_shop_updates(p_limit integer default 10)
+returns table (id uuid, place_id uuid, place_name text, logo_path text, body text, link_url text, created_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select u.id, u.place_id, p.name, p.logo_path, u.body, u.link_url, u.created_at
+  from public.place_updates u
+  join public.places p on p.id = u.place_id and p.status = 'live'
+  where auth.uid() is not null
+    and u.created_at > now() - interval '30 days'
+    and (exists (select 1 from public.saved_places s where s.user_id = auth.uid() and s.place_id = u.place_id)
+         or exists (select 1 from public.reviews r where r.user_id = auth.uid() and r.place_id = u.place_id))
+  order by u.created_at desc
+  limit least(greatest(p_limit, 1), 50);
+$$;
+revoke execute on function public.my_shop_updates(integer) from public, anon;
+grant execute on function public.my_shop_updates(integer) to authenticated;
+
+-- ---------- What the app brings the shop ----------
+-- Counts only, never who. Shown to the owner and admins.
+create or replace function public.shop_stats(p_place uuid)
+returns table (reviews integer, avg_rating numeric, reviews_30d integer, verified integer,
+               google_handoffs integer, google_handoffs_30d integer, scans_30d integer, saves integer, items_rated integer)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not (public.is_admin() or public.is_place_owner(p_place)) then raise exception 'only the shop owner can see this'; end if;
+  return query select
+    (select count(*)::integer from public.reviews r where r.place_id = p_place and r.status = 'published'),
+    (select round(avg(r.rating)::numeric, 1) from public.reviews r where r.place_id = p_place and r.status = 'published'),
+    (select count(*)::integer from public.reviews r where r.place_id = p_place and r.status = 'published' and r.created_at > now() - interval '30 days'),
+    (select count(*)::integer from public.reviews r where r.place_id = p_place and r.status = 'published' and r.visit_id is not null),
+    (select count(distinct g.review_id)::integer from public.google_shares g join public.reviews r on r.id = g.review_id where r.place_id = p_place),
+    (select count(distinct g.review_id)::integer from public.google_shares g join public.reviews r on r.id = g.review_id where r.place_id = p_place and g.opened_at > now() - interval '30 days'),
+    (select count(*)::integer from public.visits v where v.place_id = p_place and v.scanned_at > now() - interval '30 days'),
+    (select count(*)::integer from public.saved_places s where s.place_id = p_place),
+    (select count(distinct r.item_id)::integer from public.reviews r where r.place_id = p_place and r.status = 'published');
+end $$;
+revoke execute on function public.shop_stats(uuid) from public, anon;
+grant execute on function public.shop_stats(uuid) to authenticated;
+
+-- Per product: average and count, best and worst first for the owner.
+create or replace function public.shop_item_stats(p_place uuid)
+returns table (item_id uuid, name text, image_path text, reviews integer, avg_rating numeric, low_ratings integer)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not (public.is_admin() or public.is_place_owner(p_place)) then raise exception 'only the shop owner can see this'; end if;
+  return query
+    select i.id, i.name, i.image_path, count(r.id)::integer, round(avg(r.rating)::numeric, 1),
+           count(r.id) filter (where r.rating <= 2)::integer
+    from public.items i
+    join public.reviews r on r.item_id = i.id and r.status = 'published'
+    where i.place_id = p_place
+    group by i.id
+    order by avg(r.rating) desc, count(r.id) desc;
+end $$;
+revoke execute on function public.shop_item_stats(uuid) from public, anon;
+grant execute on function public.shop_item_stats(uuid) to authenticated;
+
+-- ---------- Owners connect their Google profile ----------
+-- An owner may link their shop to its Google Place ID once (when none is set yet);
+-- changing an existing link still goes through the Trusted Picks team.
+create or replace function public.guard_place_owner_edits()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if auth.uid() is null or public.is_admin() then return new; end if;
+  if new.name is distinct from old.name or new.status is distinct from old.status
+     or new.listed_until is distinct from old.listed_until or new.owner_id is distinct from old.owner_id
+     or (new.google_place_id is distinct from old.google_place_id and old.google_place_id is not null)
+     or new.city is distinct from old.city or new.created_by is distinct from old.created_by then
+    raise exception 'ask the Trusted Picks team to change the name, city, Google link or listing dates';
+  end if;
+  return new;
+end $$;
+
+-- ===== 20261016000013_business_modes.sql =====
+-- Trusted Picks: business types ("modes"). A restaurant shows a menu and takes orders,
+-- a gym shows plans and trainers, a school shows courses and fees. The app reads the
+-- type to pick its words, sections, buttons and review tags.
+
+alter table public.places add column if not exists kind text not null default 'other';
+alter table public.places drop constraint if exists places_kind_check;
+alter table public.places add constraint places_kind_check
+  check (kind in ('food', 'store', 'beauty', 'health', 'fitness', 'education', 'services', 'other'));
+
+-- Best guess from the category; owners can change it.
+create or replace function public.guess_place_kind(p_category text)
+returns text language sql immutable as $$
+  select case
+    when p_category ~* 'restaurant|cafe|café|coffee|bakery|cake|pizz|biryani|dhaba|bar|pub|kitchen|food|sweet|dessert|juice|tea|mess|tiffin|caterer' then 'food'
+    when p_category ~* 'salon|spa|beauty|parlour|parlor|barber|nail|makeup|tattoo' then 'beauty'
+    when p_category ~* 'gym|fitness|yoga|studio|dance|martial|crossfit|pilates|sports|swim' then 'fitness'
+    when p_category ~* 'school|coaching|tuition|class|academy|institute|college|tutor|learning' then 'education'
+    when p_category ~* 'clinic|doctor|dental|dentist|hospital|physio|pharmacy|chemist|vet|diagnostic|lab' then 'health'
+    when p_category ~* 'shop|store|mart|boutique|retail|grocery|kirana|electronics|book|fashion|jewel|optical|hardware|florist' then 'store'
+    when p_category ~* 'repair|service|laundry|tailor|cleaning|mechanic|garage|plumber|electrician|travel|photograph' then 'services'
+    else 'other' end;
+$$;
+update public.places set kind = public.guess_place_kind(category) where kind = 'other';
+
+create or replace function public.set_place_kind()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.kind = 'other' then new.kind := public.guess_place_kind(new.category); end if;
+  return new;
+end $$;
+drop trigger if exists places_set_kind on public.places;
+create trigger places_set_kind before insert on public.places
+  for each row execute function public.set_place_kind();
+
+grant select (kind) on public.places to anon, authenticated;
+
+-- Menu sections ("Starters", "Haircuts", "Monthly plans") for products.
+alter table public.items add column if not exists section text check (section is null or length(section) <= 40);
+
+-- Review tags per business type (null = every type).
+alter table public.tags add column if not exists kinds text[];
+update public.tags set kinds = '{food}' where label in ('Authentic', 'Generous portion', 'Great for groups') and kinds is null;
+insert into public.tags (label, kinds) values
+  ('Fresh', '{food}'), ('Good packaging', '{food,store}'),
+  ('Genuine products', '{store}'), ('Good variety', '{store}'), ('Easy returns', '{store}'),
+  ('Hygienic', '{beauty,health,food,fitness}'), ('Skilled staff', '{beauty,services}'), ('On time', '{beauty,health,services,education}'),
+  ('Caring doctor', '{health}'), ('Short wait', '{health}'), ('Explains clearly', '{health,education}'),
+  ('Clean', '{fitness,beauty,health}'), ('Good trainers', '{fitness}'), ('Good equipment', '{fitness}'), ('Crowded', '{fitness}'),
+  ('Good teachers', '{education}'), ('Value for fees', '{education}'), ('Personal attention', '{education,fitness}'),
+  ('Did it right first time', '{services}'), ('Fair quote', '{services}')
+on conflict (label) do update set kinds = coalesce(public.tags.kinds, excluded.kinds);
+
+-- Search: filter by business type and return it.
+drop function if exists public.search_places(text, double precision, double precision, integer, text, integer, text, uuid);
+create or replace function public.search_places(
+  p_query text default null, p_lat double precision default null, p_lng double precision default null,
+  p_radius_m integer default 5000, p_city text default null, p_limit integer default 20,
+  p_area text default null, p_place uuid default null, p_kind text default null)
+returns table (
+  place_id uuid, name text, category text, area text, price_level smallint, google_place_id text,
+  distance_m integer, trust_score numeric, review_count integer, verified_count integer,
+  friend_count integer, friend_ids uuid[], top_item text, has_qr boolean, kind text)
+language sql stable security definer set search_path = public, extensions as $$
+  with me as (select auth.uid() as uid),
+  q as (select nullif(lower(btrim(p_query)), '') as txt),
+  here as (
+    select case when p_lat is not null and p_lng is not null
+                then st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography end as pt),
+  cand as (
+    select p.*, case when here.pt is not null and p.location is not null
+                     then st_distance(p.location, here.pt)::integer end as dist
+    from public.places p, here
+    where p.status = 'live'
+      and (p_place is null or p.id = p_place)
+      and (p_city is null or btrim(p_city) = '' or p.city ilike btrim(p_city))
+      and (p_area is null or btrim(p_area) = '' or p.area ilike btrim(p_area))
+      and (p_kind is null or btrim(p_kind) = '' or p.kind = btrim(p_kind))
+      and (here.pt is null or (p.location is not null and st_dwithin(p.location, here.pt, p_radius_m)))),
+  matched as (
+    select r.*, i.name as item_name
+    from public.reviews r
+    join public.items i on i.id = r.item_id
+    left join public.topics t on t.id = i.topic_id
+    join cand c on c.id = r.place_id, q
+    where r.status = 'published'
+      and (q.txt is null or i.name_normalized like '%' || q.txt || '%'
+           or lower(t.name) like '%' || q.txt || '%' or lower(c.name) like '%' || q.txt || '%'
+           or lower(c.category) like '%' || q.txt || '%')),
+  prior as (select coalesce(avg(rating), 3.5) as avg_r from matched),
+  weighted as (
+    select m.place_id, m.rating, m.user_id, m.visit_id, m.item_name, m.is_public,
+      (case when fr.is_friend then 3.0
+            when m.is_public and f.follower_id is not null then 3.0
+            when m.is_public and uts.is_expert then 1.5 else 1.0 end)
+      * (case when m.visit_id is not null then 1.5 when m.by_guest then 0.5 else 1.0 end)
+      * power(0.5, extract(epoch from (now() - m.created_at)) / 86400.0 / 180.0) as w,
+      fr.is_friend
+    from matched m
+    cross join me
+    left join public.follows f on m.is_public and f.follower_id = me.uid and f.followee_id = m.user_id
+    left join public.items i on i.id = m.item_id
+    left join public.user_topic_stats uts on uts.user_id = m.user_id and uts.topic_id = i.topic_id
+    cross join lateral (select public.are_friends(me.uid, m.user_id) as is_friend) fr),
+  scored as (
+    select w.place_id,
+      round(((sum(w.w * w.rating) + 3 * (select avg_r from prior)) / (sum(w.w) + 3))::numeric, 1) as score,
+      count(*)::integer as n, count(w.visit_id)::integer as nv,
+      count(distinct w.user_id) filter (where w.is_friend)::integer as nf_all,
+      count(distinct w.user_id) filter (where w.is_friend and w.is_public)::integer as nf_named,
+      coalesce(array_agg(distinct w.user_id) filter (where w.is_friend and w.is_public), '{}') as fids,
+      mode() within group (order by w.item_name) as top_item
+    from weighted w group by w.place_id)
+  select c.id, c.name, c.category, c.area, c.price_level, c.google_place_id, c.dist,
+         s.score, coalesce(s.n, 0), coalesce(s.nv, 0),
+         coalesce(case when s.nf_all >= 2 then s.nf_all else s.nf_named end, 0),
+         coalesce(s.fids, '{}'), s.top_item,
+         exists (select 1 from public.qr_codes qc where qc.place_id = c.id and qc.active),
+         c.kind
+  from cand c left join scored s on s.place_id = c.id, q
+  where s.place_id is not null or q.txt is null
+     or lower(c.name) like '%' || q.txt || '%' or lower(c.category) like '%' || q.txt || '%'
+  order by s.score desc nulls last, c.dist asc nulls last
+  limit least(greatest(p_limit, 1), 100);
+$$;
+grant execute on function public.search_places(text, double precision, double precision, integer, text, integer, text, uuid, text) to anon, authenticated;
+
+-- ===== 20261016000014_review_by_scan.sql =====
+-- Trusted Picks: reviews only from people who are at the shop.
+--
+-- Writing a review needs an open visit, which only scanning the shop's table QR creates.
+-- Everyone else (invited friends, people browsing) can read but not review.
+-- Guests (not signed in) get one review per shop per device: the app sends a random
+-- device id it keeps on the phone; we store only its hash, never shown to anyone.
+-- Signed-in people get one review per product per visit. Owners can't review their own shop.
+
+alter table public.reviews add column if not exists device_hash text;
+create index if not exists reviews_device_idx on public.reviews (place_id, device_hash) where device_hash is not null;
+
+drop function if exists public.submit_review(uuid, text, smallint, text, bigint, bigint[], boolean, text, text, boolean);
+
+create or replace function public.submit_review(
+  p_place_id uuid, p_item_name text, p_rating smallint, p_body text default '',
+  p_topic_id bigint default null, p_tag_ids bigint[] default '{}',
+  p_ai_drafted boolean default false, p_voice_path text default null, p_photo_path text default null,
+  p_is_public boolean default false, p_device text default null)
+returns public.reviews
+language plpgsql security definer set search_path = public, extensions as $$
+declare it public.items; v_visit uuid; r public.reviews; v_topic bigint; v_name text;
+        v_guest boolean := public.is_guest(); v_device text;
+begin
+  if auth.uid() is null then raise exception 'open the review page again to continue'; end if;
+  if not exists (select 1 from public.places where id = p_place_id and status = 'live') then
+    raise exception 'place is not listed';
+  end if;
+
+  -- Only at the shop: an open visit from a table QR scan.
+  select v.id into v_visit from public.visits v
+  where v.user_id = auth.uid() and v.place_id = p_place_id and now() between v.scanned_at and v.expires_at
+  order by v.scanned_at desc limit 1;
+  if v_visit is null then raise exception 'scan the table QR at the shop to write a review'; end if;
+  if public.is_place_owner(p_place_id) then raise exception 'you can''t review your own shop'; end if;
+
+  v_device := case when btrim(coalesce(p_device, '')) <> '' then encode(digest('tp-device:' || btrim(p_device), 'sha256'), 'hex') end;
+  if v_guest then
+    if v_device is null then raise exception 'refresh the page and try again'; end if;
+    if exists (select 1 from public.reviews where place_id = p_place_id
+               and (user_id = auth.uid() or (device_hash = v_device and by_guest))) then
+      raise exception 'you''ve already reviewed this place from this phone. Sign in to review more';
+    end if;
+  end if;
+
+  if (select count(*) from public.reviews where user_id = auth.uid() and created_at > now() - interval '1 day')
+     >= (case when v_guest then 5 else 25 end) then
+    raise exception 'that''s a lot of reviews for one day. Try again tomorrow';
+  end if;
+  v_name := btrim(coalesce(p_item_name, ''));
+  if v_name = '' then raise exception 'say what you had'; end if;
+  if p_rating is null or p_rating not between 1 and 5 then raise exception 'pick 1 to 5 stars'; end if;
+  if length(coalesce(p_body, '')) > 2000 then raise exception 'keep the review under 2000 characters'; end if;
+  if p_photo_path is not null and not exists (
+      select 1 from storage.objects o where o.bucket_id = 'review-photos' and o.name = p_photo_path and o.owner = auth.uid()) then
+    raise exception 'photo upload not found';
+  end if;
+  if p_voice_path is not null and not exists (
+      select 1 from storage.objects o where o.bucket_id = 'voice' and o.name = p_voice_path and o.owner = auth.uid()) then
+    raise exception 'voice note upload not found';
+  end if;
+
+  v_topic := coalesce(p_topic_id,
+    (select t.id from public.topics t where lower(v_name) like '%' || lower(t.name) || '%' order by length(t.name) desc limit 1),
+    (select t.id from public.topics t join public.places p on p.id = p_place_id
+      where lower(p.category) like '%' || lower(t.name) || '%' order by length(t.name) desc limit 1));
+
+  insert into public.items (place_id, topic_id, name)
+  values (p_place_id, v_topic, v_name)
+  on conflict (place_id, name_normalized) do update
+    set topic_id = coalesce(public.items.topic_id, excluded.topic_id)
+  returning * into it;
+
+  if exists (select 1 from public.reviews where user_id = auth.uid() and visit_id = v_visit and item_id = it.id) then
+    raise exception 'you''ve already reviewed % on this visit', it.name;
+  end if;
+
+  insert into public.reviews (user_id, place_id, item_id, rating, body, ai_drafted, voice_path, photo_path, visit_id, is_public, by_guest, device_hash)
+  values (auth.uid(), p_place_id, it.id, p_rating, coalesce(p_body, ''), p_ai_drafted, p_voice_path, p_photo_path, v_visit,
+          coalesce(p_is_public, false) and not v_guest, v_guest, v_device)
+  returning * into r;
+
+  insert into public.review_tags (review_id, tag_id)
+  select r.id, t from unnest(coalesce(p_tag_ids, '{}')) t
+  on conflict do nothing;
+
+  return r;
+end $$;
+revoke execute on function public.submit_review(uuid, text, smallint, text, bigint, bigint[], boolean, text, text, boolean, text) from public, anon;
+grant execute on function public.submit_review(uuid, text, smallint, text, bigint, bigint[], boolean, text, text, boolean, text) to authenticated;
+
+-- The review screen asks this before showing the form: is there an open visit here,
+-- and has this guest already used their one review?
+create or replace function public.can_review(p_place uuid, p_device text default null)
+returns table (allowed boolean, reason text, expires_at timestamptz)
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare v public.visits; v_device text;
+begin
+  if auth.uid() is null then return query select false, 'scan', null::timestamptz; return; end if;
+  select * into v from public.visits
+  where user_id = auth.uid() and place_id = p_place and now() between scanned_at and visits.expires_at
+  order by scanned_at desc limit 1;
+  if v.id is null then return query select false, 'scan', null::timestamptz; return; end if;
+  if public.is_place_owner(p_place) then return query select false, 'owner', v.expires_at; return; end if;
+  if public.is_guest() then
+    v_device := case when btrim(coalesce(p_device, '')) <> '' then encode(digest('tp-device:' || btrim(p_device), 'sha256'), 'hex') end;
+    if exists (select 1 from public.reviews where place_id = p_place
+               and (user_id = auth.uid() or (v_device is not null and device_hash = v_device and by_guest))) then
+      return query select false, 'guest_used', v.expires_at; return;
+    end if;
+  end if;
+  return query select true, 'ok', v.expires_at;
+end $$;
+grant execute on function public.can_review(uuid, text) to authenticated;

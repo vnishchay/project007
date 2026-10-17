@@ -43,11 +43,17 @@ export function errorText(e: unknown): string {
 }
 
 /**
- * search_places, falling back to the older signature (no p_area / p_place) when the
- * database hasn't had migration 20261016000008 yet, so Discover keeps working.
+ * search_places, falling back to older signatures (no p_kind, no p_area / p_place) when
+ * the database hasn't had the newer migrations yet, so Discover keeps working.
  */
 export async function searchPlaces(params: Record<string, unknown>) {
-  const res = await supabase.rpc("search_places", params);
+  let res = await supabase.rpc("search_places", params);
+  // Before migration 0013 there's no business-type filter: search without it.
+  if (res.error?.code === "PGRST202" && "p_kind" in params) {
+    const { p_kind: _kind, ...rest } = params;
+    params = rest;
+    res = await supabase.rpc("search_places", params);
+  }
   if (res.error?.code === "PGRST202" && ("p_area" in params || "p_place" in params)) {
     const { p_area, p_place, ...old } = params;
     const retry = await supabase.rpc("search_places", p_place || p_area ? { ...old, p_limit: 50 } : old);

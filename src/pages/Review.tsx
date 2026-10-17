@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Place, Tag, Topic } from "../lib/types";
@@ -8,6 +8,8 @@ import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ProductPicker } from "../components/ProductPicker";
 import { loadShopItems, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { deviceId } from "../lib/device";
+import { modeOf, tagFits } from "../lib/modes";
 import "../styles/place.css";
 
 type ItemOpt = ShopItem & { count: number };
@@ -50,7 +52,59 @@ function withCustomTags(body: string, custom: string[]): string {
   return (b ? `${b}\n\n${line}` : line).slice(0, MAX_BODY);
 }
 
+/** Can this person write a review here? Only during a visit started by a table QR scan. */
+type Gate = "loading" | "ok" | "scan" | "guest_used" | "owner";
+
+async function checkGate(placeId: string, uid: string): Promise<Gate> {
+  const r = await supabase.rpc("can_review", { p_place: placeId, p_device: deviceId() });
+  if (!r.error) return ((r.data as { allowed: boolean; reason: string }[] | null)?.[0]?.reason as Gate) || "scan";
+  if (r.error.code !== "PGRST202") throw r.error;
+  // Database without migration 0014: fall back to "has an open visit".
+  const v = await supabase.from("visits").select("id").eq("user_id", uid).eq("place_id", placeId).gt("expires_at", new Date().toISOString()).limit(1);
+  return v.data?.length ? "ok" : "scan";
+}
+
+function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string; reason: Gate }) {
+  const used = reason === "guest_used";
+  if (reason === "owner") return (
+    <div className="page">
+      <TopBar title={name || "Reviews"} />
+      <div className="card rv-gate center">
+        <span className="icon-chip lg violet" style={{ margin: "0 auto" }}><Icon name="store" size={26} /></span>
+        <h2>This is your shop</h2>
+        <p className="small muted">Owners can't review their own shop. Your customers rate it by scanning your table QR.</p>
+        <Link to={`/manage/${placeId}`} className="btn green block"><Icon name="settings" size={18} />Manage shop</Link>
+        <Link to={`/p/${placeId}`} className="btn ghost block"><Icon name="eye" size={18} />See reviews</Link>
+      </div>
+    </div>
+  );
+  return (
+    <div className="page">
+      <TopBar title={name || "Reviews"} />
+      <div className="card rv-gate center">
+        <span className={`icon-chip lg ${used ? "violet" : ""}`} style={{ margin: "0 auto" }}><Icon name={used ? "lock" : "qr"} size={26} /></span>
+        <h2>{used ? "You've reviewed here from this phone" : "Reviews come from people at the shop"}</h2>
+        <p className="small muted">{used
+          ? "Without signing in, each phone gets one review per place. Sign in to rate more of what you had."
+          : "Scan the QR code on your table or counter to rate what you had. It keeps every review genuine."}</p>
+        {used
+          ? <Link to={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`} className="btn green block"><Icon name="login" size={18} />Sign in</Link>
+          : <Link to="/scan" className="btn green block"><Icon name="scan" size={18} />Scan the table QR</Link>}
+        <Link to={`/p/${placeId}`} className="btn ghost block"><Icon name="eye" size={18} />See reviews</Link>
+      </div>
+    </div>
+  );
+}
+
 export default function Review() {
+  const { session, loading, profile } = useAuth();
+  const { placeId = "" } = useParams();
+  if (loading || (session && !profile)) return <div className="page"><Spinner /></div>;
+  if (!session) return <ReviewGate placeId={placeId} reason="scan" />;
+  return <ReviewForm />;
+}
+
+function ReviewForm() {
   const { placeId = "" } = useParams();
   const [params] = useSearchParams();
   const { session, isGuest } = useAuth();
@@ -63,7 +117,7 @@ export default function Review() {
   const [items, setItems] = useState<ItemOpt[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [visitOpen, setVisitOpen] = useState(false);
+  const [gate, setGate] = useState<Gate>("loading");
 
   const [itemName, setItemName] = useState("");
   const [itemId, setItemId] = useState<string | null>(null);
@@ -95,13 +149,15 @@ export default function Review() {
     setPlace(undefined);
     (async () => {
       try {
-        const [p, it, st, tp, tg, v] = await Promise.all([
-          supabase.from("places").select("id, name, area, category, city, google_place_id, status").eq("id", placeId).maybeSingle(),
+        const [p, it, st, tp, tg, g] = await Promise.all([
+          supabase.from("places").select("id, name, area, category, city, google_place_id, status, kind").eq("id", placeId).maybeSingle()
+            .then((r) => r.error && /kind/.test(r.error.message) ? supabase.from("places").select("id, name, area, category, city, google_place_id, status").eq("id", placeId).maybeSingle() : r),
           loadShopItems(placeId),
           supabase.from("item_stats").select("item_id, review_count").eq("place_id", placeId),
           supabase.from("topics").select("id, name").order("name"),
-          supabase.from("tags").select("id, label").order("id"),
-          supabase.from("visits").select("id").eq("user_id", uid).eq("place_id", placeId).gt("expires_at", new Date().toISOString()).limit(1),
+          supabase.from("tags").select("id, label, kinds").order("id")
+            .then((r) => r.error && /kinds/.test(r.error.message) ? supabase.from("tags").select("id, label").order("id") : r),
+          checkGate(placeId, uid),
         ]);
         if (!alive) return;
         // A failed query is not the same as "this place isn't listed".
@@ -122,8 +178,9 @@ export default function Review() {
         else if (!opts.length) setCustom(true);
         const tps = (tp.data as Topic[]) || [];
         setTopics(tps);
-        setTags((tg.data as Tag[]) || []);
-        setVisitOpen(Boolean(v.data?.length));
+        const kind = modeOf(pl?.kind, pl?.category).kind;
+        setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
+        setGate(g);
         // Preselect the kind from ?topic / ?q, else the place's category. The user can still change it.
         if (!topicTouched.current) {
           const guess = matchTopic(tps, params.get("topic"), params.get("q"), pl?.category);
@@ -241,7 +298,7 @@ export default function Review() {
       }
       setSaving("Saving…");
       const existing = items.find((i) => i.name.toLowerCase() === itemName.trim().toLowerCase());
-      const { data, error } = await supabase.rpc("submit_review", {
+      const args = {
         p_place_id: placeId,
         p_item_name: itemName.trim(),
         p_rating: rating,
@@ -252,7 +309,14 @@ export default function Review() {
         p_voice_path: voicePath,
         p_photo_path: photoPath,
         p_is_public: isPublic,
-      });
+        p_device: deviceId(),
+      };
+      let { data, error } = await supabase.rpc("submit_review", args);
+      // Database without migration 0014 doesn't know p_device yet.
+      if (error?.code === "PGRST202") {
+        const { p_device: _d, ...older } = args;
+        ({ data, error } = await supabase.rpc("submit_review", older));
+      }
       if (error) throw error;
       nav(`/saved/${(data as { id: string }).id}`, { replace: true });
     } catch (e) {
@@ -274,7 +338,7 @@ export default function Review() {
       </div>
     </div>
   );
-  if (place === undefined) return <div className="page"><Spinner /></div>;
+  if (place === undefined || (place && gate === "loading")) return <div className="page"><Spinner /></div>;
   if (!place) return (
     <div className="page"><TopBar /><div className="empty">
       <h2>This place isn't listed</h2>
@@ -283,21 +347,22 @@ export default function Review() {
     </div></div>
   );
 
+  if (gate !== "ok") return <ReviewGate placeId={placeId} name={place.name} reason={gate} />;
+
   const bodyLen = withCustomTags(body, customTags).length;
   const busy = Boolean(saving);
-  const look = shopLook(place.category);
+  const look = shopLook(place.category, place.kind);
+  const mode = modeOf(place.kind, place.category);
   const picked1 = items.find((i) => i.id === itemId);
 
   return (
     <div className="page">
-      <TopBar title={place.name} sub={visitOpen
-        ? <span className="green strong rv-verified"><Icon name="verified" size={13} />Verified visit</span>
-        : <span className="rv-verified"><Icon name="qr" size={13} />Scan the table QR for a verified badge</span>} />
+      <TopBar title={place.name} sub={<span className="green strong rv-verified"><Icon name="verified" size={13} />Verified visit</span>} />
 
       <section className="rv-section">
         <div className="section-title" id="what-h">
           <span className={`icon-chip sm ${look.tint}`}><Icon name={look.icon} size={16} /></span>
-          <span className="grow">What did you have?</span>
+          <span className="grow">{mode.ratePrompt}</span>
         </div>
         {items.length > 0 && <ProductPicker items={items} selected={itemId} other={custom} onPick={pickItem} onOther={pickOther} icon={look.icon} labelledBy="what-h" />}
         {custom && (

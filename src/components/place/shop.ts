@@ -1,3 +1,4 @@
+import { MODES, type Kind } from "../../lib/modes";
 import { supabase } from "../../lib/supabase";
 import type { IconName } from "../ui";
 
@@ -51,9 +52,13 @@ export function sortShopItems<T extends ShopItem>(items: T[], count: (i: T) => n
 
 export interface ShopLook { icon: IconName; grad: string; tint: string; menu: string }
 
-/** Icon and colours for a kind of shop, used when it has no photos. */
-export function shopLook(category: string | null | undefined): ShopLook {
+/** Icon, colours and catalogue name for a shop, from its business type, then its category. */
+export function shopLook(category: string | null | undefined, kind?: string | null): ShopLook {
   const c = (category || "").toLowerCase();
+  if (kind && kind !== "food" && kind !== "other" && kind in MODES) {
+    const m = MODES[kind as Kind];
+    return { icon: m.icon, grad: m.grad, tint: m.tint === "green" ? "" : m.tint, menu: m.catalog };
+  }
   if (/salon|barber|spa|beauty|hair|nail|parlour|parlor/.test(c)) return { icon: "scissors", grad: "linear-gradient(135deg, #5634e0 0%, #7b5cff 55%, #c3b5ff 100%)", tint: "violet", menu: "Services" };
   if (/cafe|café|coffee|tea|chai/.test(c)) return { icon: "coffee", grad: "linear-gradient(135deg, #6b3f1d 0%, #a0622d 55%, #f3a712 100%)", tint: "amber", menu: "Menu" };
   if (/bakery|cake|dessert|sweet|patisserie|ice cream/.test(c)) return { icon: "cake", grad: "linear-gradient(135deg, #b2401f 0%, #ee6c4d 55%, #ffc9a8 100%)", tint: "coral", menu: "Menu" };
