@@ -1,5 +1,5 @@
 import { focusShop } from "../lib/focus";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -7,6 +7,7 @@ import type { Place, ReviewRow, SearchResult } from "../lib/types";
 import { googleConfigured, type GoogleRating } from "../lib/google";
 import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
 import { isStockPhoto, placeMediaUrl } from "../lib/media";
+import { isDemoPhoto } from "../lib/demoArt";
 import { shareLink, shareOrCopy } from "../lib/invite";
 import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
@@ -49,6 +50,13 @@ function Img({ src, className, alt = "" }: { src: string | null; className?: str
   return src && !broken ? <img src={src} className={className} alt={alt} onError={() => setBroken(true)} /> : null;
 }
 
+/** A review photo in the Photos tab; drops out quietly if the picture can't be loaded. */
+function PhotoTile({ path, name, delay }: { path: string; name?: string; delay: number }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return null;
+  return <figure style={{ animationDelay: `${delay}s` }}><img src={reviewPhotoUrl(path)!} alt={`Photo of ${name || "the order"}`} loading="lazy" onError={() => setBroken(true)} /><figcaption>{name}</figcaption></figure>;
+}
+
 export default function PlacePage() {
   const { id = "" } = useParams();
   const { session } = useAuth();
@@ -77,7 +85,11 @@ export default function PlacePage() {
   const [experts, setExperts] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
-  const [tab, setTab] = useState<"menu" | "reviews" | "photos" | "about">("menu");
+  // Reviews lead the page. A shop nobody has reviewed yet opens on its menu instead, unless the visitor already chose a tab.
+  const [tab, setTab] = useState<"menu" | "reviews" | "photos" | "about">("reviews");
+  const tabChosen = useRef(false);
+  const pickTab = (t: typeof tab) => { tabChosen.current = true; setTab(t); };
+  useEffect(() => { tabChosen.current = false; setTab("reviews"); }, [id]);
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<ReviewSort>("useful");
   const [coverOk, setCoverOk] = useState(true);
@@ -106,6 +118,7 @@ export default function PlacePage() {
       setItems(it.items);
       const rows = (r.data as unknown as ReviewRow[]) || [];
       setReviews(rows);
+      if (!rows.length && it.items.length && !tabChosen.current) setTab("menu");
       setSummary(((sc.data as SearchResult[]) || [])[0] ?? null);
       const uids = [...new Set(rows.map((x) => x.user_id).filter((u): u is string => Boolean(u)))];
       if (uids.length) {
@@ -173,7 +186,7 @@ export default function PlacePage() {
   if (place === undefined) return <div className="page"><Spinner /></div>;
   if (!place) return <div className="page"><TopBar /><div className="empty"><h2>This place isn't listed</h2><p>{err || "It may have been removed or its listing has lapsed."}</p></div></div>;
 
-  const cover = coverOk ? placeMediaUrl(place.cover_path) : null;
+  const cover = coverOk ? placeMediaUrl(place.cover_path, 1200) : null;
   const logo = placeMediaUrl(place.logo_path);
   const score = summary?.trust_score != null ? Number(summary.trust_score) : null;
   const reviewCount = summary?.review_count ?? reviews.length;
@@ -191,7 +204,7 @@ export default function PlacePage() {
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
 
   const openReviews = (f: Filter) => {
-    setFilter(f); setTab("reviews");
+    setFilter(f); pickTab("reviews");
     window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
   const [first, ...restWords] = place.name.trim().split(/\s+/);
@@ -210,8 +223,8 @@ export default function PlacePage() {
     .map((r) => `${r.author_name!.split(" ")[0]} rated ${r.items?.name || "it"} ${r.rating}★`);
   const photos = reviews.filter((r) => r.photo_path);
   const tabs: { id: typeof tab; label: string; n?: number }[] = [
-    { id: "menu", label: look.menu, n: products.length || undefined },
     { id: "reviews", label: "Reviews", n: reviews.length || undefined },
+    { id: "menu", label: look.menu, n: products.length || undefined },
     { id: "photos", label: "Photos", n: photos.length || undefined },
     { id: "about", label: "About" },
   ];
@@ -242,7 +255,7 @@ export default function PlacePage() {
             {score != null
               ? <span className="pn-chip" aria-label={`Trust score ${score.toFixed(1)} of 5`}><Icon name="star" size={15} fill="currentColor" color="#d9a441" /><b>{score.toFixed(1)}</b><span>{reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span></span>
               : <span className="pn-chip"><Icon name="spark" size={15} color="#d9a441" /><b>New</b><span>on Trusted Picks</span></span>}
-            {today && <button type="button" className="pn-chip" onClick={() => { setTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }}><span className="pn-dot" />{today}</button>}
+            {today && <button type="button" className="pn-chip" onClick={() => { pickTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }}><span className="pn-dot" />{today}</button>}
             {verified > 0 && <span className="pn-chip"><Icon name="verified" size={15} color="#e5c78f" />{verified} verified</span>}
             {priceText(place.price_level) && <span className="pn-chip gold">{priceText(place.price_level)}</span>}
           </div>
@@ -263,24 +276,6 @@ export default function PlacePage() {
             </a>
           ))}
         </div>
-      )}
-
-      {signature.length > 0 && (
-        <section className="pn-sig" aria-label="Signature picks">
-          <h2>Signature <i>picks</i></h2>
-          <div className="pn-sig-row">
-            {signature.map((p, i) => {
-              const st = stats.get(p.id)!;
-              return (
-                <button key={p.id} type="button" className="pn-sig-card" style={{ animationDelay: `${0.1 + i * 0.1}s` }} onClick={() => (canRate ? nav(`${rateUrl}?item=${p.id}`) : openReviews(`item:${p.id}`))}>
-                  <span className="pn-sig-img"><ItemThumb path={p.image_path} icon={look.icon} /></span>
-                  <span className="pn-sig-name">{p.name}</span>
-                  <span className="pn-sig-foot"><b>{priceLabel(p.price_inr) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{(st.sum / st.count).toFixed(1)} · {st.count}</span></span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
       )}
 
       {(friendLiked.length > 0 || friendCount > 0) && (
@@ -308,7 +303,7 @@ export default function PlacePage() {
 
       <div className="pn-tabs" id="pn-tabs" role="tablist" aria-label="Shop sections">
         {tabs.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => pickTab(t.id)}>
             {t.label}{t.n ? <span>{t.n}</span> : null}
           </button>
         ))}
@@ -319,6 +314,23 @@ export default function PlacePage() {
       <div className="pn-panel" key={tab}>
         {tab === "menu" && (
           <>
+            {signature.length > 0 && (
+              <section className="pn-sig" aria-label="Signature picks">
+                <h2>Signature <i>picks</i></h2>
+                <div className="pn-sig-row">
+                  {signature.map((p, i) => {
+                    const st = stats.get(p.id)!;
+                    return (
+                      <button key={p.id} type="button" className="pn-sig-card" style={{ animationDelay: `${0.1 + i * 0.1}s` }} onClick={() => (canRate ? nav(`${rateUrl}?item=${p.id}`) : openReviews(`item:${p.id}`))}>
+                        <span className="pn-sig-img"><ItemThumb path={p.image_path} icon={look.icon} /></span>
+                        <span className="pn-sig-name">{p.name}</span>
+                        <span className="pn-sig-foot"><b>{priceLabel(p.price_inr) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{(st.sum / st.count).toFixed(1)} · {st.count}</span></span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
             <ShopUpdates placeId={place.id} />
       <section className="stack" style={{ gap: 12 }}>
         <div className="section-title">
@@ -359,7 +371,9 @@ export default function PlacePage() {
             </Link>}
           </div>
         )}
-        {products.some((p) => isStockPhoto(p.image_path)) && <p className="pn-credit">Pictures are for illustration. Stock photos by <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer">Pexels</a>.</p>}
+        {products.some((p) => isDemoPhoto(p.image_path))
+          ? <p className="pn-credit">Demo pictures are stock photos from <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer">Pexels</a> and <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer">Unsplash</a>. Real shops use their own.</p>
+          : products.some((p) => isStockPhoto(p.image_path)) && <p className="pn-credit">Pictures are for illustration. Stock photos by <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer">Pexels</a>.</p>}
       </section>
 
           </>
@@ -451,7 +465,7 @@ export default function PlacePage() {
         {tab === "photos" && (
           photos.length === 0
             ? <div className="pn-empty"><Icon name="camera" size={28} /><b>No photos yet</b><span className="small">Photos from verified visitors show up here</span></div>
-            : <div className="pn-photos">{photos.map((r, i) => <figure key={r.id} style={{ animationDelay: `${i * 0.06}s` }}><img src={reviewPhotoUrl(r.photo_path)!} alt={`Photo of ${r.items?.name || "the order"}`} loading="lazy" /><figcaption>{r.items?.name}</figcaption></figure>)}</div>
+            : <div className="pn-photos">{photos.map((r, i) => <PhotoTile key={r.id} path={r.photo_path!} name={r.items?.name} delay={i * 0.06} />)}</div>
         )}
         {tab === "about" && (
           <>

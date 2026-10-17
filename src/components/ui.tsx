@@ -58,9 +58,11 @@ export function StarInput({ value, onChange }: { value: number; onChange: (v: nu
 /* ---------- Avatar ---------- */
 export function Avatar({ id, name, path, size = "" }: { id: string; name: string | null | undefined; path?: string | null; size?: "" | "lg" | "sm" }) {
   const url = avatarUrl(path);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [url]);
   return (
     <span className={`avatar ${size}`} style={{ background: avatarColor(id) }} title={name || undefined}>
-      {url ? <img src={url} alt="" /> : initials(name)}
+      {url && !broken ? <img src={url} alt="" onError={() => setBroken(true)} /> : initials(name)}
     </span>
   );
 }

@@ -19,7 +19,7 @@ If you already ran an earlier copy, run only the migration files you haven't run
 
 Or run `supabase/update_existing_database.sql`, which bundles 0006 onwards.
 
-For test data, run `supabase/demo_data.sql`: 34 Pune shops of every kind with menus, prices and table QR codes, 56 demo people, friendships, about 1,600 reviews, saved places, plans, payments, review links, reports, requests and claims. It is safe to run again, and the removal queries are at the bottom of the file.
+For test data, run `supabase/demo_data.sql`: 42 shops in five cities with every field filled (hours, links to Swiggy, Zomato, Instagram, WhatsApp and more, logo, cover, a picture for every dish), menus, table QR codes, about 190 demo people and shop owners, friendships, about 2,000 reviews (some with photos), saved places, plans, payments, review links, reports, alerts, requests and claims. Pictures are stock photos named by tokens such as `demo:pizza:3` (see `src/lib/demoPools.ts`); the app resolves them and falls back to other pictures if one will not load. It is safe to run again (it rebuilds only the demo people's own reviews), and the removal queries are at the bottom of the file.
 
 ## 2. Supabase settings
 

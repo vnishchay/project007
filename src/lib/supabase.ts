@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { demoArtUrl, isDemoArt } from "./demoArt";
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -50,6 +51,7 @@ export const PROFILE_COLS = "id, display_name, avatar_path, role, created_at";
 
 export function avatarUrl(path: string | null | undefined): string | null {
   if (!path) return null;
+  if (isDemoArt(path)) return demoArtUrl(path, 200);
   return supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
 }
 

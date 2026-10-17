@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
+import { demoArtUrl, isDemoArt } from "../lib/demoArt";
 import { useSettings, type AppSettings } from "../lib/settings";
 import type { ListingRequest, Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
@@ -394,7 +395,10 @@ interface ClaimRow { id: string; place_id: string; place_name: string; area: str
 
 function ClaimPhoto({ path }: { path: string }) {
   const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => { supabase.storage.from("claim-photos").createSignedUrl(path, 600).then(({ data }) => setSrc(data?.signedUrl ?? null)); }, [path]);
+  useEffect(() => {
+    if (isDemoArt(path)) { setSrc(demoArtUrl(path, 600)); return; }
+    supabase.storage.from("claim-photos").createSignedUrl(path, 600).then(({ data }) => setSrc(data?.signedUrl ?? null));
+  }, [path]);
   return src ? <img src={src} alt="Shop front" className="cl-photo" /> : null;
 }
 

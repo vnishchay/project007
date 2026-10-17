@@ -4,13 +4,16 @@ import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { timeAgo } from "../lib/util";
+import { demoArtUrl, isDemoArt } from "../lib/demoArt";
 import { splitTags, tagLabels } from "../lib/reviews";
 import { Avatar, Icon, Stars, useToast, type IconName } from "./ui";
 import { ItemThumb } from "./place/ItemThumb";
 import "../styles/place.css";
 
 export function reviewPhotoUrl(path: string | null | undefined): string | null {
-  return path ? supabase.storage.from("review-photos").getPublicUrl(path).data.publicUrl : null;
+  if (!path) return null;
+  if (isDemoArt(path)) return demoArtUrl(path, 800);
+  return supabase.storage.from("review-photos").getPublicUrl(path).data.publicUrl;
 }
 
 export function VoiceNote({ path }: { path: string }) {
