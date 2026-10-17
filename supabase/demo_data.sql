@@ -7,6 +7,24 @@
 
 set search_path = public, extensions;
 
+-- Stop early, with a clear message, if the database is behind this file (run supabase/update_existing_database.sql first).
+do $demo$
+declare need text[] := array['places.links','places.kind','places.logo_path','items.section','items.image_path','qr_codes.seats','qr_codes.jar_size',
+  'subscriptions.trial_reviews_left','subscriptions.billing_interval','billing_orders.provider_order_id','place_claims.photo_path','place_claims.kind',
+  'reviews.by_guest','reviews.device_hash','reviews.photo_path','listing_requests.billing_interval','listing_requests.tables','listing_requests.listing_inr',
+  'profiles.invite_code','visits.near','visits.qr_code_id','place_updates.link_url']; n text; missing text := '';
+begin
+  foreach n in array need loop
+    if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = split_part(n, '.', 1) and column_name = split_part(n, '.', 2)) then
+      missing := missing || ' ' || n;
+    end if;
+  end loop;
+  if missing <> '' then
+    raise exception 'Your database is behind this file (missing:%). Run supabase/update_existing_database.sql first, then run this file again.', missing;
+  end if;
+end
+$demo$;
+
 -- Older copies of this file stored fake ids such as "demo-forno-napoli"; clear them.
 update public.places set google_place_id = null where google_place_id like 'demo-%';
 
