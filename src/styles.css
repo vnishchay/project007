@@ -9,29 +9,29 @@
   --fill: rgba(120, 120, 128, 0.12);
   --shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
-  --amber: #b26a00;
-  --amber-soft: #fdf1dc;
-  --coral: #d0432b;
-  --coral-soft: #fde8e3;
-  --sky: #0a64d8;
-  --sky-soft: #e4effd;
-  --violet: #5e54c4;
-  --violet-soft: #eceafb;
+  --amber: #a15c00;
+  --amber-soft: rgba(255, 149, 0, 0.14);
+  --coral: #d30f45;
+  --coral-soft: rgba(255, 45, 85, 0.10);
+  --sky: #0062cc;
+  --sky-soft: rgba(0, 113, 227, 0.10);
+  --violet: #5856d6;
+  --violet-soft: rgba(88, 86, 214, 0.10);
   --hero: #1c1c1e;
   --grad-hero: var(--hero);
-  --ink: #1c1c1e;
+  --ink: #1d1d1f;
   --ink-2: #3a3a3c;
   --muted: #636366;
-  --green: #c2391c;       /* brand accent (warm red-orange): the one colour for primary actions */
-  --green-dark: #a42f16;
-  --good: #248a3d;
-  --good-soft: #e3f4e8;
-  --good-dark: #1b6b2f;
-  --green-soft: #fdebe6;
+  --green: #d4290f;       /* the one brand accent (Apple-style red-orange): 5.1:1 under white text, 4.6:1 on the page */
+  --green-dark: #a81f08;
+  --good: #1f7a36;
+  --good-soft: rgba(52, 199, 89, 0.15);
+  --good-dark: #17602a;
+  --green-soft: rgba(212, 41, 15, 0.09);
   --star: #b26a00;
-  --danger: #c4251b;
-  --danger-soft: #fdeceb;
-  --warn-soft: #fdf1dc;
+  --danger: #d70015;
+  --danger-soft: rgba(215, 0, 21, 0.09);
+  --warn-soft: rgba(255, 149, 0, 0.14);
   --radius: 14px;
   --radius-card: 20px;
   --ease: cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -143,7 +143,7 @@ p { margin: 0; }
 .chip.dashed { border: 1px dashed var(--line); background: none; color: var(--muted); }
 .tag { padding: 6px 12px; border-radius: 999px; background: var(--green-soft); color: var(--green-dark); font-weight: 500; font-size: 13px; border: 0; cursor: pointer; }
 .tag.off { background: var(--fill); color: var(--muted); border: 0; }
-.tag.bad:not(.off) { background: var(--coral-soft); color: #a8321c; }
+.tag.bad:not(.off) { background: var(--coral-soft); color: #a81f08; }
 .rv-tag-head { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 6px; }
 
 /* Cards and lists */
@@ -158,7 +158,7 @@ a.list-item:active { background: var(--fill); }
 .score.none { color: var(--muted); font-size: 14px; font-weight: 600; }
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green-dark); font-size: 12px; font-weight: 600; }
 .badge.gray { background: var(--fill); color: var(--muted); }
-.badge.warn { background: var(--warn-soft); color: #7a5410; }
+.badge.warn { background: var(--warn-soft); color: #8a5300; }
 .badge.red { background: var(--danger-soft); color: var(--danger); }
 .divider { height: 0.5px; background: var(--line); }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 0.5px solid var(--line); border-bottom: 0.5px solid var(--line); padding: 14px 0; }
@@ -184,7 +184,7 @@ a.list-item:active { background: var(--fill); }
 .notice { padding: 12px 14px; border-radius: 14px; background: var(--fill); font-size: 14px; line-height: 1.45; }
 .notice.ok { background: var(--good-soft); color: var(--good-dark); }
 .notice.err { background: var(--danger-soft); color: var(--danger); }
-.notice.warn { background: var(--warn-soft); color: #6b4700; }
+.notice.warn { background: var(--warn-soft); color: #8a5300; }
 .toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: rgba(28, 28, 30, 0.88); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); color: #fff; padding: 12px 20px; border-radius: 999px; font-weight: 500; font-size: 15px; z-index: 50; max-width: calc(100% - 32px); box-shadow: var(--shadow-lg); animation: toast-in 0.35s var(--ease); }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px) scale(0.96); } }
 
@@ -240,11 +240,11 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 .where-btn { background: none; border: 0; padding: 6px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
 
 /* Shared building blocks */
-.icon-chip { width: 40px; height: 40px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--green-soft); color: var(--green-dark); }
-.icon-chip.amber { background: var(--amber-soft); color: #8a5300; }
-.icon-chip.coral { background: var(--coral-soft); color: #9c4733; }
-.icon-chip.sky { background: var(--sky-soft); color: #0a55b8; }
-.icon-chip.violet { background: var(--violet-soft); color: #4a40a8; }
+.icon-chip { width: 40px; height: 40px; flex: none; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(var(--green-soft), var(--green-soft)), #fff; color: var(--green-dark); }
+.icon-chip.amber { background: linear-gradient(var(--amber-soft), var(--amber-soft)), #fff; color: #8a5300; }
+.icon-chip.coral { background: linear-gradient(var(--coral-soft), var(--coral-soft)), #fff; color: #a81f08; }
+.icon-chip.sky { background: linear-gradient(var(--sky-soft), var(--sky-soft)), #fff; color: #0062cc; }
+.icon-chip.violet { background: linear-gradient(var(--violet-soft), var(--violet-soft)), #fff; color: #4a48c8; }
 .icon-chip.sm { width: 30px; height: 30px; border-radius: 8px; }
 .icon-chip.lg { width: 52px; height: 52px; border-radius: 13px; }
 .section-title { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.022em; }
@@ -310,3 +310,6 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 /* Reduced transparency (and browsers without blur): bars turn solid. */
 @media (prefers-reduced-transparency: reduce) { :root { --glass: #f2f2f7; } .topbar, .toast { -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :root { --glass: #f2f2f7; } }
+
+/* Tinted chips sit on white so the tint reads clean on the grey page as well as on cards. */
+.pl-night .icon-chip, .rvx .icon-chip, .hero .icon-chip, .callout .icon-chip { background-color: transparent; }

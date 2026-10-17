@@ -63,7 +63,7 @@
 .mg-act.on { background: var(--green-soft); color: var(--green-dark); }
 .mg-updown { display: flex; flex-direction: column; gap: 2px; }
 .mg-updown .mg-act { width: 32px; height: 28px; border-radius: 8px; }
-.mg-add-photo { height: 36px; padding: 0 12px; border-radius: 11px; border: 0; background: var(--amber-soft); color: #7a5410; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; flex: none; }
+.mg-add-photo { height: 36px; padding: 0 12px; border-radius: 11px; border: 0; background: var(--amber-soft); color: #8a5300; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; flex: none; }
 .mg-thumb-empty { background: repeating-linear-gradient(135deg, var(--surface), var(--surface) 8px, var(--line-soft) 8px, var(--line-soft) 16px); }
 
 .mg-add {
@@ -72,7 +72,7 @@
 }
 .mg-add-row { display: flex; gap: 8px; }
 .mg-add-row .mg-add { flex: 1; min-width: 0; }
-.mg-add-menu { flex: none; width: 116px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px; border-radius: 18px; border: 2px solid var(--coral-soft); background: var(--card); color: #9c4733; font-weight: 700; font-size: 12px; line-height: 1.2; cursor: pointer; text-align: center; }
+.mg-add-menu { flex: none; width: 116px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px; border-radius: 18px; border: 2px solid var(--coral-soft); background: var(--card); color: #a81f08; font-weight: 700; font-size: 12px; line-height: 1.2; cursor: pointer; text-align: center; }
 .mg-add-menu:hover { background: var(--coral-soft); }
 .mg-snap { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 320px; padding: 12px; border-radius: 18px; border: 0; cursor: pointer; text-align: left; background: var(--coral-soft); color: var(--ink); font-weight: 700; font-size: 15px; }
 .mg-snap:hover { filter: brightness(0.98); }
@@ -110,7 +110,7 @@
 .mg-input-icon .input { padding-left: 40px; }
 .mg-label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
 .mg-label svg { color: var(--muted); }
-.mg-locked { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #7a5410; }
+.mg-locked { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8a5300; }
 
 /* ---------- Details editor ---------- */
 .mg-section { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -153,7 +153,7 @@
 
 /* ---------- Locked ---------- */
 .mg-lock { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; padding: 40px 20px; border-radius: 24px; background: var(--card); box-shadow: var(--shadow); margin-top: 12px; }
-.mg-lock-art { width: 88px; height: 88px; border-radius: 28px; display: grid; place-items: center; background: var(--violet-soft); color: #54489a; }
+.mg-lock-art { width: 88px; height: 88px; border-radius: 28px; display: grid; place-items: center; background: var(--violet-soft); color: #4a48c8; }
 
 /* ---------- Business landing ---------- */
 .biz-hero { position: relative; overflow: hidden; border-radius: 28px; padding: 24px 20px 22px; background: var(--grad-hero); color: #fff; display: flex; flex-direction: column; gap: 12px; }
@@ -307,7 +307,7 @@
 .fn-step b { font-size: 15px; }
 .fn-step.now { outline: 2.5px solid var(--green); }
 .fn-step.done { opacity: 0.65; } .fn-step.done b { text-decoration: line-through; }
-.fn-tag { font-size: 11px; font-weight: 700; color: #54489a; background: var(--violet-soft); padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
+.fn-tag { font-size: 11px; font-weight: 700; color: #4a48c8; background: var(--violet-soft); padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
 .fn-go { height: 36px; padding: 0 14px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; background: var(--green); }
 @keyframes fn-in { from { opacity: 0; transform: translateY(24px) scale(0.95); } to { opacity: 1; transform: none; } }
 @keyframes fn-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }

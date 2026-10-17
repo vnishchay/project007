@@ -238,7 +238,7 @@ async function storyCard(r: ReviewRow): Promise<File | null> {
     const g = c.getContext("2d")!;
     g.fillStyle = "#F5F6F4"; g.fillRect(0, 0, 1080, 1350);
     g.fillStyle = "#FFFFFF"; roundRect(g, 80, 160, 920, 1030, 56); g.fill();
-    g.fillStyle = "#c2391c"; g.font = "700 40px Inter, -apple-system, system-ui, sans-serif"; g.fillText("Trusted Picks", 150, 270);
+    g.fillStyle = "#d4290f"; g.font = "700 40px Inter, -apple-system, system-ui, sans-serif"; g.fillText("Trusted Picks", 150, 270);
     g.fillStyle = "#1c1c1e"; g.font = "800 72px Inter, -apple-system, system-ui, sans-serif";
     wrap(g, r.items?.name || "", 150, 400, 780, 84, 2);
     g.fillStyle = "#636366"; g.font = "600 40px Inter, -apple-system, system-ui, sans-serif"; g.fillText(r.places?.name || "", 150, 560);

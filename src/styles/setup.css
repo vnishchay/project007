@@ -53,7 +53,7 @@
 .su-found { width: 26px; height: 26px; border-radius: 99px; background: var(--good); color: #fff; display: grid; place-items: center; animation: su-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both; }
 .su-add { display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border-radius: 16px; border: 2px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
 .su-add:hover { border-color: var(--green); color: var(--green); }
-.su-note { display: flex; gap: 8px; text-align: left; align-items: flex-start; background: var(--green-soft); color: #8a2a12; border-radius: 14px; padding: 10px 12px; line-height: 1.45; }
+.su-note { display: flex; gap: 8px; text-align: left; align-items: flex-start; background: var(--green-soft); color: #a81f08; border-radius: 14px; padding: 10px 12px; line-height: 1.45; }
 .su-note svg { flex: none; margin-top: 1px; }
 .su-skip { align-self: center; color: var(--muted); font-weight: 700; }
 
