@@ -11,6 +11,7 @@ import { LocationPicker } from "../components/LocationPicker";
 import { Chip, EmptyArt, Glyph, SectionTitle, greeting, lookFor, type GlyphName, type Tone } from "../components/home/Kit";
 import { PickCard, PlaceCard, type Media } from "../components/home/PlaceCard";
 import { NewsStrip } from "../components/home/NewsStrip";
+import { FreshReviews } from "../components/home/FreshReviews";
 import { KINDS, MODES } from "../lib/modes";
 import "../styles/home.css";
 
@@ -217,6 +218,8 @@ export default function Discover() {
           </div>
         </section>
       )}
+
+      {!q && results && results.length > 0 && <FreshReviews placeIds={results.map((r) => r.place_id)} />}
 
       <section className="stack" style={{ gap: 12 }} aria-label="Places">
         <SectionTitle icon={q ? "trophy" : "flame"} tone={q ? "amber" : "coral"} right={results && results.length > 0 ? (
