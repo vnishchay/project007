@@ -29,7 +29,8 @@ type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}
 
 /** Newest columns first; older databases lack kind, then links, then cover/logo. */
 async function loadPlace(id: string) {
-  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
+  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification`).eq("id", id).maybeSingle();
+  if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(PLACE_COLS).eq("id", id).maybeSingle();
@@ -225,7 +226,9 @@ export default function PlacePage() {
   // they posted with their name, so an anonymous review never points to a friend.
   const friendLiked = reviews.filter((r) => isFriend(r) && r.rating >= 4 && r.author_name).slice(0, 6);
   const rateUrl = `/review/${place.id}`;
-  const links = cleanLinks((place as Place & { links?: unknown }).links);
+  // A newly listed shop's links stay hidden until the team has checked they are genuine.
+  const unchecked = place.verification === "pending" || place.verification === "rejected";
+  const links = unchecked && !canManage ? [] : cleanLinks((place as Place & { links?: unknown }).links);
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
 
   const openReviews = (f: Filter) => {
