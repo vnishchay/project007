@@ -1244,11 +1244,9 @@ where id in (select review_id from public.review_reports where reporter::text li
 -- Shops asking to be listed, and people claiming a listed shop.
 alter table public.listing_requests disable trigger listing_requests_prepare;
 delete from public.listing_requests where note like '[Demo]%';
-insert into public.listing_requests (requester_id, business_name, category, area, city, phone, note, wants_qr, qr_style, plan, billing_interval, tables, listing_inr, qr_inr, amount_inr, links, status, decided_at)
+insert into public.listing_requests (requester_id, business_name, category, area, city, phone, note, wants_qr, qr_style, plan, billing_interval, tables, listing_inr, qr_inr, amount_inr, status, decided_at)
 select ('de000000-0000-4000-8000-' || lpad(v.u::text, 12, '0'))::uuid, v.nm, v.cat, v.area, v.city, v.phone, '[Demo] ' || v.nm, true, v.sty::public.qr_style, v.pl, 'year', v.t,
        v.amt, 0, v.amt,
-       jsonb_build_array(jsonb_build_object('kind', 'instagram', 'url', 'https://instagram.com/' || v.slug, 'label', 'Instagram'),
-                         jsonb_build_object('kind', 'phone', 'url', 'tel:' || v.phone, 'label', 'Call us')),
        v.st::public.request_status, case when v.st in ('approved', 'declined') then now() - interval '2 days' end
 from (values
   ('Dosa Dhaba Express', 'Restaurant', 'Pimpri', 'Pune', '+919876500001', 'paper', 'starter', 3, 1499, 'pending', 4, 'dosadhabaexpress'),
@@ -1258,6 +1256,14 @@ from (values
   ('Marine Drive Juice Centre', 'Juice bar', 'Marine Lines', 'Mumbai', '+919876500005', 'matrix', 'standard', 4, 2999, 'pending', 30, 'marinedrivejuice')
 ) as v (nm, cat, area, city, phone, sty, pl, t, amt, st, u, slug);
 alter table public.listing_requests enable trigger listing_requests_prepare;
+-- Links on the requests, if this database has that column (it comes with the latest database update).
+do $demo$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'listing_requests' and column_name = 'links') then
+    execute $q$update public.listing_requests set links = jsonb_build_array(
+      jsonb_build_object('kind', 'instagram', 'url', 'https://instagram.com/' || lower(regexp_replace(business_name, '[^A-Za-z0-9]', '', 'g')), 'label', 'Instagram'),
+      jsonb_build_object('kind', 'phone', 'url', 'tel:' || phone, 'label', 'Call us')) where note like '[Demo]%'$q$;
+  end if;
+end $demo$;
 
 delete from public.place_claims where user_id::text like 'de000000-%';
 insert into public.place_claims (place_id, user_id, kind, near, photo_path, role, phone, status, created_at, decided_at)
