@@ -272,3 +272,4 @@
 .biz-links-cta .stackicons { display: flex; }
 .biz-links-cta .stackicons .link-icon { border: 2px solid #fff; box-sizing: content-box; }
 .biz-links-cta .stackicons .link-icon + .link-icon { margin-left: -10px; }
+.rl-link { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--sage, #eef3ee); font-size: 13px; min-width: 0; }

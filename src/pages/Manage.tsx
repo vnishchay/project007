@@ -12,6 +12,7 @@ import { Insights, type ManageTab } from "../components/manage/Insights";
 import { LinksEditor } from "../components/manage/LinksEditor";
 import { Updates } from "../components/manage/Updates";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
+import { ReviewLinks } from "../components/manage/ReviewLinks";
 import type { IconName } from "../components/ui";
 import { modeOf } from "../lib/modes";
 import "../styles/manage.css";
@@ -99,7 +100,10 @@ export default function Manage() {
           <GoogleConnect place={place} isAdmin={isAdmin} onSaved={merge} />
           <ShopDetails place={place} isAdmin={isAdmin} onSaved={merge} />
         </>}
-        {tab === "qr" && <ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} />}
+        {tab === "qr" && <>
+          <ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} />
+          <ReviewLinks placeId={place.id} placeName={place.name} live={place.status === "live"} />
+        </>}
       </div>
       {tab === "qr" && <QrPrintSheet place={place} codes={codes} />}
     </div>

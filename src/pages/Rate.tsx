@@ -61,7 +61,7 @@ export default function Rate() {
 
       <section className="card soft stack" style={{ gap: 8 }}>
         <div className="row"><span className="icon-chip sm"><Icon name="shield" size={16} /></span><span className="strong grow">Why scan?</span></div>
-        <p className="small muted">Only people at the shop can review it, so every rating here is from a real visit. Reviews stay anonymous unless you choose to show your name.</p>
+        <p className="small muted">Only customers can review: by scanning the table QR, or with a one-time link the shop sends after a delivery or appointment. So every rating is from a real visit. Reviews stay anonymous unless you choose to show your name.</p>
       </section>
 
       <section className="stack" style={{ gap: 10 }}>

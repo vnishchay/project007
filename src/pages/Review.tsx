@@ -86,7 +86,7 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
         <h2>{used ? "You've reviewed here from this phone" : "Reviews come from people at the shop"}</h2>
         <p className="small muted">{used
           ? "Without signing in, each phone gets one review per place. Sign in to rate more of what you had."
-          : "Scan the QR code on your table or counter to rate what you had. It keeps every review genuine."}</p>
+          : "Scan the QR code on your table or counter, or open the review link the shop sent you. It keeps every review genuine."}</p>
         {used
           ? <Link to={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`} className="btn green block"><Icon name="login" size={18} />Sign in</Link>
           : <Link to="/scan" className="btn green block"><Icon name="scan" size={18} />Scan the table QR</Link>}

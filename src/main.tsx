@@ -43,6 +43,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/" element={<Discover />} />
                 <Route path="/p/:id" element={<PlacePage />} />
                 <Route path="/q/:token" element={<QrLanding />} />
+                <Route path="/r/:token" element={<QrLanding link />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/scan" element={<Scan />} />
                 <Route path="/rate" element={<Rate />} />
