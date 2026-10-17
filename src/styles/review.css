@@ -159,3 +159,24 @@ html:has(.rvx), body:has(.rvx) { background: #151311; }
 .rvx-nudge { display: flex; align-items: center; gap: 12px; margin: 0 20px; padding: 14px; border-radius: 18px; background: rgba(160, 150, 200, 0.14); border: 1px solid rgba(160, 150, 200, 0.28); color: var(--ink); text-decoration: none; }
 .rvx-nudge small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .rvx *, .rvx *::before { animation: none !important; transition: none !important; } }
+
+/* landing (QR / review link) and gates */
+.rvx-perks { display: flex; flex-direction: column; border-radius: 20px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1); }
+.rvx-perk { display: flex; align-items: center; gap: 12px; padding: 13px 14px; font-size: 14.5px; font-weight: 600; color: var(--ink-2); }
+.rvx-perk + .rvx-perk { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.rvx-perk .ci { width: 34px; height: 34px; flex: none; border-radius: 11px; display: grid; place-items: center; background: rgba(229, 199, 143, 0.14); color: var(--champ); }
+.rvx-status { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; background: rgba(127, 191, 158, 0.14); border: 1px solid rgba(127, 191, 158, 0.3); color: var(--ink); }
+.rvx-status small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.rvx-status.warn { background: var(--danger-soft); border-color: rgba(255, 154, 120, 0.35); }
+.rvx-status .grow { flex: 1; min-width: 0; }
+.rvx-gate { margin: 0 20px; padding: 26px 20px; border-radius: 26px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.12); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.rvx-gate h2 { margin: 4px 0 0; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 24px; line-height: 1.12; }
+.rvx-gate p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+.rvx-gate .rvx-cta, .rvx-gate .rvx-more { align-self: stretch; text-decoration: none; justify-content: center; }
+.rvx-gate .ico { width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; background: rgba(229, 199, 143, 0.14); color: var(--champ); }
+.rvx-retry { align-self: flex-start; }
+.rvx-center { display: grid; place-items: center; min-height: 60dvh; }
+a.rvx-cta { text-decoration: none; color: #fff; }
+a.rvx-skip { text-decoration: none; }
+.rvx-status .spinner { width: 22px; height: 22px; }
+a.rvx-cta[aria-disabled="true"] { opacity: 0.5; }

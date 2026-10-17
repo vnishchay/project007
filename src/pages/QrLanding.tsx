@@ -4,9 +4,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { lastGuestError, useAuth } from "../lib/auth";
 import { getLocation } from "../lib/util";
-import { Icon, Spinner, TopBar } from "../components/ui";
-import { Chip, EmptyArt, Glyph, Retry } from "../components/home/Kit";
-import "../styles/home.css";
+import { Icon, Spinner } from "../components/ui";
+import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
 interface Visit { visit_id: string; expires_at: string }
@@ -73,23 +72,30 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     }, (e: unknown) => { setScanning(false); setScanErr(friendly(e)); });
   }, [loading, uid, peek, token, scanTry]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const bar = <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>;
   if (peekErr) return (
-    <div className="page">
-      <TopBar />
-      <Retry msg={`Couldn't check this ${link ? "review link" : "table code"}: ${peekErr}`} onRetry={() => setPeekTry((n) => n + 1)} />
+    <div className="rvx">
+      {bar}
+      <div className="rvx-gate">
+        <span className="ico"><Icon name="alert" size={28} /></span>
+        <h2>Couldn't check this {link ? "review link" : "table code"}</h2>
+        <p>{peekErr}</p>
+        <button type="button" className="rvx-cta" onClick={() => setPeekTry((n) => n + 1)}><span>Try again</span><Icon name="chev" size={20} /></button>
+      </div>
     </div>
   );
-  if (peek === undefined) return <div className="page"><Spinner /></div>;
+  if (peek === undefined) return <div className="rvx"><div className="rvx-center"><Spinner /></div></div>;
   const dead = !peek ? (link ? "This review link doesn't work" : "This code isn't active")
     : peek.status === "expired" ? "This review link has expired"
     : peek.status === "used" && !session ? "This review link was already used" : null;
   if (!peek || dead) return (
-    <div className="page"><TopBar />
-      <div className="card">
-        <EmptyArt icon={link ? "link" : "qr"} tone="coral" title={dead!}>
-          <span className="small">{link ? "Ask the shop to send you a new link." : "Ask the staff for a new table card."}</span>
-          <Link className="btn small ghost" to="/"><Icon name="search" size={16} />Search places</Link>
-        </EmptyArt>
+    <div className="rvx">
+      {bar}
+      <div className="rvx-gate">
+        <span className="ico"><Icon name={link ? "link" : "qr"} size={28} /></span>
+        <h2>{dead}</h2>
+        <p>{link ? "Ask the shop to send you a new link." : "Ask the staff for a new table card."}</p>
+        <Link className="rvx-more" to="/"><Icon name="search" size={16} />Search places</Link>
       </div>
     </div>
   );
@@ -106,62 +112,73 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       const { data } = await supabase.auth.getSession();
       scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
       const { error } = await unlock();
-      if (error) { startingGuest.current = false; setGuestErr(friendly(error)); return; }
+      if (error) { startingGuest.current = false; setGuestErr(`Couldn't unlock this table: ${friendly(error)}`); return; }
       navTo(`/review/${peek!.place_id}`);
     } else {
       startingGuest.current = false;
-      // "Anonymous sign-ins are disabled" means the Supabase switch is off; anything else is usually a blip.
-      setGuestErr(/anonymous/i.test(lastGuestError) && /disabled/i.test(lastGuestError)
-        ? "Reviewing without an account is switched off for this app right now. Sign in to continue, or ask the shop to tell the app owner."
-        : "We couldn't start your review just now. Tap again, or sign in to continue.");
+      const why = lastGuestError;
+      setGuestErr(/anonymous/i.test(why) && /disabled/i.test(why)
+        ? "Reviewing without an account is switched off for this app. In Supabase open Authentication, Sign In / Providers and turn on Allow anonymous sign-ins."
+        : /captcha/i.test(why) ? "Supabase bot protection (CAPTCHA) is on, which blocks guest reviews. Turn it off under Authentication, Attack Protection."
+        : /rate limit|too many|429/i.test(why) ? "Too many guests started from this network in the last hour. Wait a few minutes and tap again."
+        : `We couldn't start your review just now (${why || "no reason given"}). Tap again.`);
     }
   }
 
   return (
-    <div className="page" style={{ gap: 18 }}>
-      <header className="hero" style={{ alignItems: "center", textAlign: "center", paddingTop: 22 }}>
-        <span className="success-burst"><Icon name={visit ? "verified" : "store"} size={36} color="#fff" width={2.2} /></span>
-        <h1 style={{ overflowWrap: "anywhere" }}>{peek.place_name}</h1>
-        <div className="row wrap" style={{ justifyContent: "center", gap: 6 }}>
-          {link && <span className="pill white"><Icon name="link" size={13} />Review link from the shop</span>}
-          {peek.table_label && <span className="pill white"><Icon name="qr" size={13} />{peek.table_label}</span>}
-          {peek.area && <span className="pill white"><Icon name="pin" size={13} />{peek.area}</span>}
+    <div className="rvx" data-stage="landing">
+      {bar}
+      <header className="rvx-hero">
+        <span className="rvx-mono" aria-hidden="true">{peek.place_name.trim().charAt(0).toUpperCase()}</span>
+        {visit && <span className="rvx-verified"><Icon name="verified" size={14} />Verified visit</span>}
+        <div className="rvx-kicker">{link ? "Review link from the shop" : peek.table_label || "Welcome"}</div>
+        <h1>{peek.place_name}</h1>
+        <div className="rvx-meta">
+          {peek.table_label && <span className="rvx-pill"><Icon name="qr" size={13} />{peek.table_label}</span>}
+          {peek.area && <span className="rvx-pill"><Icon name="pin" size={13} />{peek.area}</span>}
         </div>
       </header>
 
-      <div aria-live="polite">
-        {loading ? <Spinner /> : session ? (
-          visit ? (
-            <div className="callout sky" role="status">
-              <Chip icon="verified" tone="sky" />
-              <span className="grow stack tight"><span className="strong">You can review now</span><span className="tiny row" style={{ gap: 4 }}><Icon name="clock" size={12} />{until ? `Until ${until}` : "For the next few hours"}</span></span>
+      <section className="rvx-sec">
+        <h2>Rate what you <i>had</i></h2>
+        <div aria-live="polite">
+          {loading ? <Spinner /> : session ? (
+            visit ? (
+              <div className="rvx-status" role="status">
+                <Icon name="verified" size={22} color="#7fbf9e" />
+                <span className="grow"><b>You can review now</b><small>{until ? `Until ${until}` : "For the next few hours"}</small></span>
+              </div>
+            ) : scanErr ? (
+              <div className="rvx-status warn" role="alert">
+                <Icon name="alert" size={22} color="#ff9a78" />
+                <span className="grow"><b>Couldn't unlock your review</b><small>{scanErr}</small></span>
+                <button type="button" className="rvx-tool" onClick={() => setScanTry((n) => n + 1)}>Retry</button>
+              </div>
+            ) : scanning ? (
+              <div className="rvx-status"><Spinner /><span className="grow"><b>Unlocking your verified visit…</b></span></div>
+            ) : null
+          ) : (
+            <div className="rvx-perks">
+              <div className="rvx-perk"><span className="ci"><Icon name="star" size={17} /></span>No account needed</div>
+              <div className="rvx-perk"><span className="ci"><Icon name="eyeOff" size={17} /></span>Anonymous by default</div>
+              <div className="rvx-perk"><span className="ci"><Icon name="verified" size={17} /></span>Gets a verified visit badge</div>
             </div>
-          ) : scanErr ? (
-            <Retry msg={`Couldn't unlock your review: ${scanErr}`} onRetry={() => setScanTry((n) => n + 1)} />
-          ) : scanning ? (
-            <div className="callout sky"><Chip icon="verified" tone="sky" /><span className="small grow">Unlocking your verified visit…</span></div>
-          ) : null
-        ) : (
-          <div className="stack" style={{ gap: 8 }}>
-            <div className="callout green"><Chip icon="star" size="sm" /><span className="small strong grow">Rate what you had, no account needed</span></div>
-            <div className="callout violet"><Chip icon="eyeOff" tone="violet" size="sm" /><span className="small strong grow">Anonymous by default</span></div>
-            <div className="callout sky"><Chip icon="verified" tone="sky" size="sm" /><span className="small strong grow">Verified visit badge</span></div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+        {guestErr && <div className="notice err" role="alert">{guestErr}</div>}
+        <Link to={`/p/${peek.place_id}`} className="rvx-more"><Icon name="eye" size={16} />See what others loved first</Link>
+        {!session && !loading && <Link to={`/signin?next=${encodeURIComponent(next)}`} className="rvx-skip" style={{ textAlign: "center" }}>Sign in instead (optional)</Link>}
+      </section>
 
-      <div className="stack" style={{ marginTop: "auto" }}>
-        {loading || scanErr ? null : session ? (
-          <Link to={`/review/${peek.place_id}`} className="btn green block"><Icon name="star" size={18} />Rate what you had</Link>
-        ) : (
-          <>
-            <button className="btn green block" disabled={starting} onClick={rateAsGuest}><Icon name="star" size={18} />{starting ? "Opening…" : "Rate what you had"}</button>
-            {guestErr && <div className="notice err">{guestErr}</div>}
-            <Link to={`/signin?next=${encodeURIComponent(next)}`} className="btn ghost block"><Icon name="login" size={18} />Sign in (optional)</Link>
-          </>
-        )}
-        <Link to={`/p/${peek.place_id}`} className="btn quiet block"><Glyph name="heart" size={18} />See what others loved</Link>
-      </div>
+      {!loading && !scanErr && (
+        <div className="rvx-foot">
+          {session ? (
+            <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning} onClick={(e) => { if (scanning) e.preventDefault(); }}><span>Rate what you had</span><Icon name="chev" size={20} /></Link>
+          ) : (
+            <button type="button" className="rvx-cta" disabled={starting} onClick={rateAsGuest}><span>{starting ? "Opening…" : "Rate what you had"}</span><Icon name="chev" size={20} /></button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

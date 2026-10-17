@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { isNegativeTag } from "../lib/reviews";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Place, Tag } from "../lib/types";
-import { Icon, Spinner, TopBar } from "../components/ui";
+import { Icon, Spinner, type IconName } from "../components/ui";
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ItemThumb } from "../components/place/ItemThumb";
@@ -95,50 +95,39 @@ async function checkGate(placeId: string, uid: string): Promise<Gate> {
 
 function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string; reason: Gate }) {
   const used = reason === "guest_used";
-  if (reason === "paused") return (
-    <div className="page">
-      <TopBar title={name || "Reviews"} />
-      <div className="card rv-gate center">
-        <span className="icon-chip lg sky" style={{ margin: "0 auto" }}><Icon name="clock" size={26} /></span>
-        <h2>Reviews are paused here for now</h2>
-        <p className="small muted">You can still see what people loved at this shop.</p>
-        <Link to={`/p/${placeId}`} className="btn green block"><Icon name="eye" size={18} />See reviews</Link>
+  const view = (
+    <Link to={`/p/${placeId}`} className="rvx-more"><Icon name="eye" size={18} />See what people loved</Link>
+  );
+  const shell = (icon: IconName, title: string, text: string, actions: ReactNode) => (
+    <div className="rvx" data-stage="gate">
+      <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
+      <div className="rvx-ctx"><Icon name="store" size={14} />{name || "This shop"}</div>
+      <div className="rvx-gate">
+        <span className="ico"><Icon name={icon} size={28} /></span>
+        <h2>{title}</h2>
+        <p>{text}</p>
+        {actions}
       </div>
     </div>
   );
-  if (reason === "owner") return (
-    <div className="page">
-      <TopBar title={name || "Reviews"} />
-      <div className="card rv-gate center">
-        <span className="icon-chip lg violet" style={{ margin: "0 auto" }}><Icon name="store" size={26} /></span>
-        <h2>This is your shop</h2>
-        <p className="small muted">Owners can't review their own shop. Your customers rate it by scanning your table QR.</p>
-        <Link to={`/manage/${placeId}`} className="btn green block"><Icon name="settings" size={18} />Manage shop</Link>
-        <Link to={`/p/${placeId}`} className="btn ghost block"><Icon name="eye" size={18} />See reviews</Link>
-      </div>
-    </div>
-  );
-  return (
-    <div className="page">
-      <TopBar title={name || "Reviews"} />
-      <div className="card rv-gate center">
-        <span className={`icon-chip lg ${used ? "violet" : ""}`} style={{ margin: "0 auto" }}><Icon name={used ? "lock" : "qr"} size={26} /></span>
-        <h2>{used ? "You've reviewed here from this phone" : "Reviews come from people at the shop"}</h2>
-        <p className="small muted">{used
-          ? "Without signing in, each phone gets one review per place. Sign in to rate more of what you had."
-          : "Point your phone camera at the QR code on your table or counter, or open the review link the shop sent you. It keeps every review genuine."}</p>
-        {used && <Link to={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`} className="btn green block"><Icon name="login" size={18} />Sign in</Link>}
-        <Link to={`/p/${placeId}`} className="btn ghost block"><Icon name="eye" size={18} />See reviews</Link>
-      </div>
-    </div>
-  );
+  if (reason === "paused") return shell("clock", "Reviews are paused here for now", "You can still see what people loved at this shop.", view);
+  if (reason === "owner") return shell("store", "This is your shop", "Owners can't review their own shop. Your customers rate it by scanning your table QR.", <>
+    <Link to={`/manage/${placeId}`} className="rvx-cta"><span>Manage shop</span><Icon name="chev" size={20} /></Link>{view}
+  </>);
+  return shell(used ? "lock" : "qr",
+    used ? "You've reviewed here from this phone" : "Reviews come from people at the shop",
+    used ? "Without signing in, each phone gets one visit per place. Sign in to rate more of what you had."
+      : "Point your phone camera at the QR code on your table or counter, or open the review link the shop sent you. It keeps every review genuine.",
+    <>
+      {used && <Link to={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`} className="rvx-cta"><span>Sign in</span><Icon name="chev" size={20} /></Link>}
+      {view}
+    </>);
 }
-
 
 export default function Review() {
   const { session, loading, profile } = useAuth();
   const { placeId = "" } = useParams();
-  if (loading || (session && !profile)) return <div className="page"><Spinner /></div>;
+  if (loading || (session && !profile)) return <div className="rvx"><div className="rvx-center"><Spinner /></div></div>;
   if (!session) return <ReviewGate placeId={placeId} reason="scan" />;
   return <ReviewForm />;
 }
@@ -480,23 +469,27 @@ function ReviewForm() {
   }
 
   if (loadErr) return (
-    <div className="page">
-      <TopBar title="Rate what you had" />
-      <div className="notice err" role="alert">
-        <div className="stack" style={{ gap: 8 }}>
-          <span>Couldn't load this place: {loadErr}</span>
-          <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setReload((n) => n + 1)}>Retry</button>
-        </div>
+    <div className="rvx">
+      <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
+      <div className="rvx-gate">
+        <span className="ico"><Icon name="alert" size={28} /></span>
+        <h2>Couldn't load this place</h2>
+        <p>{loadErr}</p>
+        <button type="button" className="rvx-cta" onClick={() => setReload((n) => n + 1)}><span>Try again</span><Icon name="chev" size={20} /></button>
       </div>
     </div>
   );
-  if (place === undefined || (place && gate === "loading")) return <div className="page"><Spinner /></div>;
+  if (place === undefined || (place && gate === "loading")) return <div className="rvx"><div className="rvx-center"><Spinner /></div></div>;
   if (!place) return (
-    <div className="page"><TopBar /><div className="empty">
-      <h2>This place isn't listed</h2>
-      <p>It may have been removed, or the link is wrong.</p>
-      <button type="button" className="btn ghost" onClick={() => nav("/")}>Search places</button>
-    </div></div>
+    <div className="rvx">
+      <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
+      <div className="rvx-gate">
+        <span className="ico"><Icon name="search" size={28} /></span>
+        <h2>This place isn't listed</h2>
+        <p>It may have been removed, or the link is wrong.</p>
+        <button type="button" className="rvx-cta" onClick={() => nav("/")}><span>Search places</span><Icon name="chev" size={20} /></button>
+      </div>
+    </div>
   );
   // After the first dish is saved a guest's gate flips, but the visit is still open: keep the flow going.
   if (gate !== "ok" && stage !== "done" && stage !== "sending") return <ReviewGate placeId={placeId} name={place.name} reason={gate} />;

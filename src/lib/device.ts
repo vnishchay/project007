@@ -4,6 +4,9 @@
  * stores only a hash of it.
  */
 const KEY = "tp-device";
+// Where storage is blocked, the id lives for this page view only. Never one shared id: that would
+// make every such visitor look like the same phone.
+let session: string | null = null;
 
 export function deviceId(): string {
   try {
@@ -13,10 +16,11 @@ export function deviceId(): string {
     document.cookie = `${KEY}=${id}; max-age=${60 * 60 * 24 * 730}; path=/; samesite=lax; secure`;
     return id;
   } catch {
-    return readCookie() || "unknown-device";
+    session ||= readCookie() || (typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    return session;
   }
 }
 
 function readCookie(): string | null {
-  return document.cookie.split("; ").find((c) => c.startsWith(`${KEY}=`))?.slice(KEY.length + 1) || null;
+  try { return document.cookie.split("; ").find((c) => c.startsWith(`${KEY}=`))?.slice(KEY.length + 1) || null; } catch { return null; }
 }

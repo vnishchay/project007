@@ -9,6 +9,7 @@ import { Layout, RequireAuth, ToastProvider } from "./components/ui";
 import Discover from "./pages/Discover";
 import PlacePage from "./pages/Place";
 import SignIn from "./pages/SignIn";
+import Check from "./pages/Check";
 import QrLanding from "./pages/QrLanding";
 import { Contact, Pricing, Privacy, Refunds, Terms } from "./pages/Legal";
 import Claim from "./pages/Claim";
@@ -45,6 +46,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/q/:token" element={<QrLanding />} />
                 <Route path="/r/:token" element={<QrLanding link />} />
                 <Route path="/signin" element={<SignIn />} />
+                <Route path="/check" element={<Check />} />
                 {/* Customers scan table QRs with their phone camera; old in-app links go home. */}
                 <Route path="/scan" element={<Navigate to="/" replace />} />
                 <Route path="/rate" element={<Navigate to="/" replace />} />
