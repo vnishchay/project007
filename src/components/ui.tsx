@@ -37,7 +37,7 @@ export function Stars({ value, size = 14 }: { value: number; size?: number }) {
   return (
     <span className="stars" aria-label={`${value} of 5 stars`}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <svg key={i} width={size} height={size} viewBox="0 0 24 24" fill={i <= Math.round(value) ? "currentColor" : "#ddd5c6"} aria-hidden="true"><path d={STAR} /></svg>
+        <svg key={i} width={size} height={size} viewBox="0 0 24 24" fill={i <= Math.round(value) ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" aria-hidden="true"><path d={STAR} /></svg>
       ))}
     </span>
   );
@@ -48,7 +48,7 @@ export function StarInput({ value, onChange }: { value: number; onChange: (v: nu
     <div className="star-input" role="radiogroup" aria-label="Rating">
       {[1, 2, 3, 4, 5].map((i) => (
         <button key={i} type="button" role="radio" aria-checked={value === i} aria-label={`${i} star${i > 1 ? "s" : ""}`} onClick={() => onChange(i)}>
-          <svg width="42" height="42" viewBox="0 0 24 24" fill={i <= value ? "#c9921a" : "#ddd5c6"} aria-hidden="true"><path d={STAR} /></svg>
+          <svg width="42" height="42" viewBox="0 0 24 24" fill={i <= value ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.4} strokeLinejoin="round" aria-hidden="true"><path d={STAR} /></svg>
         </button>
       ))}
     </div>

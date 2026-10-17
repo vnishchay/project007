@@ -156,7 +156,7 @@ export function Setup() {
             ? "Your payment wasn't completed. Pay from Your requests whenever you're ready."
             : "We'll check your details and switch on your page, usually within a day. You'll see it under Your requests."}</p>
         </main>
-        <footer className="su-foot"><button className="btn green block" onClick={() => nav("/business", { replace: true })}><Icon name="ticket" size={18} />See Your requests</button></footer>
+        <footer className="su-foot"><button className="btn green block" onClick={() => nav("/business", { replace: true })}><Icon name="ticket" size={18} />See your requests</button></footer>
       </div>
     );
   }
