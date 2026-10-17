@@ -37,7 +37,7 @@ export function Stars({ value, size = 14 }: { value: number; size?: number }) {
   return (
     <span className="stars" aria-label={`${value} of 5 stars`}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <svg key={i} width={size} height={size} viewBox="0 0 24 24" fill={i <= Math.round(value) ? "currentColor" : "#E6E8E3"} aria-hidden="true"><path d={STAR} /></svg>
+        <svg key={i} width={size} height={size} viewBox="0 0 24 24" fill={i <= Math.round(value) ? "currentColor" : "#ddd5c6"} aria-hidden="true"><path d={STAR} /></svg>
       ))}
     </span>
   );
@@ -48,7 +48,7 @@ export function StarInput({ value, onChange }: { value: number; onChange: (v: nu
     <div className="star-input" role="radiogroup" aria-label="Rating">
       {[1, 2, 3, 4, 5].map((i) => (
         <button key={i} type="button" role="radio" aria-checked={value === i} aria-label={`${i} star${i > 1 ? "s" : ""}`} onClick={() => onChange(i)}>
-          <svg width="42" height="42" viewBox="0 0 24 24" fill={i <= value ? "#E0A100" : "#E6E8E3"} aria-hidden="true"><path d={STAR} /></svg>
+          <svg width="42" height="42" viewBox="0 0 24 24" fill={i <= value ? "#c9921a" : "#ddd5c6"} aria-hidden="true"><path d={STAR} /></svg>
         </button>
       ))}
     </div>
@@ -153,7 +153,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export const useToast = () => useContext(ToastCtx);
 
 /* ---------- QR image ---------- */
-export function QrImage({ text, size = 200, dark = "#1a1236", light = "#FFFFFF" }: { text: string; size?: number; dark?: string; light?: string }) {
+export function QrImage({ text, size = 200, dark = "#1d1b22", light = "#FFFFFF" }: { text: string; size?: number; dark?: string; light?: string }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
     QRCode.toDataURL(text, { width: size * 2, margin: 1, errorCorrectionLevel: "M", color: { dark, light } }).then(setSrc);
@@ -161,6 +161,6 @@ export function QrImage({ text, size = 200, dark = "#1a1236", light = "#FFFFFF" 
   return src ? <img src={src} width={size} height={size} alt="QR code" /> : <div style={{ width: size, height: size }} />;
 }
 
-export async function qrPngDataUrl(text: string, dark = "#1a1236", light = "#FFFFFF"): Promise<string> {
+export async function qrPngDataUrl(text: string, dark = "#1d1b22", light = "#FFFFFF"): Promise<string> {
   return QRCode.toDataURL(text, { width: 1200, margin: 2, errorCorrectionLevel: "M", color: { dark, light } });
 }

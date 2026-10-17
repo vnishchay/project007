@@ -148,7 +148,7 @@ export default function Me() {
             <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
             <div className="stat-tile"><span className="n"><Icon name="lock" size={16} /></span><span className="l">this device</span></div>
           </div>
-          <Link to="/signin" className="btn white block" style={{ color: "#b2401f" }}><Icon name="login" size={18} />Keep my reviews (optional)</Link>
+          <Link to="/signin" className="btn white block" style={{ color: "#9c4733" }}><Icon name="login" size={18} />Keep my reviews (optional)</Link>
         </header>
       ) : (
         <>

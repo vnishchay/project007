@@ -48,7 +48,7 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
           </div>
           <span className={`badge ${me.reviews_open ? "" : "warn"}`}><Icon name={me.reviews_open ? "check" : "clock"} size={12} />{me.reviews_open ? "Reviews on" : "Paused"}</span>
         </div>
-        <div className="pn-bar" aria-label={`${me.qr_used} of ${me.qr_limit} review QRs used`}>
+        <div className="plan-bar" aria-label={`${me.qr_used} of ${me.qr_limit} review QRs used`}>
           <span style={{ width: `${Math.min(100, (me.qr_used / Math.max(1, me.qr_limit)) * 100)}%` }} />
         </div>
         <span className="tiny muted row" style={{ gap: 4 }}><Icon name="qr" size={12} />{me.qr_used} of {me.qr_limit} review QRs in use</span>

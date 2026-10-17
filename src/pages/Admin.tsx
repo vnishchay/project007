@@ -243,7 +243,7 @@ function Places({ onChange }: { onChange: () => void }) {
               </div>
               <span className="stack tight" style={{ alignItems: "flex-end" }}>
                 <span className={`badge ${p.status === "live" ? "" : p.status === "lapsed" ? "warn" : "red"}`}>{p.status}</span>
-                {p.listed_until && <span className={`tiny ${soon(p.listed_until) ? "strong" : "muted"}`} style={soon(p.listed_until) ? { color: "#8a5a00" } : undefined}>until {p.listed_until}</span>}
+                {p.listed_until && <span className={`tiny ${soon(p.listed_until) ? "strong" : "muted"}`} style={soon(p.listed_until) ? { color: "#7a5410" } : undefined}>until {p.listed_until}</span>}
               </span>
             </Link>
           ))}

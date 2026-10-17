@@ -137,7 +137,7 @@ export function Setup({ onSent }: { onSent: () => void }) {
     const paid = outcome === "paid";
     return (
       <div className="card rv-gate center su-card su-done" data-dir="fwd" data-step="7">
-        {outcome !== "unpaid" && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#ff3d6e", "#ffb800", "#e8491f", "#6c3bff", "#1561f0", "#0f9d8a"][i % 6] }} />)}
+        {outcome !== "unpaid" && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#ff3d6e", "#d9a441", "#c2492b", "#6c3bff", "#1561f0", "#0f9d8a"][i % 6] }} />)}
         <span className={`icon-chip lg ${outcome === "unpaid" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" ? "wallet" : "check"} size={26} /></span>
         <h2>{paid ? "Paid. You're all set" : outcome === "review" ? "Request sent" : "Request saved"}</h2>
         <p className="small muted">{outcome === "unpaid"

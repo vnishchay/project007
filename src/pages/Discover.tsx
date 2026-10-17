@@ -142,16 +142,16 @@ export default function Discover() {
 
   return (
     <div className="page" style={{ gap: 18 }}>
-      <header className="hero">
+      <header className="dtop">
         <div className="row between">
-          <button className="glass-btn" onClick={() => setPicking(true)} aria-haspopup="dialog" aria-label={`Location: ${label}. Change location`}>
+          <button className="loc-btn" onClick={() => setPicking(true)} aria-haspopup="dialog" aria-label={`Location: ${label}. Change location`}>
             <Icon name={effective.kind === "near" ? "locate" : "pin"} size={16} />
             <span className="ellipsis" style={{ maxWidth: 190 }}>{label}</span>
             <Icon name="down" size={16} width={2.4} />
           </button>
           {loading ? null : signedIn ? (
             <Link to="/me" className="me-btn" aria-label="Your profile"><Avatar id={session!.user.id} name={profile?.display_name || session!.user.email} path={profile?.avatar_path} /></Link>
-          ) : <Link to="/signin" className="glass-btn" aria-label="Sign in"><Icon name="login" size={16} />Sign in</Link>}
+          ) : <Link to="/signin" className="loc-btn" aria-label="Sign in"><Icon name="login" size={16} />Sign in</Link>}
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="hero-sub"><Glyph name={hi.icon} size={16} />{hi.text}{firstName && signedIn ? `, ${firstName}` : ""}</span>

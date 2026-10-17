@@ -90,7 +90,7 @@ export default function Person() {
           <span className="grow" />
           {me && on ? (
             <button type="button" className={`btn small ${on ? "glass" : "white"}`} onClick={toggle} disabled={busy}
-              aria-pressed={on} aria-label={`${on ? "Following" : "Follow"} ${name}`} style={on ? undefined : { color: "#1d5fd1" }}>
+              aria-pressed={on} aria-label={`${on ? "Following" : "Follow"} ${name}`} style={on ? undefined : { color: "#37609a" }}>
               <Icon name={on ? "check" : "userPlus"} size={16} />{on ? "Following" : "Follow"}
             </button>
           ) : null}

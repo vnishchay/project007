@@ -30,19 +30,19 @@ export interface Mode {
 export const MODES: Record<Kind, Mode> = {
   food: {
     kind: "food", label: "Restaurant & cafe", icon: "food", tint: "coral",
-    grad: "linear-gradient(135deg, #b2401f 0%, #ee6c4d 55%, #ffb38a 100%)",
+    grad: "linear-gradient(135deg, #9c4733 0%, #ee6c4d 55%, #ffb38a 100%)",
     catalog: "Menu", item: "dish", itemPlural: "dishes", ratePrompt: "What did you have?", itemExample: "Fish curry",
     sections: ["Starters", "Mains", "Breads", "Desserts", "Drinks"],
   },
   store: {
     kind: "store", label: "Shop", icon: "bag", tint: "sky",
-    grad: "linear-gradient(135deg, #1d5fd1 0%, #3a86ff 55%, #9cc4ff 100%)",
+    grad: "linear-gradient(135deg, #37609a 0%, #3a86ff 55%, #9cc4ff 100%)",
     catalog: "Products", item: "product", itemPlural: "products", ratePrompt: "What did you buy?", itemExample: "Cotton kurta",
     sections: ["New arrivals", "Best sellers", "Offers"],
   },
   beauty: {
     kind: "beauty", label: "Salon & spa", icon: "scissors", tint: "violet",
-    grad: "linear-gradient(135deg, #5634e0 0%, #7b5cff 55%, #c9b8ff 100%)",
+    grad: "linear-gradient(135deg, #54489a 0%, #7b5cff 55%, #c9b8ff 100%)",
     catalog: "Services", item: "service", itemPlural: "services", ratePrompt: "What did you get done?", itemExample: "Haircut and beard trim",
     sections: ["Hair", "Skin", "Nails", "Packages"],
   },
@@ -66,13 +66,13 @@ export const MODES: Record<Kind, Mode> = {
   },
   services: {
     kind: "services", label: "Services", icon: "settings", tint: "green",
-    grad: "linear-gradient(135deg, #b53213 0%, #e8491f 55%, #ffc23f 100%)",
+    grad: "linear-gradient(135deg, #9c3820 0%, #c2492b 55%, #d9a441 100%)",
     catalog: "Services", item: "service", itemPlural: "services", ratePrompt: "What did they do for you?", itemExample: "AC service",
     sections: ["Services", "Packages"],
   },
   other: {
     kind: "other", label: "Other business", icon: "store", tint: "green",
-    grad: "linear-gradient(135deg, #e8491f 0%, #ff7a3d 55%, #ffc23f 100%)",
+    grad: "linear-gradient(135deg, #c2492b 0%, #d4623f 55%, #d9a441 100%)",
     catalog: "What we offer", item: "item", itemPlural: "items", ratePrompt: "What did you try?", itemExample: "Your best seller",
     sections: [],
   },

@@ -76,7 +76,7 @@ export function initials(name: string | null | undefined): string {
   return n.split(/\s+/).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 }
 
-const AVATAR_COLORS = ["#DCD3FF", "#FFE6B3", "#C9F2EE", "#FFD9CC", "#ffe9df", "#E3E8FF"];
+const AVATAR_COLORS = ["#DCD3FF", "#FFE6B3", "#C9F2EE", "#FFD9CC", "#f6e6df", "#E3E8FF"];
 export function avatarColor(id: string): string {
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
@@ -116,7 +116,7 @@ export function todaysHours(hours: Record<string, string> | null | undefined, no
 }
 
 export const QR_STYLES = {
-  paper: { label: "Clean white", dark: "#1a1236", light: "#FFFFFF" },
+  paper: { label: "Clean white", dark: "#1d1b22", light: "#FFFFFF" },
   neon: { label: "Neon", dark: "#C6FF3D", light: "#07080D" },
   aurora: { label: "Aurora", dark: "#9B7BFF", light: "#07080D" },
   matrix: { label: "Matrix", dark: "#3DDC84", light: "#07080D" },

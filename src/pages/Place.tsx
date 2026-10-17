@@ -222,7 +222,7 @@ export default function PlacePage() {
         {cover ? <img className="pn-cover" src={cover} alt="" onError={() => setCoverOk(false)} /> : (
           <>
             <span className="pn-aur" aria-hidden="true" />
-            <span className="pn-plate a" aria-hidden="true" /><span className="pn-plate b" aria-hidden="true" /><span className="pn-plate c" aria-hidden="true" />
+            <span className="pn-mono" aria-hidden="true">{place.name.trim().charAt(0).toUpperCase()}</span>
           </>
         )}
         <div className="pn-fade" />
@@ -240,10 +240,10 @@ export default function PlacePage() {
           {place.about && <p className="pn-tag">{place.about.length > 120 ? `${place.about.slice(0, 117)}…` : place.about}</p>}
           <div className="pn-chips">
             {score != null
-              ? <span className="pn-chip" aria-label={`Trust score ${score.toFixed(1)} of 5`}><Icon name="star" size={15} fill="currentColor" color="#ffc857" /><b>{score.toFixed(1)}</b><span>{reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span></span>
-              : <span className="pn-chip"><Icon name="spark" size={15} color="#ffc857" /><b>New</b><span>on Trusted Picks</span></span>}
+              ? <span className="pn-chip" aria-label={`Trust score ${score.toFixed(1)} of 5`}><Icon name="star" size={15} fill="currentColor" color="#d9a441" /><b>{score.toFixed(1)}</b><span>{reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span></span>
+              : <span className="pn-chip"><Icon name="spark" size={15} color="#d9a441" /><b>New</b><span>on Trusted Picks</span></span>}
             {today && <button type="button" className="pn-chip" onClick={() => { setTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }}><span className="pn-dot" />{today}</button>}
-            {verified > 0 && <span className="pn-chip"><Icon name="verified" size={15} color="#c6ff3d" />{verified} verified</span>}
+            {verified > 0 && <span className="pn-chip"><Icon name="verified" size={15} color="#e5c78f" />{verified} verified</span>}
             {priceText(place.price_level) && <span className="pn-chip gold">{priceText(place.price_level)}</span>}
           </div>
         </div>
@@ -496,11 +496,11 @@ export default function PlacePage() {
 
       <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>
 
-      <div className="pn-foot">
-        {canRate
-          ? <Link to={rateUrl} className="pn-foot-btn"><span className="pn-pulse"><Icon name="star" size={22} fill="currentColor" /></span><span className="grow"><b>Rate what you had</b><br />Takes under a minute</span><Icon name="chev" /></Link>
-          : <div className="pn-foot-btn"><span className="pn-pulse"><Icon name="qr" size={22} /></span><span className="grow"><b>Eating here?</b><br />Scan the QR on your table to rate what you ordered</span></div>}
-      </div>
+      {canRate && (
+        <div className="pn-foot">
+          <Link to={rateUrl} className="pn-foot-btn"><span className="pn-pulse"><Icon name="star" size={22} fill="currentColor" /></span><span className="grow"><b>Rate what you had</b><br />Takes under a minute</span><Icon name="chev" /></Link>
+        </div>
+      )}
     </div>
   );
 }

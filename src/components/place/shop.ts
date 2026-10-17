@@ -59,11 +59,11 @@ export function shopLook(category: string | null | undefined, kind?: string | nu
     const m = MODES[kind as Kind];
     return { icon: m.icon, grad: m.grad, tint: m.tint === "green" ? "" : m.tint, menu: m.catalog };
   }
-  if (/salon|barber|spa|beauty|hair|nail|parlour|parlor/.test(c)) return { icon: "scissors", grad: "linear-gradient(135deg, #5634e0 0%, #7b5cff 55%, #c3b5ff 100%)", tint: "violet", menu: "Services" };
+  if (/salon|barber|spa|beauty|hair|nail|parlour|parlor/.test(c)) return { icon: "scissors", grad: "linear-gradient(135deg, #54489a 0%, #7b5cff 55%, #c3b5ff 100%)", tint: "violet", menu: "Services" };
   if (/cafe|café|coffee|tea|chai/.test(c)) return { icon: "coffee", grad: "linear-gradient(135deg, #6b3f1d 0%, #a0622d 55%, #f3a712 100%)", tint: "amber", menu: "Menu" };
-  if (/bakery|cake|dessert|sweet|patisserie|ice cream/.test(c)) return { icon: "cake", grad: "linear-gradient(135deg, #b2401f 0%, #ee6c4d 55%, #ffc9a8 100%)", tint: "coral", menu: "Menu" };
-  if (/restaurant|pizz|food|biryani|kitchen|dhaba|bar|grill|diner|eat|bistro|mess/.test(c)) return { icon: "food", grad: "linear-gradient(135deg, #b2401f 0%, #ee6c4d 50%, #f3a712 100%)", tint: "coral", menu: "Menu" };
-  if (/shop|store|boutique|mart|cloth|fashion|gift|book/.test(c)) return { icon: "bag", grad: "linear-gradient(135deg, #1d5fd1 0%, #3a86ff 55%, #9cc3ff 100%)", tint: "sky", menu: "Products" };
+  if (/bakery|cake|dessert|sweet|patisserie|ice cream/.test(c)) return { icon: "cake", grad: "linear-gradient(135deg, #9c4733 0%, #ee6c4d 55%, #ffc9a8 100%)", tint: "coral", menu: "Menu" };
+  if (/restaurant|pizz|food|biryani|kitchen|dhaba|bar|grill|diner|eat|bistro|mess/.test(c)) return { icon: "food", grad: "linear-gradient(135deg, #9c4733 0%, #ee6c4d 50%, #f3a712 100%)", tint: "coral", menu: "Menu" };
+  if (/shop|store|boutique|mart|cloth|fashion|gift|book/.test(c)) return { icon: "bag", grad: "linear-gradient(135deg, #37609a 0%, #3a86ff 55%, #9cc3ff 100%)", tint: "sky", menu: "Products" };
   return { icon: "store", grad: "var(--grad-hero)", tint: "", menu: "Products" };
 }
 
