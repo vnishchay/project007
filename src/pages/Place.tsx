@@ -6,7 +6,7 @@ import { useAuth } from "../lib/auth";
 import type { Place, ReviewRow, SearchResult } from "../lib/types";
 import { googleConfigured, type GoogleRating } from "../lib/google";
 import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
-import { placeMediaUrl } from "../lib/media";
+import { isStockPhoto, placeMediaUrl } from "../lib/media";
 import { shareLink, shareOrCopy } from "../lib/invite";
 import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
@@ -359,6 +359,7 @@ export default function PlacePage() {
             </Link>}
           </div>
         )}
+        {products.some((p) => isStockPhoto(p.image_path)) && <p className="pn-credit">Pictures are for illustration. Stock photos by <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer">Pexels</a>.</p>}
       </section>
 
           </>

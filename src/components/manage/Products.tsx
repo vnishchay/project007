@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, errorText } from "../../lib/supabase";
-import { uploadPlaceMedia } from "../../lib/media";
+import { isStockPhoto, uploadPlaceMedia } from "../../lib/media";
+import { addPhotos } from "../../lib/assist";
+import { guessLinkKind } from "../LinkIcon";
+import type { PlaceLink } from "../place/ShopLinks";
 import { MediaImg } from "./MediaImg";
 import type { Item, Topic } from "../../lib/types";
 import { rupees } from "../../lib/util";
@@ -16,7 +19,7 @@ const byOrder = (a: Item, b: Item) => a.sort_order - b.sort_order || a.name.loca
 const ITEM_COLS = "id, place_id, topic_id, name, image_path, description, price_inr, sort_order, is_listed, is_hidden";
 
 /** The shop's products: photo, price, type; reorder, hide, edit. */
-export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string; isAdmin: boolean; mode: Mode; onCount?: (n: number) => void }) {
+export function Products({ placeId, isAdmin, mode, links = [], onCount }: { placeId: string; isAdmin: boolean; mode: Mode; links?: PlaceLink[]; onCount?: (n: number) => void }) {
   const toast = useToast();
   const [items, setItems] = useState<Item[] | null>(null);
   const [stats, setStats] = useState<Record<string, Stat>>({});
@@ -24,7 +27,9 @@ export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string;
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState<Item | null | "new">(null);
   const [n, setN] = useState(0);
-  const [importing, setImporting] = useState(false);
+  const [importing, setImporting] = useState<null | "photo" | "text">(null);
+  const [picBusy, setPicBusy] = useState(false);
+  const onlineMenu = links.some((l) => ["zomato", "swiggy"].includes(l.kind || guessLinkKind(l.url)));
 
   useEffect(() => {
     let alive = true;
@@ -78,9 +83,29 @@ export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string;
     if (bad) { toast(errorText(bad.error)); setN((x) => x + 1); }
   }
 
+  async function findPictures() {
+    setPicBusy(true);
+    try {
+      let got = 0;
+      for (let round = 0; round < 3; round++) {
+        const r = await addPhotos(placeId);
+        got += r.assigned;
+        if (!r.assigned || !r.remaining) break;
+      }
+      toast(got ? `Added ${got} ${got === 1 ? "picture" : "pictures"}` : "No new pictures found");
+      setN((x) => x + 1);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setPicBusy(false);
+    }
+  }
+
   if (items === null) return <div className="stack"><div className="skeleton" style={{ height: 84 }} /><div className="skeleton" style={{ height: 84 }} /></div>;
 
   const withPhoto = listed.filter((i) => i.image_path).length;
+  const noPhoto = listed.filter((i) => !i.image_path && !i.is_hidden).length;
+  const anyStock = (items || []).some((i) => isStockPhoto(i.image_path));
   const reviewTotal = Object.values(stats).reduce((s, x) => s + x.review_count, 0);
   const sheetItem = editing === "new" ? null : editing;
 
@@ -96,6 +121,14 @@ export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string;
         </div>
       )}
 
+      {noPhoto > 0 && (
+        <div className="mg-pics-banner">
+          <span className="icon-chip sm"><Icon name="spark" size={16} /></span>
+          <span className="grow stack tight"><span className="strong small">{noPhoto} {noPhoto === 1 ? mode.item : mode.itemPlural} without a picture</span><span className="tiny muted">We'll add nice ones. Swap in your own any time.</span></span>
+          <button className="btn small green" disabled={picBusy} onClick={findPictures}>{picBusy ? "Finding…" : "Add pictures"}</button>
+        </div>
+      )}
+
       {listed.length === 0 ? (
         <div className="mg-empty">
           <div className="mg-empty-art" aria-hidden="true">
@@ -105,11 +138,12 @@ export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string;
           </div>
           <h2>Add your first {mode.item}</h2>
           <p className="small muted" style={{ maxWidth: 260 }}>Photo, name, price. Customers who scan your table QR pick it when they review.</p>
-          <button className="mg-snap" onClick={() => setImporting(true)}>
+          <button className="mg-snap" onClick={() => setImporting("photo")}>
             <span className="icon-chip coral"><Icon name="camera" size={20} /></span>
             <span className="grow stack tight"><span>Snap your {mode.catalog.toLowerCase()}</span><span className="tiny muted" style={{ fontWeight: 600 }}>We read it into {mode.itemPlural} for you</span></span>
             <Icon name="chev" size={18} />
           </button>
+          {onlineMenu && <button className="btn ghost small" onClick={() => setImporting("text")}><Icon name="external" size={17} />Bring it from Zomato / Swiggy</button>}
           <button className="btn ghost small" onClick={() => setEditing("new")}><Icon name="plus" size={17} />Add one by hand</button>
         </div>
       ) : (
@@ -119,8 +153,8 @@ export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string;
               <span className="icon-chip"><Icon name="plus" size={22} /></span>
               <span className="grow">Add {mode.item}</span>
             </button>
-            <button className="mg-add-menu" onClick={() => setImporting(true)}>
-              <span className="icon-chip coral sm"><Icon name="camera" size={17} /></span>From a menu photo
+            <button className="mg-add-menu" onClick={() => setImporting(onlineMenu ? "text" : "photo")}>
+              <span className="icon-chip coral sm"><Icon name="camera" size={17} /></span>{onlineMenu ? "Import menu" : "From a menu photo"}
             </button>
           </div>
           <div className="mg-list">
@@ -159,10 +193,12 @@ export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string;
         </div>
       )}
 
-      {importing && (
-        <MenuImport placeId={placeId} mode={mode} nextSort={(items || []).reduce((m, i) => Math.max(m, i.sort_order), 0) + 1}
-          onClose={() => setImporting(false)} onSaved={() => { setImporting(false); setN((x) => x + 1); }} />
+      {importing !== null && (
+        <MenuImport placeId={placeId} mode={mode} links={links} start={importing} nextSort={(items || []).reduce((m, i) => Math.max(m, i.sort_order), 0) + 1}
+          onClose={() => setImporting(null)} onSaved={() => { setImporting(null); setN((x) => x + 1); }} />
       )}
+
+      {anyStock && <p className="mg-credit">Stock pictures from <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer">Pexels</a></p>}
 
       {editing !== null && (
         <ProductSheet
@@ -188,6 +224,7 @@ function ProductRow({ it, stat, topic, onEdit, children }: { it: Item; stat?: St
           {it.price_inr != null && <span className="mg-price">{rupees(it.price_inr)}</span>}
           {it.section && <span className="badge gray">{it.section}</span>}
           {topic && <span>{topic}</span>}
+          {isStockPhoto(it.image_path) && <span className="badge gray"><Icon name="image" size={11} />Stock</span>}
           {it.is_hidden && <span className="badge gray"><Icon name="eyeOff" size={11} />Hidden</span>}
         </span>
         {stat && stat.review_count > 0 && (

@@ -163,3 +163,5 @@ button.pn-chip { cursor: pointer; }
 /* Breathing room between the big sections */
 .pl-night .pn-sig, .pl-night .pn-friends, .pl-night .pn-links { margin-top: 32px; }
 .pl-night .pn-dock { margin-top: 24px; }
+.pn-credit { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+.pn-credit a { color: inherit; text-decoration: underline; }

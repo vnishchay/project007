@@ -1,8 +1,12 @@
 import { supabase } from "./supabase";
 
+/** A stock picture the AI found (a Pexels URL), as opposed to a photo the shop uploaded. */
+export const isStockPhoto = (path: string | null | undefined): boolean => Boolean(path && /^https:\/\/images\.pexels\.com\//.test(path));
+
 /** Public URL of a shop's cover, logo or product photo (bucket place-media, path <place_id>/<file>). */
 export function placeMediaUrl(path: string | null | undefined): string | null {
   if (!path) return null;
+  if (isStockPhoto(path)) return path;
   return supabase.storage.from("place-media").getPublicUrl(path).data.publicUrl;
 }
 
@@ -28,5 +32,5 @@ export async function uploadPlaceMedia(placeId: string, file: File, max = 1400):
 }
 
 export async function removePlaceMedia(path: string | null | undefined) {
-  if (path) await supabase.storage.from("place-media").remove([path]);
+  if (path && !isStockPhoto(path)) await supabase.storage.from("place-media").remove([path]);
 }

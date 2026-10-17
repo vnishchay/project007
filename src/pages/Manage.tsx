@@ -95,7 +95,7 @@ export default function Manage() {
           ))}
         </div>
         {tab === "insights" && <Insights place={place} onGo={setTab} />}
-        {tab === "products" && <Products placeId={place.id} isAdmin={isAdmin} mode={modeOf(place.kind, place.category)} onCount={onCount} />}
+        {tab === "products" && <Products placeId={place.id} isAdmin={isAdmin} mode={modeOf(place.kind, place.category)} links={place.links ?? []} onCount={onCount} />}
         {tab === "links" && <LinksEditor placeId={place.id} links={place.links ?? []} onSaved={(links) => merge({ links })} />}
         {tab === "updates" && <Updates placeId={place.id} live={place.status === "live"} />}
         {tab === "details" && <>

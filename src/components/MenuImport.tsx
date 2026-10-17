@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
 import { supabase, errorText } from "../lib/supabase";
 import { shrinkImage } from "../lib/media";
-import { callAi } from "../lib/assist";
+import { addPhotos, callAi } from "../lib/assist";
+import { LinkIcon, guessLinkKind } from "./LinkIcon";
+import type { PlaceLink } from "./place/ShopLinks";
 import type { Mode } from "../lib/modes";
 import { Icon, Spinner, useToast } from "./ui";
 
@@ -14,12 +16,16 @@ async function toBase64(blob: Blob): Promise<string> {
   return btoa(s);
 }
 
+const ONLINE = [{ kind: "zomato", name: "Zomato" }, { kind: "swiggy", name: "Swiggy" }];
+
 /**
- * Snap the menu or price list, AI reads it into products, the owner checks and saves.
- * The photos go to the "ai" edge function and aren't stored.
+ * Snap the menu or price list (or paste it from Zomato / Swiggy), AI reads it into products, the owner
+ * checks and saves, and stock pictures are added to the new products. Photos and text go to the "ai"
+ * edge function and aren't stored. Zomato and Swiggy don't allow automatic copying, so their menus come
+ * in through screenshots or pasted text.
  */
-export function MenuImport({ placeId, mode, nextSort, onClose, onSaved }: {
-  placeId: string; mode: Mode; nextSort: number; onClose: () => void; onSaved: (count: number) => void;
+export function MenuImport({ placeId, mode, nextSort, links = [], start = "photo", onClose, onSaved }: {
+  placeId: string; mode: Mode; nextSort: number; links?: PlaceLink[]; start?: "photo" | "text"; onClose: () => void; onSaved: (count: number) => void;
 }) {
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
@@ -27,14 +33,18 @@ export function MenuImport({ placeId, mode, nextSort, onClose, onSaved }: {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState<string | false>(false);
   const [err, setErr] = useState("");
+  const [source, setSource] = useState<"photo" | "text">(start);
+  const [text, setText] = useState("");
+  const [pics, setPics] = useState(true);
+  const online = ONLINE.map((o) => ({ ...o, url: links.find((l) => (l.kind || guessLinkKind(l.url)) === o.kind)?.url })).filter((o) => o.url);
 
   async function read() {
     setErr(""); setBusy("Reading your menu…");
     try {
-      const images = await Promise.all(files.map(async (f) => ({ data: await toBase64(await shrinkImage(f, 1600, 0.8)), media_type: "image/jpeg" })));
-      const j = await callAi<{ items?: Omit<Row, "keep">[] }>("menu", { placeId, images });
+      const images = source === "photo" ? await Promise.all(files.map(async (f) => ({ data: await toBase64(await shrinkImage(f, 1600, 0.8)), media_type: "image/jpeg" }))) : [];
+      const j = await callAi<{ items?: Omit<Row, "keep">[] }>("menu", { placeId, images, ...(source === "text" ? { text } : {}) });
       if (!j.items) throw new Error("Couldn't read the menu. Try a clearer photo.");
-      if (!j.items.length) throw new Error(`No ${mode.itemPlural} found in this photo. Try a closer, straighter shot.`);
+      if (!j.items.length) throw new Error(`No ${mode.itemPlural} found. Try a closer, straighter photo, or paste more of the menu.`);
       setRows(j.items.map((i) => ({ ...i, keep: true })));
     } catch (e) {
       setErr(errorText(e));
@@ -54,9 +64,22 @@ export function MenuImport({ placeId, mode, nextSort, onClose, onSaved }: {
       })),
       { onConflict: "place_id,name_normalized" },
     );
+    if (error) { setBusy(false); setErr(errorText(error)); return; }
+    let note = "";
+    if (pics) {
+      // Up to three rounds of 40, so a big menu gets its pictures in one go.
+      try {
+        for (let round = 0; round < 3; round++) {
+          setBusy(round ? "Finding more pictures…" : "Finding pictures…");
+          const r = await addPhotos(placeId);
+          if (!r.assigned || !r.remaining) break;
+        }
+      } catch (e) {
+        note = ` Pictures can be added later: ${errorText(e)}`;
+      }
+    }
     setBusy(false);
-    if (error) { setErr(errorText(error)); return; }
-    toast(`${keep.length} ${keep.length === 1 ? mode.item : mode.itemPlural} added`);
+    toast(`${keep.length} ${keep.length === 1 ? mode.item : mode.itemPlural} added.${note}`.trim());
     onSaved(keep.length);
   }
 
@@ -65,33 +88,58 @@ export function MenuImport({ placeId, mode, nextSort, onClose, onSaved }: {
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet mg-sheet" role="dialog" aria-modal="true" aria-label="Add from a menu photo" onClick={(e) => e.stopPropagation()}>
+      <div className="sheet mg-sheet" role="dialog" aria-modal="true" aria-label="Add your menu" onClick={(e) => e.stopPropagation()}>
         <div className="mg-sheet-head">
           <span className="icon-chip coral"><Icon name="camera" size={20} /></span>
-          <h2>{rows ? `Check your ${mode.catalog.toLowerCase()}` : `${mode.catalog} from a photo`}</h2>
+          <h2>{rows ? `Check your ${mode.catalog.toLowerCase()}` : `Add your ${mode.catalog.toLowerCase()}`}</h2>
           <button className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
         </div>
 
         {busy ? <div className="stack center" style={{ padding: 24 }}><Spinner /><span className="small muted">{busy}</span></div> : !rows ? (
           <>
-            <p className="small muted">Take a clear photo of your menu or price list. Up to 4 pages. We read the {mode.itemPlural} and prices; you check them before anything is saved.</p>
-            <input ref={input} type="file" accept="image/*" capture="environment" multiple hidden
-              onChange={(e) => { setFiles((f) => [...f, ...Array.from(e.target.files || [])].slice(0, 4)); e.target.value = ""; }} />
-            <div className="mi-thumbs">
-              {files.map((f, i) => (
-                <span key={i} className="thumb mi-thumb">
-                  <img src={URL.createObjectURL(f)} alt={`Page ${i + 1}`} />
-                  <button className="mi-x" aria-label="Remove" onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}><Icon name="close" size={14} /></button>
+            {online.length > 0 && (
+              <div className="mi-online">
+                {online.map((o) => <LinkIcon key={o.kind} kind={o.kind} size={34} />)}
+                <span className="grow stack tight">
+                  <span className="strong small">Your menu is on {online.map((o) => o.name).join(" and ")}</span>
+                  <span className="tiny muted">They don't allow automatic copying, so this takes a minute: open it, then screenshot the menu or select all, copy and paste it here.</span>
+                  <span className="row wrap" style={{ gap: 8, marginTop: 4 }}>
+                    {online.map((o) => <a key={o.kind} className="btn small ghost" href={o.url} target="_blank" rel="noopener noreferrer"><Icon name="external" size={15} />Open {o.name}</a>)}
+                  </span>
                 </span>
-              ))}
-              {files.length < 4 && (
-                <button type="button" className="thumb mi-thumb mi-add" onClick={() => input.current?.click()}>
-                  <Icon name="imagePlus" size={26} /><span className="tiny strong">{files.length ? "Add page" : "Add photo"}</span>
-                </button>
-              )}
+              </div>
+            )}
+            <div className="mi-seg" role="tablist" aria-label="How to add your menu">
+              <button type="button" role="tab" aria-selected={source === "photo"} className={source === "photo" ? "on" : ""} onClick={() => setSource("photo")}><Icon name="camera" size={16} />Photos</button>
+              <button type="button" role="tab" aria-selected={source === "text"} className={source === "text" ? "on" : ""} onClick={() => setSource("text")}><Icon name="copy" size={16} />Paste text</button>
             </div>
+            {source === "photo" ? (
+              <>
+                <p className="small muted">Take a clear photo of your menu or price list, or add screenshots. Up to 4 pages. We read the {mode.itemPlural} and prices; you check them before anything is saved.</p>
+                <input ref={input} type="file" accept="image/*" multiple hidden
+                  onChange={(e) => { setFiles((f) => [...f, ...Array.from(e.target.files || [])].slice(0, 4)); e.target.value = ""; }} />
+                <div className="mi-thumbs">
+                  {files.map((f, i) => (
+                    <span key={i} className="thumb mi-thumb">
+                      <img src={URL.createObjectURL(f)} alt={`Page ${i + 1}`} />
+                      <button className="mi-x" aria-label="Remove" onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}><Icon name="close" size={14} /></button>
+                    </span>
+                  ))}
+                  {files.length < 4 && (
+                    <button type="button" className="thumb mi-thumb mi-add" onClick={() => input.current?.click()}>
+                      <Icon name="imagePlus" size={26} /><span className="tiny strong">{files.length ? "Add page" : "Add photo"}</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="small muted">Paste the menu as it appears. Prices, ratings and button text are fine: we pick out the {mode.itemPlural}.</p>
+                <textarea className="textarea" rows={7} value={text} maxLength={24000} onChange={(e) => setText(e.target.value)} placeholder={"Margherita Pizza\n₹299\nPeppy Paneer Pizza\n₹349…"} aria-label="Menu text" />
+              </>
+            )}
             {err && <div className="notice err">{err}</div>}
-            <button className="btn green block" disabled={!files.length} onClick={read}><Icon name="spark" size={18} />Read my {mode.catalog.toLowerCase()}</button>
+            <button className="btn green block" disabled={source === "photo" ? !files.length : text.trim().length < 8} onClick={read}><Icon name="spark" size={18} />Read my {mode.catalog.toLowerCase()}</button>
           </>
         ) : (
           <>
@@ -111,9 +159,10 @@ export function MenuImport({ placeId, mode, nextSort, onClose, onSaved }: {
                 </div>
               ))}
             </div>
+            <label className="mi-pics"><input type="checkbox" checked={pics} onChange={(e) => setPics(e.target.checked)} /><span className="grow stack tight"><span className="strong small">Add pictures for me</span><span className="tiny muted">Nice stock photos on every {mode.item}. You can swap in your own any time.</span></span><Icon name="spark" size={18} color="var(--green)" /></label>
             {err && <div className="notice err">{err}</div>}
             <div className="row">
-              <button className="btn ghost" onClick={() => { setRows(null); setErr(""); }}><Icon name="camera" size={18} /></button>
+              <button className="btn ghost" aria-label="Start over" onClick={() => { setRows(null); setErr(""); }}><Icon name="refresh" size={18} /></button>
               <button className="btn green grow" disabled={!kept} onClick={save}><Icon name="check" size={18} />Add {kept} {kept === 1 ? mode.item : mode.itemPlural}</button>
             </div>
           </>

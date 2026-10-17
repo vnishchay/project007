@@ -312,3 +312,15 @@
 @keyframes fn-in { from { opacity: 0; transform: translateY(24px) scale(0.95); } to { opacity: 1; transform: none; } }
 @keyframes fn-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .fn-step, .fn-go { animation: none; } }
+
+/* Menu import: online-menu card, source switch, pictures toggle */
+.mi-online { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-soft); }
+.mi-seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--surface); }
+.mi-seg button { flex: 1; height: 40px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-weight: 700; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.mi-seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(29, 27, 34, 0.1); }
+.mi-pics { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 16px; background: var(--green-soft); cursor: pointer; }
+.mi-pics input { width: 20px; height: 20px; accent-color: var(--green); flex: none; }
+.mg-pics-banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; background: var(--green-soft); }
+.mg-pics-banner .btn { flex: none; }
+.mg-credit { font-size: 12px; color: var(--muted); text-align: center; }
+.mg-credit a { color: inherit; text-decoration: underline; }

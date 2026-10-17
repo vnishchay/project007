@@ -39,3 +39,10 @@ export async function placeSummary(placeId: string): Promise<PlaceSummary | null
     return null;
   }
 }
+
+export interface PhotoResult { assigned: number; remaining: number; items: { id: string; url: string }[] }
+
+/** Finds a stock picture for the shop's products that have none. Up to 40 per call; `remaining` says if more are left. */
+export function addPhotos(placeId: string, ids?: string[]): Promise<PhotoResult> {
+  return callAi<PhotoResult>("photos", { placeId, ids });
+}
