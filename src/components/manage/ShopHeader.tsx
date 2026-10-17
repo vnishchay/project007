@@ -63,7 +63,6 @@ export function ShopHeader({ place, onChange }: { place: Place; onChange: (p: Pa
       </div>
       <div className="mg-hero-actions">
         <Link to={`/p/${place.id}`} className="btn small ghost"><Icon name="eye" size={17} />View my page</Link>
-        <Link to={`/review/${place.id}`} className="btn small ghost"><Icon name="star" size={17} />Review screen</Link>
       </div>
       <input ref={coverIn} type="file" accept="image/*" hidden onChange={(e) => { change("cover", e.target.files?.[0]); e.target.value = ""; }} />
       <input ref={logoIn} type="file" accept="image/*" hidden onChange={(e) => { change("logo", e.target.files?.[0]); e.target.value = ""; }} />

@@ -4,15 +4,19 @@ import { uploadPlaceMedia } from "../../lib/media";
 import { MediaImg } from "./MediaImg";
 import type { Item, Topic } from "../../lib/types";
 import { rupees } from "../../lib/util";
+import type { Mode } from "../../lib/modes";
 import { Icon, useToast } from "../ui";
 import { ProductSheet, friendlyItemError } from "./ProductSheet";
+import { MenuImport } from "../MenuImport";
 
 interface Stat { item_id: string; avg_rating: number; review_count: number }
 
 const byOrder = (a: Item, b: Item) => a.sort_order - b.sort_order || a.name.localeCompare(b.name);
 
+const ITEM_COLS = "id, place_id, topic_id, name, image_path, description, price_inr, sort_order, is_listed, is_hidden";
+
 /** The shop's products: photo, price, type; reorder, hide, edit. */
-export function Products({ placeId, isAdmin, onCount }: { placeId: string; isAdmin: boolean; onCount?: (n: number) => void }) {
+export function Products({ placeId, isAdmin, mode, onCount }: { placeId: string; isAdmin: boolean; mode: Mode; onCount?: (n: number) => void }) {
   const toast = useToast();
   const [items, setItems] = useState<Item[] | null>(null);
   const [stats, setStats] = useState<Record<string, Stat>>({});
@@ -20,11 +24,13 @@ export function Products({ placeId, isAdmin, onCount }: { placeId: string; isAdm
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState<Item | null | "new">(null);
   const [n, setN] = useState(0);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
     Promise.all([
-      supabase.from("items").select("id, place_id, topic_id, name, image_path, description, price_inr, sort_order, is_listed, is_hidden").eq("place_id", placeId),
+      supabase.from("items").select(`${ITEM_COLS}, section`).eq("place_id", placeId)
+        .then((r) => (r.error?.code === "42703" ? supabase.from("items").select(ITEM_COLS).eq("place_id", placeId) : r)),
       supabase.from("item_stats").select("item_id, avg_rating, review_count").eq("place_id", placeId),
       supabase.from("topics").select("id, name").order("name"),
     ]).then(([i, s, t]) => {
@@ -84,7 +90,7 @@ export function Products({ placeId, isAdmin, onCount }: { placeId: string; isAdm
 
       {listed.length > 0 && (
         <div className="mg-stats">
-          <div className="mg-stat"><span className="icon-chip sm"><Icon name="box" size={16} /></span><span><div className="n">{listed.length}</div><div className="l">products</div></span></div>
+          <div className="mg-stat"><span className="icon-chip sm"><Icon name="box" size={16} /></span><span><div className="n">{listed.length}</div><div className="l">{mode.itemPlural}</div></span></div>
           <div className="mg-stat"><span className="icon-chip sm amber"><Icon name="camera" size={16} /></span><span><div className="n">{withPhoto}</div><div className="l">photos</div></span></div>
           <div className="mg-stat"><span className="icon-chip sm violet"><Icon name="star" size={16} /></span><span><div className="n">{reviewTotal}</div><div className="l">reviews</div></span></div>
         </div>
@@ -97,17 +103,26 @@ export function Products({ placeId, isAdmin, onCount }: { placeId: string; isAdm
             <span className="icon-chip lg b" style={{ width: 60, height: 60 }}><Icon name="box" size={28} /></span>
             <span className="icon-chip lg violet c"><Icon name="star" size={24} /></span>
           </div>
-          <h2>Add your first product</h2>
-          <p className="small muted" style={{ maxWidth: 260 }}>Photo, name, price. Customers tap it when they review.</p>
-          <button className="btn green" onClick={() => setEditing("new")}><Icon name="imagePlus" size={19} />Add product</button>
+          <h2>Add your first {mode.item}</h2>
+          <p className="small muted" style={{ maxWidth: 260 }}>Photo, name, price. Customers who scan your table QR pick it when they review.</p>
+          <button className="mg-snap" onClick={() => setImporting(true)}>
+            <span className="icon-chip coral"><Icon name="camera" size={20} /></span>
+            <span className="grow stack tight"><span>Snap your {mode.catalog.toLowerCase()}</span><span className="tiny muted" style={{ fontWeight: 600 }}>We read it into {mode.itemPlural} for you</span></span>
+            <Icon name="chev" size={18} />
+          </button>
+          <button className="btn ghost small" onClick={() => setEditing("new")}><Icon name="plus" size={17} />Add one by hand</button>
         </div>
       ) : (
         <>
-          <button className="mg-add" onClick={() => setEditing("new")}>
-            <span className="icon-chip"><Icon name="plus" size={22} /></span>
-            <span className="grow">Add product</span>
-            <Icon name="camera" size={20} />
-          </button>
+          <div className="mg-add-row">
+            <button className="mg-add" onClick={() => setEditing("new")}>
+              <span className="icon-chip"><Icon name="plus" size={22} /></span>
+              <span className="grow">Add {mode.item}</span>
+            </button>
+            <button className="mg-add-menu" onClick={() => setImporting(true)}>
+              <span className="icon-chip coral sm"><Icon name="camera" size={17} /></span>From a menu photo
+            </button>
+          </div>
           <div className="mg-list">
             {listed.map((it, idx) => (
               <ProductRow key={it.id} it={it} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)}>
@@ -129,7 +144,7 @@ export function Products({ placeId, isAdmin, onCount }: { placeId: string; isAdm
       {fromCustomers.length > 0 && (
         <div className="stack" style={{ gap: 10 }}>
           <div className="mg-group-title"><span className="icon-chip sm sky"><Icon name="people" size={16} /></span><span className="grow">Added by customers</span><span className="badge gray">{fromCustomers.length}</span></div>
-          <div className="mg-hint"><Icon name="info" size={15} />Add a photo to make it one of your products</div>
+          <div className="mg-hint"><Icon name="info" size={15} />Add a photo to put it on your {mode.catalog.toLowerCase()}</div>
           <div className="mg-list">
             {fromCustomers.map((it) => (
               <ProductRow key={it.id} it={it} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)}>
@@ -144,9 +159,14 @@ export function Products({ placeId, isAdmin, onCount }: { placeId: string; isAdm
         </div>
       )}
 
+      {importing && (
+        <MenuImport placeId={placeId} mode={mode} nextSort={(items || []).reduce((m, i) => Math.max(m, i.sort_order), 0) + 1}
+          onClose={() => setImporting(false)} onSaved={() => { setImporting(false); setN((x) => x + 1); }} />
+      )}
+
       {editing !== null && (
         <ProductSheet
-          placeId={placeId} item={sheetItem} topics={topics} reviews={sheetItem ? stats[sheetItem.id]?.review_count ?? 0 : 0}
+          placeId={placeId} item={sheetItem} topics={topics} mode={mode} reviews={sheetItem ? stats[sheetItem.id]?.review_count ?? 0 : 0}
           nextSort={nextSort} defaultTopic={defaultTopic} canRename={isAdmin}
           taken={(items || []).filter((x) => x.id !== sheetItem?.id).map((x) => x.name)}
           onClose={() => setEditing(null)}
@@ -166,6 +186,7 @@ function ProductRow({ it, stat, topic, onEdit, children }: { it: Item; stat?: St
         <span className="name">{it.name}</span>
         <span className="mg-meta">
           {it.price_inr != null && <span className="mg-price">{rupees(it.price_inr)}</span>}
+          {it.section && <span className="badge gray">{it.section}</span>}
           {topic && <span>{topic}</span>}
           {it.is_hidden && <span className="badge gray"><Icon name="eyeOff" size={11} />Hidden</span>}
         </span>
@@ -190,7 +211,7 @@ function CustomerPhoto({ it, placeId, nextSort, onDone }: { it: Item; placeId: s
       const { data, error } = await supabase.from("items").update({ image_path, is_listed: true, is_hidden: false, sort_order: nextSort }).eq("id", it.id).select("*").single();
       if (error) throw error;
       onDone(data as Item);
-      toast("Added to your products");
+      toast("Added");
     } catch (e) {
       toast(`Photo not saved: ${errorText(e)}`);
     } finally {

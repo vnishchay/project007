@@ -6,7 +6,7 @@ import type { ReviewRow } from "../lib/types";
 import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
 import { Icon, Spinner, Stars, useToast } from "../components/ui";
-import { REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
+import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
 import "../styles/home.css";
 
@@ -46,6 +46,8 @@ export default function Saved() {
   const [friends, setFriends] = useState(0);
   const [opened, setOpened] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoSaved, setPhotoSaved] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -61,6 +63,17 @@ export default function Saved() {
     }, (e: unknown) => { if (alive) setLoadErr(errorText(e)); });
     return () => { alive = false; };
   }, [reviewId, reload]);
+
+  // Fetch the review photo up front so saving it later happens straight from the tap.
+  useEffect(() => {
+    const url = reviewPhotoUrl(r?.photo_path);
+    if (!url) { setPhoto(null); return; }
+    let alive = true;
+    fetch(url).then((res) => (res.ok ? res.blob() : null)).then((b) => {
+      if (alive && b) setPhoto(new File([b], "trusted-picks-photo.jpg", { type: b.type || "image/jpeg" }));
+    }, () => {});
+    return () => { alive = false; };
+  }, [r?.photo_path]);
 
   useEffect(() => {
     if (!uid || isGuest) return;
@@ -79,10 +92,29 @@ export default function Saved() {
   const gid = r.places?.google_place_id;
   const placeName = r.places?.name || "";
   const googleUrl = gid ? googleReviewUrl(gid) : mapsSearchUrl([placeName, r.places?.area, city].filter(Boolean).join(" "));
-  const text = r.body || `${r.items?.name}: ${r.rating}/5`;
+  // Just the words: Google has its own stars, and a short text pastes cleanly.
+  const text = (r.body || "").trim() || `${r.items?.name}`;
+  const stars = `${r.rating} star${r.rating === 1 ? "" : "s"}`;
   const steps: [GlyphName, string][] = gid
-    ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", "Paste, tap the stars, post"]]
-    : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review, paste"]];
+    ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Long-press the box, Paste, Post"]]
+    : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review"], ["star", `Tap ${stars}, long-press, Paste, Post`]];
+
+  async function savePhoto() {
+    if (!photo) return;
+    try {
+      if (navigator.canShare?.({ files: [photo] })) {
+        await navigator.share({ files: [photo] });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(photo);
+        a.download = photo.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      setPhotoSaved(true);
+      toast("Photo ready. Add it on Google with the camera icon.");
+    } catch { /* dismissed */ }
+  }
 
   function openGoogle() {
     // Start the copy while this click still counts as a user gesture and the page still has
@@ -101,7 +133,7 @@ export default function Saved() {
       let ok = await copied;
       if (!ok) ok = await copyText(text).catch(() => false);
       setCopyFailed(!ok);
-      toast(ok ? (gid ? "Review copied. Paste it on Google and tap the stars." : "Review copied. Pick the place on Google, then tap Write a review.") : "Couldn't copy. Copy your review from below.");
+      toast(ok ? (gid ? `Copied. On Google tap ${stars}, then long-press and Paste.` : `Copied. Pick the place, tap Write a review, then ${stars} and Paste.`) : "Couldn't copy. Copy your review from below.");
       const { error } = await supabase.from("google_shares").insert({ review_id: r!.id, user_id: uid });
       if (error) console.warn(errorText(error));
       // Popup blocked: go there in this tab instead, but only once the text is on the clipboard.
@@ -157,6 +189,15 @@ export default function Saved() {
             </li>
           ))}
         </ol>
+        <div className="g-stars-hint" aria-label={`On Google, tap ${stars}`}>
+          <span className="small strong">On Google, tap</span>
+          <Stars value={r.rating} />
+        </div>
+        {photo && (
+          <button type="button" className={`btn small ${photoSaved ? "quiet" : "ghost"}`} style={{ alignSelf: "flex-start" }} onClick={savePhoto}>
+            <Icon name={photoSaved ? "check" : "image"} size={16} />{photoSaved ? "Photo saved" : "Save your photo first"}
+          </button>
+        )}
         <p className="tiny muted row" style={{ gap: 6, alignItems: "flex-start" }}><Icon name="info" size={14} />Google only lets you post yourself, so the last tap is yours.</p>
         {copyFailed && (
           <label className="stack tight">

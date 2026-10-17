@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase, errorText } from "../../lib/supabase";
 import { placeMediaUrl, removePlaceMedia, uploadPlaceMedia } from "../../lib/media";
 import type { Item, Topic } from "../../lib/types";
+import type { Mode } from "../../lib/modes";
 import { Icon, useToast } from "../ui";
 
 export function friendlyItemError(e: unknown): string {
@@ -13,10 +14,11 @@ export function friendlyItemError(e: unknown): string {
 /** Add or edit one product: photo, name, price, topic and a short line. */
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
-export function ProductSheet({ placeId, item, topics, reviews, nextSort, defaultTopic, canRename, taken, onClose, onSaved, onDeleted }: {
+export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, defaultTopic, canRename, taken, onClose, onSaved, onDeleted }: {
   placeId: string;
   item: Item | null;
   topics: Topic[];
+  mode: Mode;
   reviews: number;
   nextSort: number;
   defaultTopic: number | null;
@@ -32,6 +34,7 @@ export function ProductSheet({ placeId, item, topics, reviews, nextSort, default
   const [price, setPrice] = useState(item?.price_inr != null ? String(item.price_inr) : "");
   const [topic, setTopic] = useState<number | null>(item ? item.topic_id : defaultTopic);
   const [desc, setDesc] = useState(item?.description ?? "");
+  const [section, setSection] = useState(item?.section ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(placeMediaUrl(item?.image_path));
   const [previewBad, setPreviewBad] = useState(false);
@@ -73,7 +76,8 @@ export function ProductSheet({ placeId, item, topics, reviews, nextSort, default
         return;
       }
     }
-    const row = { name: n, price_inr: p, topic_id: topic, description: desc.trim() || null, image_path, is_listed: true, ...(item && !item.is_listed ? { sort_order: nextSort } : {}) };
+    const row = { name: n, price_inr: p, topic_id: topic, description: desc.trim() || null, image_path, is_listed: true,
+      ...(section.trim() || item?.section ? { section: section.trim().slice(0, 40) || null } : {}), ...(item && !item.is_listed ? { sort_order: nextSort } : {}) };
     const res = item
       ? await supabase.from("items").update(nameLocked ? { ...row, name: item.name } : row).eq("id", item.id).select("*").single()
       : await supabase.from("items").insert({ ...row, place_id: placeId, sort_order: nextSort, is_hidden: false }).select("*").single();
@@ -84,7 +88,7 @@ export function ProductSheet({ placeId, item, topics, reviews, nextSort, default
       return;
     }
     if (item?.image_path && item.image_path !== image_path) removePlaceMedia(item.image_path).catch(() => {});
-    toast(item ? "Saved" : "Product added");
+    toast(item ? "Saved" : "Added");
     onSaved(res.data as Item, !item);
   }
 
@@ -113,11 +117,11 @@ export function ProductSheet({ placeId, item, topics, reviews, nextSort, default
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <form className="sheet mg-sheet" role="dialog" aria-modal="true" aria-label={item ? "Edit product" : "Add product"} onClick={(e) => e.stopPropagation()} onSubmit={save}>
+      <form className="sheet mg-sheet" role="dialog" aria-modal="true" aria-label={item ? `Edit ${mode.item}` : `Add ${mode.item}`} onClick={(e) => e.stopPropagation()} onSubmit={save}>
         <div className="mg-grabber" />
         <div className="mg-sheet-head">
           <span className={`icon-chip sm ${item ? "sky" : ""}`}><Icon name={item ? "edit" : "plus"} size={16} /></span>
-          <h2>{item ? "Edit product" : "New product"}</h2>
+          <h2>{item ? `Edit ${mode.item}` : `New ${mode.item}`}</h2>
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
         </div>
 
@@ -141,7 +145,7 @@ export function ProductSheet({ placeId, item, topics, reviews, nextSort, default
 
         <div className="field">
           <label className="mg-label" htmlFor="pn"><Icon name="tag" size={15} />Name</label>
-          <input id="pn" className="input" required maxLength={80} value={name} disabled={nameLocked} onChange={(e) => setName(e.target.value)} placeholder="Margherita, Haircut, Chocolate cake…" />
+          <input id="pn" className="input" required maxLength={80} value={name} disabled={nameLocked} onChange={(e) => setName(e.target.value)} placeholder={mode.itemExample} />
           {nameLocked && <span className="mg-locked"><Icon name="lock" size={13} />Has reviews, so the name stays</span>}
         </div>
 
@@ -165,8 +169,20 @@ export function ProductSheet({ placeId, item, topics, reviews, nextSort, default
         )}
 
         <div className="field">
+          <label className="mg-label" htmlFor="ps"><Icon name="list" size={15} />Section <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></label>
+          <input id="ps" className="input" maxLength={40} value={section} onChange={(e) => setSection(e.target.value)} placeholder={mode.sections[0] ?? "Best sellers"} />
+          {mode.sections.length > 0 && (
+            <div className="chips scroll" role="group" aria-label="Section ideas">
+              {mode.sections.map((s) => (
+                <button type="button" key={s} className={`chip ${section.trim().toLowerCase() === s.toLowerCase() ? "on" : ""}`} onClick={() => setSection(section === s ? "" : s)}>{s}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="field">
           <label className="mg-label" htmlFor="pd"><Icon name="message" size={15} />Short line</label>
-          <input id="pd" className="input" maxLength={140} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Wood-fired, San Marzano tomato" />
+          <input id="pd" className="input" maxLength={140} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="One line customers should know" />
         </div>
 
         {err && <div className="notice err small" role="alert">{err}</div>}
@@ -176,7 +192,7 @@ export function ProductSheet({ placeId, item, topics, reviews, nextSort, default
           {item && reviews === 0 && (
             <button type="button" className="btn danger" aria-label="Delete product" disabled={busy} onClick={remove} style={{ width: 52, padding: 0 }}><Icon name="trash" size={19} /></button>
           )}
-          <button className="btn green grow" disabled={busy}>{busy ? "Saving…" : <><Icon name="check" size={19} />{item ? "Save" : "Add product"}</>}</button>
+          <button className="btn green grow" disabled={busy}>{busy ? "Saving…" : <><Icon name="check" size={19} />{item ? "Save" : `Add ${mode.item}`}</>}</button>
         </div>
       </form>
     </div>

@@ -8,16 +8,30 @@ import { ShopHeader } from "../components/manage/ShopHeader";
 import { Products } from "../components/manage/Products";
 import { ShopDetails } from "../components/manage/ShopDetails";
 import { QrPrintSheet, ShopQr } from "../components/manage/ShopQr";
+import { Insights, type ManageTab } from "../components/manage/Insights";
+import { LinksEditor } from "../components/manage/LinksEditor";
+import { Updates } from "../components/manage/Updates";
+import { GoogleConnect } from "../components/manage/GoogleConnect";
+import type { IconName } from "../components/ui";
+import { modeOf } from "../lib/modes";
 import "../styles/manage.css";
 
-const COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at, cover_path, logo_path";
-type Tab = "products" | "details" | "qr";
+const COLS = "id, google_place_id, name, kind, category, area, city, about, hours, price_level, status, listed_until, created_at, cover_path, logo_path";
+type Tab = ManageTab;
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
+  { id: "insights", label: "Insights", icon: "chart" },
+  { id: "products", label: "Products", icon: "box" },
+  { id: "links", label: "Links", icon: "link" },
+  { id: "updates", label: "Updates", icon: "message" },
+  { id: "details", label: "Details", icon: "store" },
+  { id: "qr", label: "QR", icon: "qr" },
+];
 
 export default function Manage() {
   const { placeId = "" } = useParams();
   const { isAdmin } = useAuth();
   const [params, setParams] = useSearchParams();
-  const tab = (["products", "details", "qr"].includes(params.get("tab") || "") ? params.get("tab") : "products") as Tab;
+  const tab = (TABS.find((t) => t.id === params.get("tab"))?.id ?? "insights") as Tab;
   const [allowed, setAllowed] = useState<boolean | undefined>(undefined);
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
   const [err, setErr] = useState("");
@@ -35,8 +49,10 @@ export default function Manage() {
       if (ok === null) { setErr(errorText(can.error)); return; }
       setAllowed(ok);
       if (!ok) return;
-      const { data, error } = await supabase.from("places").select(COLS).eq("id", placeId).maybeSingle();
+      let res = await supabase.from("places").select(`${COLS}, links`).eq("id", placeId).maybeSingle();
+      if (res.error?.code === "42703") res = await supabase.from("places").select(COLS.replace(" kind,", "")).eq("id", placeId).maybeSingle();
       if (!alive) return;
+      const { data, error } = res;
       if (error) setErr(errorText(error));
       setPlace((data as Place) ?? null);
     })();
@@ -44,7 +60,7 @@ export default function Manage() {
   }, [placeId, isAdmin, attempt]);
 
   const onCount = useCallback((n: number) => setCount(n), []);
-  const setTab = (t: Tab) => setParams(t === "products" ? {} : { tab: t }, { replace: true });
+  const setTab = useCallback((t: Tab) => { setParams(t === "insights" ? {} : { tab: t }, { replace: true }); }, [setParams]);
 
   if (err) return (
     <div className="page"><TopBar title="Your shop" />
@@ -68,14 +84,21 @@ export default function Manage() {
           right={<Link to="/business" className="icon-btn" aria-label="All your shops"><Icon name="store" size={20} /></Link>} />
         <ShopHeader place={place} onChange={merge} />
         <div className="mg-tabs" role="tablist" aria-label="Manage">
-          <button role="tab" aria-selected={tab === "products"} className={tab === "products" ? "on" : ""} onClick={() => setTab("products")}>
-            <Icon name="box" size={17} />Products{count != null && <span className="count">{count}</span>}
-          </button>
-          <button role="tab" aria-selected={tab === "details"} className={tab === "details" ? "on" : ""} onClick={() => setTab("details")}><Icon name="store" size={17} />Details</button>
-          <button role="tab" aria-selected={tab === "qr"} className={tab === "qr" ? "on" : ""} onClick={() => setTab("qr")}><Icon name="qr" size={17} />QR</button>
+          {TABS.map((t) => (
+            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
+              <span className="ico"><Icon name={t.icon} size={19} />{t.id === "products" && count != null && count > 0 && <span className="count">{count}</span>}</span>
+              {t.label}
+            </button>
+          ))}
         </div>
-        {tab === "products" && <Products placeId={place.id} isAdmin={isAdmin} onCount={onCount} />}
-        {tab === "details" && <ShopDetails place={place} isAdmin={isAdmin} onSaved={merge} />}
+        {tab === "insights" && <Insights place={place} onGo={setTab} />}
+        {tab === "products" && <Products placeId={place.id} isAdmin={isAdmin} mode={modeOf(place.kind, place.category)} onCount={onCount} />}
+        {tab === "links" && <LinksEditor placeId={place.id} links={place.links ?? []} onSaved={(links) => merge({ links })} />}
+        {tab === "updates" && <Updates placeId={place.id} live={place.status === "live"} />}
+        {tab === "details" && <>
+          <GoogleConnect place={place} isAdmin={isAdmin} onSaved={merge} />
+          <ShopDetails place={place} isAdmin={isAdmin} onSaved={merge} />
+        </>}
         {tab === "qr" && <ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} />}
       </div>
       {tab === "qr" && <QrPrintSheet place={place} codes={codes} />}

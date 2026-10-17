@@ -8,6 +8,9 @@ import { copyText, extractPlaceId, initials, QR_STYLES, rupees, timeAgo } from "
 import type { AppSettings } from "../lib/settings";
 import { Icon, QrImage, TopBar, useToast, type IconName } from "../components/ui";
 import { MediaImg } from "../components/manage/MediaImg";
+import { areaCityFromAddress, GoogleFind, GoogleMark, GooglePreview, matchCategory } from "../components/manage/Google";
+import { LinkIcon } from "../components/LinkIcon";
+import { googleConfigured, type GoogleMatch } from "../lib/google";
 import "../styles/manage.css";
 
 const STATUS: Record<string, { label: string; cls: string; step: number; icon: IconName }> = {
@@ -32,6 +35,7 @@ export default function Business() {
   const [style, setStyle] = useState<QrStyle>("paper");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [picked, setPicked] = useState<GoogleMatch | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
   const load = () => {
@@ -46,6 +50,15 @@ export default function Business() {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const gp = form.google_place_id.trim();
   const gpId = gp ? extractPlaceId(gp) : null;
+  function fromGoogle(m: GoogleMatch) {
+    const { area, city } = areaCityFromAddress(m.address);
+    setPicked(m);
+    setForm((f) => ({
+      ...f, business_name: m.name || f.business_name, category: matchCategory(m) || f.category,
+      area: area || f.area, city: city || f.city, google_place_id: m.id,
+    }));
+  }
+  const clearGoogle = () => { setPicked(null); setForm((f) => ({ ...f, google_place_id: "" })); };
   const toForm = () => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   async function submit(e: React.FormEvent) {
@@ -67,6 +80,7 @@ export default function Business() {
     if (error) { setErr(errorText(error)); return; }
     toast("Request sent");
     setForm(EMPTY);
+    setPicked(null);
     load();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -157,6 +171,24 @@ export default function Business() {
         ) : (
           <form className="biz-form" onSubmit={submit}>
             <div className="section-title"><span className="icon-chip sm"><Icon name="plus" size={16} /></span>{mine.length || shops.length ? "List another shop" : "Your shop"}</div>
+            {googleConfigured && (
+              picked ? (
+                <div className="stack" style={{ gap: 6 }}>
+                  <GooglePreview id={picked.id} mini />
+                  <span className="row tiny" style={{ gap: 6 }}>
+                    <Icon name="spark" size={13} color="var(--green)" /><span className="grow muted">Filled in from Google. Edit anything below.</span>
+                    <button type="button" className="link-btn tiny" onClick={clearGoogle}>Change</button>
+                  </span>
+                </div>
+              ) : (
+                <div className="biz-google">
+                  <span className="row strong" style={{ gap: 8 }}><span className="icon-chip sm sky" style={{ background: "#fff" }}><Icon name="zap" size={16} /></span>Find your shop on <GoogleMark /></span>
+                  <span className="tiny muted" style={{ marginTop: -4 }}>Paste your Google Maps link or type the shop name. We fill in the rest.</span>
+                  <GoogleFind onPick={fromGoogle} />
+                  <span className="biz-or">or fill in by hand</span>
+                </div>
+              )
+            )}
             <div className="field"><label className="mg-label" htmlFor="bn"><Icon name="store" size={15} />Business name</label><input id="bn" className="input" required value={form.business_name} onChange={set("business_name")} placeholder="Forno Napoli" /></div>
             <div className="grid2">
               <div className="field"><label className="mg-label" htmlFor="cat"><Icon name="tag" size={15} />Category</label><input id="cat" className="input" required value={form.category} onChange={set("category")} placeholder="Pizzeria, Salon…" /></div>
@@ -166,14 +198,16 @@ export default function Business() {
               <div className="field"><label className="mg-label" htmlFor="ar"><Icon name="pin" size={15} />Area</label><input id="ar" className="input" value={form.area} onChange={set("area")} placeholder="Koregaon Park" /></div>
               <div className="field"><label className="mg-label" htmlFor="ct"><Icon name="map" size={15} />City</label><input id="ct" className="input" required value={form.city} onChange={set("city")} placeholder="Pune" /></div>
             </div>
-            <div className="field">
-              <label className="mg-label" htmlFor="gp"><Icon name="globe" size={15} />Google Maps link <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></label>
-              <input id="gp" className="input" value={form.google_place_id} onChange={set("google_place_id")} placeholder="Paste your Google Maps link" />
-              {gp ? (
-                gpId ? <span className="tiny row" style={{ gap: 4, color: "var(--green)" }}><Icon name="checkCircle" size={13} />Place ID found</span>
-                  : <span className="tiny muted row" style={{ gap: 4 }}><Icon name="info" size={13} />No Place ID in this link. We look it up for you.</span>
-              ) : <span className="tiny muted">One-tap Google reviews for your customers.</span>}
-            </div>
+            {!googleConfigured && (
+              <div className="field">
+                <label className="mg-label" htmlFor="gp"><Icon name="globe" size={15} />Google Maps link <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></label>
+                <input id="gp" className="input" value={form.google_place_id} onChange={set("google_place_id")} placeholder="Paste your Google Maps link" />
+                {gp ? (
+                  gpId ? <span className="tiny row" style={{ gap: 4, color: "var(--green)" }}><Icon name="checkCircle" size={13} />Place ID found</span>
+                    : <span className="tiny muted row" style={{ gap: 4 }}><Icon name="info" size={13} />No Place ID in this link. We look it up for you.</span>
+                ) : <span className="tiny muted">One-tap Google reviews for your customers.</span>}
+              </div>
+            )}
             <div className="field"><label className="mg-label" htmlFor="nt"><Icon name="message" size={15} />Anything else <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></label><textarea id="nt" className="textarea" style={{ minHeight: 70 }} value={form.note} onChange={set("note")} placeholder="Number of tables, best time to call…" /></div>
 
             <label className="biz-qr-toggle">
@@ -241,9 +275,16 @@ function RequestCard({ r, settings, onCopied }: { r: ListingRequest; settings: A
         ) : <p className="small muted">We'll call you on {r.phone} to collect payment. Reference <b>{ref}</b>.</p>
       )}
       {r.status === "approved" && r.place_id && (
-        <div className="row">
-          <Link to={`/manage/${r.place_id}`} className="btn small green"><Icon name="box" size={16} />Add products</Link>
-          <Link to={`/p/${r.place_id}`} className="btn small ghost"><Icon name="eye" size={16} />Live page</Link>
+        <div className="stack" style={{ gap: 8 }}>
+          <Link to={`/manage/${r.place_id}?tab=links`} className="biz-links-cta">
+            <span className="stackicons" aria-hidden="true">{["swiggy", "zomato", "instagram"].map((k) => <LinkIcon key={k} kind={k} size={30} />)}</span>
+            <span className="grow stack tight"><span className="strong">Add your links</span><span className="tiny" style={{ opacity: 0.9 }}>Swiggy, Zomato, Instagram, WhatsApp</span></span>
+            <Icon name="chev" size={20} />
+          </Link>
+          <div className="row">
+            <Link to={`/manage/${r.place_id}?tab=products`} className="btn small ghost grow"><Icon name="box" size={16} />Add products</Link>
+            <Link to={`/p/${r.place_id}`} className="btn small ghost grow"><Icon name="eye" size={16} />Live page</Link>
+          </div>
         </div>
       )}
       {settings.support_phone && r.status !== "approved" && <a className="link-btn small" href={`https://wa.me/${settings.support_phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi, about my listing ${ref}`)}`} target="_blank" rel="noreferrer"><Icon name="message" size={15} />Message us on WhatsApp</a>}

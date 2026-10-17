@@ -5,6 +5,7 @@ import type { Place } from "../../lib/types";
 import { Icon, useToast } from "../ui";
 import { CoordsField } from "../CoordsField";
 import { parseCoords } from "../../lib/util";
+import { KINDS, MODES, modeOf, type Kind } from "../../lib/modes";
 import { HoursEditor, readHours, writeHours, type DayHours } from "./HoursEditor";
 
 /** About, hours, category, area and price level: what owners may change themselves. */
@@ -12,6 +13,7 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
   const toast = useToast();
   const [about, setAbout] = useState(place.about || "");
   const [category, setCategory] = useState(place.category);
+  const [kind, setKind] = useState<Kind>(() => modeOf(place.kind, place.category).kind);
   const [area, setArea] = useState(place.area || "");
   const [price, setPrice] = useState<number | null>(place.price_level);
   const [days, setDays] = useState<DayHours[]>(() => readHours(place.hours));
@@ -26,7 +28,7 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
     if (coords.trim() && !c) { toast("Check the map location"); return; }
     setBusy(true);
     const change: Partial<Place> = {
-      about: about.trim() || null, category: category.trim(), area: area.trim() || null, price_level: price,
+      about: about.trim() || null, category: category.trim(), ...(kind !== place.kind ? { kind } : {}), area: area.trim() || null, price_level: price,
       ...(hoursSet ? { hours: writeHours(days) } : place.hours ? { hours: null } : {}),
     };
     const { error } = await supabase.from("places").update(change).eq("id", place.id);
@@ -51,6 +53,21 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
           {isAdmin
             ? <Link to={`/admin/place/${place.id}`} className="link-btn tiny"><Icon name="settings" size={14} />Admin</Link>
             : <span className="tiny muted">Ask us to change</span>}
+        </div>
+        <div className="field">
+          <span className="mg-label"><Icon name="grid" size={15} />Business type</span>
+          <div className="mg-kinds" role="radiogroup" aria-label="Business type">
+            {KINDS.map((k) => {
+              const m = MODES[k];
+              return (
+                <button type="button" key={k} role="radio" aria-checked={kind === k} className={`mg-kind ${kind === k ? "on" : ""}`} onClick={() => setKind(k)}>
+                  <span className={`icon-chip sm ${m.tint === "green" ? "" : m.tint}`}><Icon name={m.icon} size={16} /></span>
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className="tiny muted">Sets the words on your page, like “{MODES[kind].catalog}”.</span>
         </div>
         <div className="grid2">
           <div className="field"><label className="mg-label" htmlFor="sc"><Icon name="tag" size={15} />Category</label><input id="sc" className="input" required value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Salon" /></div>

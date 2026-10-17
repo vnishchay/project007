@@ -142,6 +142,7 @@ a.menu-row:hover { color: inherit; }
 
 .step-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .step-list li { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; }
+.g-stars-hint { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 14px; background: #fff7e0; color: #7a5600; }
 
 .section-title .icon-chip { width: 30px; height: 30px; border-radius: 9px; }
 

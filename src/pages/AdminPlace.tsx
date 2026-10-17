@@ -7,6 +7,12 @@ import { Icon, QrImage, Spinner, TopBar, useToast } from "../components/ui";
 import { CoordsField } from "../components/CoordsField";
 import { downloadQr, QrPrintSheet } from "../components/manage/ShopQr";
 import { PLACE_COLS } from "./Place";
+import { googleConfigured } from "../lib/google";
+import { GoogleFind, GooglePreview } from "../components/manage/Google";
+import { LinkIcon, linkLabel } from "../components/LinkIcon";
+import type { PlaceLink } from "../components/manage/LinksEditor";
+import type { PlaceUpdate } from "../components/manage/Updates";
+import { timeAgo } from "../lib/util";
 import "../styles/manage.css";
 
 const STYLE_COLORS: Record<QrStyle, { dark: string; light: string }> = QR_STYLES;
@@ -22,6 +28,9 @@ export default function AdminPlace() {
   const [newStyle, setNewStyle] = useState<QrStyle>("paper");
   const [busy, setBusy] = useState(false);
   const [topItem, setTopItem] = useState<string>("");
+  const [links, setLinks] = useState<PlaceLink[]>([]);
+  const [updates, setUpdates] = useState<PlaceUpdate[]>([]);
+  const [findGoogle, setFindGoogle] = useState(false);
 
   const loadCodes = () => supabase.from("qr_codes").select("id, place_id, token, style, table_label, active").eq("place_id", id).order("created_at")
     .then(({ data }) => setCodes((data as QrCode[]) || []));
@@ -41,6 +50,10 @@ export default function AdminPlace() {
         const t = ((data || []) as unknown as { avg_rating: number; review_count: number; items: { name: string } | null }[])[0];
         if (t) setTopItem(`Most loved: ${t.items?.name}, ${Number(t.avg_rating).toFixed(1)} from ${t.review_count}`);
       });
+    supabase.from("places").select("links").eq("id", id).maybeSingle()
+      .then(({ data }) => setLinks(((data as { links?: PlaceLink[] } | null)?.links) || []));
+    supabase.from("place_updates").select("id, body, link_url, created_at").eq("place_id", id).order("created_at", { ascending: false }).limit(5)
+      .then(({ data }) => setUpdates((data as PlaceUpdate[]) || []));
     loadCodes();
   }, [id]);
 
@@ -123,7 +136,15 @@ export default function AdminPlace() {
             </div>
           </div>
           <CoordsField value={coords} onChange={setCoords} />
-          <div className="field"><label>Google Place ID</label><input className="input" value={p.google_place_id || ""} onChange={(e) => set("google_place_id", e.target.value)} placeholder="ChIJ…" /></div>
+          <div className="field">
+            <div className="row" style={{ gap: 6 }}><label htmlFor="gpid" className="grow">Google Place ID</label>
+              {googleConfigured && <button type="button" className="link-btn tiny" onClick={() => setFindGoogle(!findGoogle)}><Icon name={findGoogle ? "close" : "search"} size={14} />{findGoogle ? "Close" : p.google_place_id ? "Replace" : "Find on Google"}</button>}
+            </div>
+            {findGoogle && <GoogleFind autoFocus onPick={(m) => { set("google_place_id", m.id); setFindGoogle(false); toast("Picked. Save to keep it."); }} />}
+            <input id="gpid" className="input" value={p.google_place_id || ""} onChange={(e) => set("google_place_id", e.target.value)} placeholder="ChIJ…" />
+            {googleConfigured && extractPlaceId(p.google_place_id) && <GooglePreview id={extractPlaceId(p.google_place_id)!} note="Live from Google" />}
+            {!googleConfigured && <span className="tiny muted">Google previews are off: VITE_GOOGLE_MAPS_KEY isn't set.</span>}
+          </div>
           <div className="field"><label>About</label><textarea className="textarea" style={{ minHeight: 80 }} value={p.about || ""} onChange={(e) => set("about", e.target.value)} /></div>
           <div className="field"><label>Hours (one per line, “Mon–Fri: 12–11 pm”)</label><textarea className="textarea" style={{ minHeight: 70 }} value={hours} onChange={(e) => setHours(e.target.value)} /></div>
           <div className="grid2">
@@ -135,6 +156,31 @@ export default function AdminPlace() {
             <div className="field"><label>Listed until</label><input className="input" type="date" value={p.listed_until || ""} onChange={(e) => set("listed_until", e.target.value)} /></div>
           </div>
           <div className="row"><button className="btn green grow" disabled={busy} onClick={save}><Icon name="check" size={18} />{busy ? "Saving…" : "Save"}</button><button className="btn ghost" onClick={renew}><Icon name="refresh" size={18} />Renew</button></div>
+        </div>
+
+        <div className="mg-section">
+          <div className="mg-section-head"><span className="icon-chip sm violet"><Icon name="link" size={16} /></span><span className="grow">Links</span><Link to={`/manage/${p.id}?tab=links`} className="link-btn tiny"><Icon name="edit" size={14} />Edit</Link></div>
+          {links.length === 0 ? <p className="small muted">No links yet.</p> : (
+            <div className="ln-preview">
+              {links.map((l, i) => (
+                <a key={i} className="ln-tile" href={l.url} target="_blank" rel="noreferrer" title={l.url}><LinkIcon kind={l.kind} size={28} /><span className="ellipsis">{linkLabel(l)}</span></a>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mg-section">
+          <div className="mg-section-head"><span className="icon-chip sm coral"><Icon name="message" size={16} /></span><span className="grow">Recent updates</span><Link to={`/manage/${p.id}?tab=updates`} className="link-btn tiny"><Icon name="edit" size={14} />Manage</Link></div>
+          {updates.length === 0 ? <p className="small muted">No updates posted.</p> : (
+            <div className="list">
+              {updates.map((u) => (
+                <div key={u.id} className="list-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+                  <span className="small" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{u.body}</span>
+                  <span className="tiny muted row" style={{ gap: 6 }}>{timeAgo(u.created_at)}{u.link_url && <a className="ellipsis" href={u.link_url} target="_blank" rel="noreferrer">{u.link_url.replace(/^https?:\/\/(www\.)?/, "")}</a>}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mg-section">
