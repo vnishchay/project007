@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { supabase, errorText } from "../lib/supabase";
+import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { timeAgo } from "../lib/util";
-import { Avatar, Icon, Stars, type IconName } from "./ui";
+import { Avatar, Icon, Stars, useToast, type IconName } from "./ui";
 import { ItemThumb } from "./place/ItemThumb";
 import "../styles/place.css";
 
@@ -65,7 +66,7 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
             <span className="tiny muted">{anon && !mine ? roughDate(r.created_at) : timeAgo(r.created_at)}</span>
           </span>
         </div>
-        {r.verified && <span className="rc-verified" title="Verified visit" aria-label="Verified visit"><Icon name="verified" size={20} /></span>}
+        {r.verified && <span className="rc-verified" title={r.source === "link" ? "From the shop's review link" : "Scanned at the shop"} aria-label="Verified visit"><Icon name="verified" size={20} /></span>}
       </div>
       {(r.items?.name || (showPlace && r.places)) && (
         <div className="rc-item">
@@ -77,12 +78,44 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
       {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${r.items?.name || "the order"}`} />}
       {r.voice_path && <VoiceNote path={r.voice_path} />}
       {tags.length > 0 && <div className="rc-tags">{tags.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
+      <div className="rc-foot">
+        {r.source && <span className="tiny muted row" style={{ gap: 4 }}><Icon name={r.source === "link" ? "link" : "qr"} size={12} />{r.source === "link" ? "From the shop's review link" : "Scanned at the shop"}</span>}
+        <span className="grow" />
+        {!mine && <ReportButton reviewId={r.id} />}
+      </div>
       {children}
     </article>
+  );
+}
+
+const REASONS: [string, string][] = [["fake", "Looks fake"], ["offensive", "Rude or offensive"], ["wrong_place", "Wrong shop"], ["personal_info", "Shares personal details"], ["other", "Something else"]];
+
+/** Anyone can flag a review for the Trusted Picks team. Who reported stays private. */
+function ReportButton({ reviewId }: { reviewId: string }) {
+  const { session } = useAuth();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(false);
+  if (done) return <span className="tiny muted row" style={{ gap: 4 }}><Icon name="check" size={12} />Reported</span>;
+  async function send(reason: string) {
+    if (!session) { toast("Sign in or scan a shop QR to report"); return; }
+    const { error } = await supabase.rpc("report_review", { p_review: reviewId, p_reason: reason });
+    setOpen(false);
+    if (error) toast(errorText(error)); else { setDone(true); toast("Thanks. We'll take a look."); }
+  }
+  return (
+    <span className="rc-report">
+      <button type="button" className="icon-btn sm" aria-label="Report this review" aria-expanded={open} onClick={() => setOpen((o) => !o)}><Icon name="flag" size={15} /></button>
+      {open && (
+        <span className="rc-report-menu" role="menu">
+          {REASONS.map(([k, label]) => <button key={k} type="button" role="menuitem" onClick={() => send(k)}>{label}</button>)}
+        </span>
+      )}
+    </span>
   );
 }
 
 // Reviews are read through the review_feed view, which hides who wrote anonymous ones.
 export const REVIEW_FEED = "review_feed";
 export const REVIEW_SELECT =
-  "id, user_id, place_id, item_id, rating, body, ai_drafted, verified, is_public, photo_path, voice_path, status, created_at, author_name, author_avatar, items(name), places(name, google_place_id, area), review_tags(tags(label))";
+  "id, user_id, place_id, item_id, rating, body, ai_drafted, verified, is_public, photo_path, voice_path, status, created_at, author_name, author_avatar, source, items(name), places(name, google_place_id, area), review_tags(tags(label))";

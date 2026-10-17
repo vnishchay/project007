@@ -9,8 +9,8 @@ import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard
 import { CoordsField } from "../components/CoordsField";
 import "../styles/manage.css";
 
-type Tab = "requests" | "places" | "reviews" | "settings";
-const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["settings", "settings", "Settings"]];
+type Tab = "requests" | "places" | "reviews" | "alerts" | "settings";
+const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["settings", "settings", "Settings"]];
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
@@ -44,6 +44,7 @@ export default function Admin() {
       {tab === "requests" && <Requests key={n} onChange={refresh} />}
       {tab === "places" && <Places key={n} onChange={refresh} />}
       {tab === "reviews" && <Reviews />}
+      {tab === "alerts" && <Alerts />}
       {tab === "settings" && <><Settings /><Vocabulary /></>}
     </div>
   );
@@ -330,6 +331,67 @@ function Reviews() {
             </div>
           </ReviewCard>
         ))}
+    </div>
+  );
+}
+
+/* ---------- Alerts: reports and unusual patterns ---------- */
+interface Alert { kind: string; place_id: string | null; place_name: string | null; review_id: string | null; detail: string; n: number; seen_at: string | null }
+const ALERT_LOOK: Record<string, [IconName, string]> = {
+  reported: ["flag", "Reported review"], burst: ["zap", "Burst of 5-star reviews"], far_scans: ["pin", "Scans far from the shop"],
+  link_skew: ["link", "Link reviews much higher"], busy_device: ["alert", "One phone, many reviews"],
+};
+
+function Alerts() {
+  const toast = useToast();
+  const [rows, setRows] = useState<Alert[] | null>(null);
+  const [err, setErr] = useState("");
+  const load = () => {
+    setRows(null);
+    supabase.rpc("admin_alerts").then(({ data, error }) => {
+      setErr(error ? (error.code === "PGRST202" ? "Run the latest database update to see alerts." : errorText(error)) : "");
+      setRows((data as Alert[]) || []);
+    });
+  };
+  useEffect(load, []);
+
+  async function act(a: Alert, hide: boolean) {
+    if (hide && !confirm("Hide this review from everyone?")) return;
+    if (hide) {
+      const { error } = await supabase.from("reviews").update({ status: "hidden" }).eq("id", a.review_id!);
+      if (error) { toast(errorText(error)); return; }
+    }
+    const { error } = await supabase.from("review_reports").update({ resolved_at: new Date().toISOString() }).eq("review_id", a.review_id!).is("resolved_at", null);
+    if (error) { toast(errorText(error)); return; }
+    toast(hide ? "Review hidden" : "Kept, report closed");
+    load();
+  }
+
+  return (
+    <div className="stack">
+      <p className="small muted">Reports from people and patterns that often mean fake reviews. Nothing here says who anyone is.</p>
+      {err && <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={load}>Retry</button></div>}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>All quiet. Nothing needs a look.</p></div> :
+        rows.map((a, i) => {
+          const [icon, title] = ALERT_LOOK[a.kind] || ["alert", a.kind];
+          return (
+            <div key={i} className="card stack" style={{ gap: 8 }}>
+              <div className="row">
+                <span className={`icon-chip sm ${a.kind === "reported" ? "coral" : "amber"}`}><Icon name={icon} size={16} /></span>
+                <span className="grow stack tight"><span className="strong">{title}</span>{a.place_name && <span className="tiny muted">{a.place_name}</span>}</span>
+                {a.seen_at && <span className="tiny muted">{timeAgo(a.seen_at)}</span>}
+              </div>
+              <p className="small" style={{ overflowWrap: "anywhere" }}>{a.detail}{a.kind === "reported" && a.n > 1 ? ` (${a.n} reports)` : ""}</p>
+              <div className="row" style={{ gap: 8 }}>
+                {a.place_id && <Link to={`/p/${a.place_id}`} className="btn small ghost"><Icon name="store" size={15} />Open shop</Link>}
+                {a.kind === "reported" && a.review_id && <>
+                  <button className="btn small ghost" onClick={() => act(a, false)}>Keep</button>
+                  <button className="btn small danger" onClick={() => act(a, true)}>Hide review</button>
+                </>}
+              </div>
+            </div>
+          );
+        })}
     </div>
   );
 }

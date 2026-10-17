@@ -93,6 +93,8 @@ export interface ReviewRow {
   author_name: string | null;
   author_avatar: string | null;
   photo_path?: string | null;
+  /** how it got here: a table scan or the shop's one-time link */
+  source?: "table" | "link" | null;
   voice_path?: string | null;
   status: "published" | "hidden";
   created_at: string;

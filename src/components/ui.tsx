@@ -19,7 +19,7 @@ const ICONS = {
   clock: L.Clock, phone: L.Phone, navigate: L.Navigation, link: L.Link, settings: L.Settings, logout: L.LogOut,
   login: L.LogIn, crown: L.Crown, box: L.Package, tag: L.Tag, rupee: L.IndianRupee, grip: L.GripVertical,
   flame: L.Flame, trophy: L.Trophy, award: L.Award, lock: L.Lock, send: L.Send, info: L.Info, alert: L.CircleAlert,
-  zap: L.Zap, wallet: L.Wallet, dashboard: L.LayoutDashboard, chart: L.ChartBar, filter: L.Filter, list: L.List,
+  zap: L.Zap, flag: L.Flag, wallet: L.Wallet, dashboard: L.LayoutDashboard, chart: L.ChartBar, filter: L.Filter, list: L.List,
   grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, cake: L.CakeSlice, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,
 } satisfies Record<string, L.LucideIcon>;
 export type IconName = keyof typeof ICONS;

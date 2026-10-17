@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { getLocation } from "../lib/util";
 import { Icon, Spinner, TopBar } from "../components/ui";
 import { Chip, EmptyArt, Glyph, Retry } from "../components/home/Kit";
 import "../styles/home.css";
@@ -33,6 +34,13 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   // One visit per code per signed-in user per page view (StrictMode runs effects twice).
   const scannedFor = useRef<string | null>(null);
   const unlockFn = link ? "redeem_review_link" : "scan_qr";
+  // Table scans send where the phone is (if allowed), so far-away scans count less. Only "near or not" is kept.
+  async function unlock() {
+    if (link) return supabase.rpc(unlockFn, { p_token: token });
+    const at = await getLocation();
+    const r = await supabase.rpc(unlockFn, { p_token: token, p_lat: at?.lat ?? null, p_lng: at?.lng ?? null });
+    return r.error?.code === "PGRST202" ? supabase.rpc(unlockFn, { p_token: token }) : r;
+  }
   const startingGuest = useRef(false);
 
   useEffect(() => {
@@ -54,7 +62,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     scannedFor.current = key;
     setScanning(true);
     setScanErr("");
-    supabase.rpc(unlockFn, { p_token: token }).then(({ data, error }) => {
+    unlock().then(({ data, error }) => {
       setScanning(false);
       if (error) { setScanErr(friendly(error)); return; }
       const v = ((data as Visit[]) || [])[0];
@@ -94,7 +102,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     if (ok) {
       const { data } = await supabase.auth.getSession();
       scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
-      const { error } = await supabase.rpc(unlockFn, { p_token: token });
+      const { error } = await unlock();
       if (error) { startingGuest.current = false; setGuestErr(friendly(error)); return; }
       navTo(`/review/${peek!.place_id}`);
     } else {
