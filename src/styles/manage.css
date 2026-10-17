@@ -62,7 +62,7 @@
 .mg-act:disabled { opacity: 0.3; cursor: default; }
 .mg-act.on { background: var(--green-soft); color: var(--green-dark); }
 .mg-updown { display: flex; flex-direction: column; gap: 2px; }
-.mg-updown .mg-act { width: 30px; height: 25px; border-radius: 8px; }
+.mg-updown .mg-act { width: 32px; height: 28px; border-radius: 8px; }
 .mg-add-photo { height: 36px; padding: 0 12px; border-radius: 11px; border: 0; background: var(--amber-soft); color: #7a5410; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; flex: none; }
 .mg-thumb-empty { background: repeating-linear-gradient(135deg, var(--surface), var(--surface) 8px, var(--line-soft) 8px, var(--line-soft) 16px); }
 
@@ -129,7 +129,7 @@
 .mg-day .d { width: 38px; font-weight: 800; font-size: 13px; flex: none; }
 .mg-day.today .d { color: var(--green); }
 .mg-day .times { flex: 1; display: flex; align-items: center; gap: 4px; min-width: 0; }
-.mg-day .times .input { flex: 1; padding: 8px 6px; font-size: 14px; border-radius: 10px; min-width: 0; text-align: center; }
+.mg-day .times .input { flex: 1; padding: 8px 6px; font-size: 16px; border-radius: 10px; min-width: 0; text-align: center; }
 .mg-day .times .input::-webkit-calendar-picker-indicator { display: none; }
 .mg-day .closed { flex: 1; font-size: 13px; color: var(--muted); font-weight: 600; }
 .mg-switch { position: relative; width: 44px; height: 26px; flex: none; border-radius: 999px; border: 0; background: var(--line); cursor: pointer; padding: 0; transition: background 0.15s; }
@@ -226,7 +226,7 @@
 .g-mark { font-weight: 700; letter-spacing: -0.01em; font-family: Arial, Helvetica, sans-serif; }
 .gf-bar { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 6px 0 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
 .gf-bar:focus-within { border-color: var(--green); }
-.gf-bar input { border: 0; outline: none; background: none; font-size: 15px; min-width: 0; height: 100%; }
+.gf-bar input { border: 0; outline: none; background: none; font-size: 16px; min-width: 0; height: 100%; }
 .gf-bar .btn.small { height: 40px; }
 .gf-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); }
 .gf-match { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 0; border-bottom: 1px solid var(--line-soft); background: none; text-align: left; cursor: pointer; width: 100%; }

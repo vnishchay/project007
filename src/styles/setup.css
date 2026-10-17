@@ -48,7 +48,7 @@
 .su-link:focus-within { border-color: var(--green); box-shadow: 0 0 0 4px rgba(194, 73, 43, 0.15); transform: scale(1.02); }
 .su-link.on { border-color: var(--good); }
 .su-link .grow { min-width: 0; }
-.su-input { width: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-weight: 700; font-size: 15px; color: var(--ink); padding: 2px 0; }
+.su-input { width: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-weight: 700; font-size: 16px; color: var(--ink); padding: 2px 0; }
 .su-input::placeholder { color: #a39cbd; font-weight: 600; }
 .su-found { width: 26px; height: 26px; border-radius: 99px; background: var(--good); color: #fff; display: grid; place-items: center; animation: su-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both; }
 .su-add { display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border-radius: 16px; border: 2px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
