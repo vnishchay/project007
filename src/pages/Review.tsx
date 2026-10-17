@@ -9,6 +9,7 @@ import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../componen
 import { ProductPicker } from "../components/ProductPicker";
 import { loadShopItems, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
 import { deviceId } from "../lib/device";
+import { callAi } from "../lib/assist";
 import { modeOf, tagFits } from "../lib/modes";
 import "../styles/place.css";
 
@@ -248,19 +249,14 @@ function ReviewForm() {
     if (!itemName.trim() || !rating) { setErr("Pick what you had and give it stars first."); return; }
     setDrafting(true); setErr("");
     try {
-      const res = await fetch("/api/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session!.access_token}` },
-        body: JSON.stringify({
-          place: place?.name, category: place?.category, item: itemName.trim(), rating,
-          tags: [...tags.filter((t) => picked.includes(t.id)).map((t) => t.label), ...customTags], notes: body,
-        }),
+      const j = await callAi<{ text?: string }>("draft", {
+        place: place?.name, category: place?.category, item: itemName.trim(), rating,
+        tags: [...tags.filter((t) => picked.includes(t.id)).map((t) => t.label), ...customTags], notes: body,
       });
-      const j = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!res.ok || !j.text) throw new Error(j.error || "The AI draft isn't available right now. You can write it yourself.");
+      if (!j.text) throw new Error("The AI draft isn't available right now. You can write it yourself.");
       setBody(j.text.slice(0, MAX_BODY)); setAiDrafted(true);
     } catch (e) {
-      setErr(errorText(e) === "Failed to fetch" ? "You seem to be offline. You can write it yourself." : errorText(e));
+      setErr(`${errorText(e)}. You can write it yourself.`.replace(/\.\. /, ". "));
     } finally {
       setDrafting(false);
     }

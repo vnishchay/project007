@@ -209,3 +209,6 @@ a.gg-name:hover { color: var(--ink); text-decoration: underline; }
 /* Review gate: shown when there's no table-QR visit */
 .rv-gate { align-items: stretch; gap: 12px; padding: 24px 20px; margin-top: 12px; }
 .rv-gate h2 { font-size: 19px; }
+.pl-summary { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(135deg, #f3efff, #eef6ff); color: #3b2a8a; }
+.pl-summary p { color: var(--ink-2, #333); line-height: 1.5; margin: 0; }
+.pl-summary .pill { background: #fff; color: #3b2a8a; }

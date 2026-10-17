@@ -43,15 +43,24 @@ For test data, run `supabase/demo_data.sql` (five Pune places with table QR code
 | --- | --- | --- |
 | `VITE_SUPABASE_URL` | `https://ymkyrlquyietmuukzwqe.supabase.co` | yes |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | your `sb_publishable_…` key | yes |
-| `SUPABASE_URL` | same URL | for AI drafts |
-| `SUPABASE_PUBLISHABLE_KEY` | same publishable key | for AI drafts |
-| `ANTHROPIC_API_KEY` | from console.anthropic.com | for AI drafts and reading menu photos |
-| `CLAUDE_MODEL` | defaults to `claude-opus-5-5`; `claude-haiku-5-5` is much cheaper | optional |
 | `VITE_GOOGLE_MAPS_KEY` | Places API (New) key, restricted to your site's address | optional: live Google rating, description, photos and reviews on shop pages, and "paste your Google link" onboarding |
 
 Never put the Supabase **secret** key anywhere in this app.
 
 3. Deploy. Then in the app: **Admin > Settings**, add your UPI ID so businesses can pay you.
+
+## AI (Supabase Edge Function)
+
+Every AI feature (review drafts, menu photos, shop updates, About text, review tips, "What people say")
+runs in one Supabase Edge Function, `supabase/functions/ai/index.ts`. The browser never holds an AI key
+and never calls the AI itself; it calls the function with the user's session.
+
+1. Supabase > Edge Functions > Deploy a new function > Via editor. Name it `ai`, paste `supabase/functions/ai/index.ts`, deploy.
+2. In the function's settings, turn **Verify JWT** off (the function checks sign-in itself, and shop pages call it for signed-out visitors).
+3. Supabase > Edge Functions > Secrets: add `DEEPSEEK_API_KEY`. Optional: `DEEPSEEK_MODEL` (default `deepseek-flash`, the cheapest; thinking is turned off).
+
+Limits: 10 AI calls a day per guest, 40 per signed-in person (a menu read counts 3); "What people say" runs at most once a day per shop.
+With the CLI instead: `supabase functions deploy ai --no-verify-jwt` and `supabase secrets set DEEPSEEK_API_KEY=...`.
 
 ## Run locally
 
@@ -60,7 +69,7 @@ cp .env.example .env.local   # fill in the two VITE_ values
 npm install
 npm run dev
 ```
-(`/api/draft` only runs on Vercel or with `vercel dev`.)
+(AI features need the `ai` edge function deployed to your Supabase project.)
 
 ## How selling works
 
@@ -85,7 +94,6 @@ Every link someone shares from the app (their invite, a review, a place) carries
 
 - `src/pages` one file per screen: Discover, Place, QrLanding (`/q/:token`), Scan, Rate (pick a place to review), Review, Saved (Google handoff), Circle (friends), Person, Me, Business, Manage (shop owner products and photos), Admin, AdminPlace
 - `src/lib` Supabase client, auth, settings, chosen location, Google rating (the trust score is computed in the database by `search_places`)
-- `api/draft.ts` AI review draft (checks the user's Supabase session first)
-- `api/menu-import.ts` reads a menu or price-list photo into products for the shop owner to check
 - `api/resolve-link.ts` opens a Google Maps share link (maps.app.goo.gl) so onboarding can find the business
+- `supabase/functions/ai/index.ts` every AI feature, server-side (see "AI" above)
 - `supabase/` database schema, security rules and functions

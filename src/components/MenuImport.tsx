@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { supabase, errorText } from "../lib/supabase";
 import { shrinkImage } from "../lib/media";
+import { callAi } from "../lib/assist";
 import type { Mode } from "../lib/modes";
 import { Icon, Spinner, useToast } from "./ui";
 
@@ -15,7 +16,7 @@ async function toBase64(blob: Blob): Promise<string> {
 
 /**
  * Snap the menu or price list, AI reads it into products, the owner checks and saves.
- * The photos go to /api/menu-import and aren't stored.
+ * The photos go to the "ai" edge function and aren't stored.
  */
 export function MenuImport({ placeId, mode, nextSort, onClose, onSaved }: {
   placeId: string; mode: Mode; nextSort: number; onClose: () => void; onSaved: (count: number) => void;
@@ -31,14 +32,8 @@ export function MenuImport({ placeId, mode, nextSort, onClose, onSaved }: {
     setErr(""); setBusy("Reading your menu…");
     try {
       const images = await Promise.all(files.map(async (f) => ({ data: await toBase64(await shrinkImage(f, 1600, 0.8)), media_type: "image/jpeg" })));
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch("/api/menu-import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ placeId, images }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { items?: Omit<Row, "keep">[]; error?: string };
-      if (!res.ok || !j.items) throw new Error(j.error || "Couldn't read the menu. Try a clearer photo.");
+      const j = await callAi<{ items?: Omit<Row, "keep">[] }>("menu", { placeId, images });
+      if (!j.items) throw new Error("Couldn't read the menu. Try a clearer photo.");
       if (!j.items.length) throw new Error(`No ${mode.itemPlural} found in this photo. Try a closer, straighter shot.`);
       setRows(j.items.map((i) => ({ ...i, keep: true })));
     } catch (e) {

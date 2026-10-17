@@ -7,11 +7,19 @@ import { CoordsField } from "../CoordsField";
 import { parseCoords } from "../../lib/util";
 import { KINDS, MODES, modeOf, type Kind } from "../../lib/modes";
 import { HoursEditor, readHours, writeHours, type DayHours } from "./HoursEditor";
+import { assist } from "../../lib/assist";
 
 /** About, hours, category, area and price level: what owners may change themselves. */
 export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin: boolean; onSaved: (p: Partial<Place>) => void }) {
   const toast = useToast();
   const [about, setAbout] = useState(place.about || "");
+  const [writing, setWriting] = useState(false);
+  const [aiErr, setAiErr] = useState("");
+  async function writeAbout() {
+    setWriting(true); setAiErr("");
+    try { setAbout((await assist("about", place.id, about)).text); } catch (e) { setAiErr(e instanceof Error ? e.message : String(e)); }
+    setWriting(false);
+  }
   const [category, setCategory] = useState(place.category);
   const [kind, setKind] = useState<Kind>(() => modeOf(place.kind, place.category).kind);
   const [area, setArea] = useState(place.area || "");
@@ -85,6 +93,8 @@ export function ShopDetails({ place, isAdmin, onSaved }: { place: Place; isAdmin
         <div className="field">
           <label className="mg-label" htmlFor="ab"><Icon name="message" size={15} />About</label>
           <textarea id="ab" className="textarea" style={{ minHeight: 84 }} maxLength={500} value={about} onChange={(e) => setAbout(e.target.value)} placeholder="What you're known for, in a line or two" />
+          <button type="button" className="link-btn small" style={{ alignSelf: "flex-start" }} disabled={writing} onClick={writeAbout}><Icon name="spark" size={15} />{writing ? "Writing…" : about.trim() ? "Polish with AI" : "Write it for me"}</button>
+          {aiErr && <span className="tiny" style={{ color: "var(--danger)" }}>{aiErr}</span>}
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
 import { deviceId } from "../lib/device";
+import { placeSummary, type PlaceSummary } from "../lib/assist";
 import "../styles/place.css";
 
 export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
@@ -54,6 +55,15 @@ export default function PlacePage() {
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [aiSummary, setAiSummary] = useState<PlaceSummary | null>(null);
+  const withText = reviews.filter((r) => (r.body || "").trim()).length;
+  // Only worth asking once there's something to summarise; the answer is cached for a day.
+  useEffect(() => {
+    if (withText < 3) { setAiSummary(null); return; }
+    let alive = true;
+    placeSummary(id).then((s) => { if (alive) setAiSummary(s); });
+    return () => { alive = false; };
+  }, [id, withText >= 3]); // eslint-disable-line react-hooks/exhaustive-deps
   const [friends, setFriends] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
   const [canManage, setCanManage] = useState(false);
@@ -290,6 +300,14 @@ export default function PlacePage() {
       </section>
 
       <section className="stack" style={{ gap: 12 }} id="reviews">
+        {aiSummary && (
+          <div className="pl-summary">
+            <span className="row tiny strong" style={{ gap: 6 }}><Icon name="spark" size={14} />What people say</span>
+            <p className="small">{aiSummary.summary}</p>
+            {aiSummary.highlights.length > 0 && <div className="row wrap" style={{ gap: 6 }}>{aiSummary.highlights.map((h) => <span key={h} className="pill">{h}</span>)}</div>}
+            <span className="tiny muted">Summarised by AI from reviews here</span>
+          </div>
+        )}
         <div className="section-title">
           <span className="icon-chip sm amber"><Icon name="message" size={16} /></span>
           <span className="grow">Reviews</span>

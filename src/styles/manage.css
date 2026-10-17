@@ -273,3 +273,6 @@
 .biz-links-cta .stackicons .link-icon { border: 2px solid #fff; box-sizing: content-box; }
 .biz-links-cta .stackicons .link-icon + .link-icon { margin-left: -10px; }
 .rl-link { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--sage, #eef3ee); font-size: 13px; min-width: 0; }
+.ai-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ai-list li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.4; }
+.ai-list li svg { flex: none; margin-top: 2px; }

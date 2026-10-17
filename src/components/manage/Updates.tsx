@@ -4,6 +4,7 @@ import { useAuth } from "../../lib/auth";
 import { timeAgo } from "../../lib/util";
 import { Icon, useToast } from "../ui";
 import { normalizeLink } from "./LinksEditor";
+import { assist } from "../../lib/assist";
 
 export interface PlaceUpdate { id: string; body: string; link_url: string | null; created_at: string }
 
@@ -27,6 +28,13 @@ export function Updates({ placeId, live }: { placeId: string; live: boolean }) {
   const [showLink, setShowLink] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [writing, setWriting] = useState(false);
+
+  async function polish() {
+    setWriting(true); setErr("");
+    try { setBody((await assist("update", placeId, body)).text); } catch (e) { setErr(errorText(e)); }
+    setWriting(false);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -78,6 +86,7 @@ export function Updates({ placeId, live }: { placeId: string; live: boolean }) {
             onChange={(e) => { setBody(e.target.value); setErr(""); }} placeholder="New this week: wood-fired calzone. 20% off till Sunday!" />
           <div className="row" style={{ gap: 8 }}>
             {!showLink && <button type="button" className="link-btn small" onClick={() => setShowLink(true)}><Icon name="link" size={15} />Add link</button>}
+            <button type="button" className="link-btn small" disabled={writing || !body.trim()} onClick={polish} title="Type a few words, then tap"><Icon name="spark" size={15} />{writing ? "Writing…" : "Polish"}</button>
             <span className="grow" />
             <span className={`tiny ${over ? "strong" : "muted"}`} style={over ? { color: "var(--danger)" } : undefined}>{body.length}/{LIMIT}</span>
           </div>

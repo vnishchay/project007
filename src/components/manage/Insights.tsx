@@ -5,6 +5,7 @@ import type { Place } from "../../lib/types";
 import { Icon, Stars, type IconName } from "../ui";
 import { MediaImg } from "./MediaImg";
 import { GoogleMark } from "./Google";
+import { assist } from "../../lib/assist";
 
 interface ShopStats { reviews: number; avg_rating: number | null; reviews_30d: number; verified: number; google_handoffs: number; google_handoffs_30d: number; scans_30d: number; saves: number; items_rated: number }
 interface ItemStat { item_id: string; name: string; image_path: string | null; reviews: number; avg_rating: number; low_ratings: number }
@@ -90,10 +91,43 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
           {best.length > 0 && <ItemBlock title="Most loved" icon="trophy" cls="amber" rows={best} />}
           {attention.length > 0 && <ItemBlock title="Needs attention" icon="alert" cls="coral" rows={attention} low />}
           {best.length === 0 && attention.length === 0 && <p className="small muted center">Product ratings show here once customers rate them.</p>}
+          {s.reviews >= 3 && <AiTips placeId={place.id} />}
         </>
       )}
       <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Counts only. Customers stay private.</p>
     </div>
+  );
+}
+
+interface Tips { summary: string; loved: string[]; fix: string[] }
+
+/** On demand only, so it costs an AI call just when the owner asks. */
+function AiTips({ placeId }: { placeId: string }) {
+  const [tips, setTips] = useState<Tips | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function run() {
+    setBusy(true); setErr("");
+    try { setTips(await assist<Tips>("insights", placeId)); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    setBusy(false);
+  }
+  return (
+    <section className="mg-section ai-tips">
+      <div className="mg-section-head"><span className="icon-chip sm violet"><Icon name="spark" size={16} /></span><span className="grow">What your reviews say</span></div>
+      {!tips ? (
+        <>
+          <p className="small muted">AI reads your recent reviews and tells you what customers love and what to fix first.</p>
+          <button type="button" className="btn ghost block" disabled={busy} onClick={run}><Icon name="spark" size={18} />{busy ? "Reading your reviews…" : "Read my reviews"}</button>
+        </>
+      ) : (
+        <>
+          {tips.summary && <p className="small">{tips.summary}</p>}
+          {tips.loved.length > 0 && <ul className="ai-list">{tips.loved.map((t) => <li key={t}><Icon name="heart" size={15} color="var(--green)" />{t}</li>)}</ul>}
+          {tips.fix.length > 0 && <ul className="ai-list">{tips.fix.map((t) => <li key={t}><Icon name="zap" size={15} color="#c2410c" />{t}</li>)}</ul>}
+        </>
+      )}
+      {err && <div className="notice err small">{err}</div>}
+    </section>
   );
 }
 
