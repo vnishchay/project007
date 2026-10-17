@@ -21,6 +21,9 @@ interface AuthState {
 /** Why the last guest sign-in failed (Supabase's own wording), for the console and the page to show. */
 export let lastGuestError = "";
 
+/** One in-flight guest sign-in at a time, so two components (or React's double effect) never create two guests. */
+let guestInFlight: Promise<boolean> | null = null;
+
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -39,11 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (r.error?.code === "PGRST202") return (await supabase.from("profiles").select(PROFILE_COLS + ", city").eq("id", uid).maybeSingle()).data;
       return ((r.data as Profile[] | null) || [])[0] ?? null;
     };
-    let data = await own();
-    if (!data) {
-      // Users who signed up through another app on the same Supabase project have no profile yet.
-      await supabase.rpc("ensure_profile");
+    let data: unknown = null;
+    try {
       data = await own();
+      if (!data) {
+        // Users who signed up through another app on the same Supabase project have no profile yet.
+        await supabase.rpc("ensure_profile");
+        data = await own();
+      }
+    } catch (e) {
+      // A slow or failing profile read must never leave the app on a spinner.
+      console.warn("Profile load failed:", e);
     }
     let p = (data as Profile) ?? { id: uid, display_name: "", avatar_path: null, city: null, role: "user", created_at: new Date().toISOString() };
     // A guest who just signed in with Google or email keeps their account; give it their name.
@@ -66,9 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!alive) return;
       if (error) setAuthError(error.message);
       setSession(data.session);
-      await loadProfile(data.session?.user.id);
+      try { await loadProfile(data.session?.user.id); } catch (e) { console.warn("Profile load failed:", e); }
       if (alive) setLoading(false);
-    });
+    }).catch(() => { if (alive) setLoading(false); });
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (!alive) return;
       setSession(s);
@@ -86,12 +95,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     isAdmin: profile?.role === "admin",
     isGuest: Boolean(session?.user.is_anonymous),
-    startGuest: async () => {
-      if ((await supabase.auth.getSession()).data.session) return true;
-      const { error } = await supabase.auth.signInAnonymously();
-      if (error) { lastGuestError = error.message; console.warn("Guest sign-in failed:", error.message); setAuthError(null); return false; }
-      lastGuestError = "";
-      return true;
+    startGuest: () => {
+      if (!guestInFlight) {
+        guestInFlight = (async () => {
+          try {
+            if ((await supabase.auth.getSession()).data.session) return true;
+            const { error } = await supabase.auth.signInAnonymously();
+            if (error) { lastGuestError = error.message; console.warn("Guest sign-in failed:", error.message); setAuthError(null); return false; }
+            lastGuestError = "";
+            return true;
+          } catch (e) {
+            lastGuestError = e instanceof Error ? e.message : "network";
+            return false;
+          } finally { setTimeout(() => { guestInFlight = null; }, 0); }
+        })();
+      }
+      return guestInFlight;
     },
     authError,
     clearAuthError: () => setAuthError(null),

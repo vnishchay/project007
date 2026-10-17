@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { Icon, Spinner } from "../components/ui";
-import { Chip, Glyph } from "../components/home/Kit";
-import "../styles/home.css";
+import { Glyph } from "../components/home/Kit";
+import "../styles/signin.css";
 
 function GoogleLogo() {
   return (
@@ -67,21 +67,28 @@ export default function SignIn() {
   }
 
   const alreadyHasAccount = Boolean(authError && /already|exists/i.test(authError));
+  const leave = () => nav(skipTo, { replace: true });
 
   return (
-    <div className="page" style={{ gap: 16 }}>
-      <header className="hero" style={{ alignItems: "center", textAlign: "center", paddingTop: 26 }}>
-        <span className="success-burst"><Icon name={isGuest ? "lock" : "login"} size={34} color="#fff" /></span>
-        <h1>{isGuest ? "Keep your reviews" : "Sign in"}</h1>
-        <span className="pill white"><Icon name="info" size={13} />Optional</span>
+    <div className="si">
+      <div className="si-top">
+        <div className="si-brand"><span className="si-mark">T</span>Trusted Picks</div>
+        <button type="button" className="si-skip" onClick={leave}>{isGuest ? "Not now" : "Skip"}</button>
+      </div>
+
+      <header className="si-hero">
+        <span className="si-ico"><Icon name={isGuest ? "lock" : "people"} size={24} /></span>
+        <h1>{isGuest ? "Keep your reviews" : "Picks from people you trust"}</h1>
+        <p>{isGuest ? "Sign in once and your reviews follow you to any phone." : "Sign in to see what your friends loved. Reviewing never needs an account."}</p>
       </header>
-      <div className="menu">
+
+      <div className="si-perks">
         {([
-          ["star", "amber", isGuest ? "Keep your reviews on any device" : "Your reviews on every device"],
-          ["people", "violet", "See what friends loved"],
-          ["eyeOff", "green", "Anonymous unless you show your name"],
-        ] as const).map(([icon, tone, t]) => (
-          <div key={t} className="menu-row" style={{ cursor: "default" }}><Chip icon={icon} tone={tone} size="sm" /><span className="small strong grow">{t}</span></div>
+          ["star", isGuest ? "Your reviews on every device" : "Keep your reviews in one place"],
+          ["people", "See what friends loved nearby"],
+          ["eyeOff", "Anonymous unless you show your name"],
+        ] as const).map(([icon, t]) => (
+          <div key={t} className="si-perk"><span className="ci"><Icon name={icon} size={17} /></span>{t}</div>
         ))}
       </div>
 
@@ -92,28 +99,28 @@ export default function SignIn() {
         </button>
       )}
 
-      {sent === "link" ? (
-        <div className="notice ok"><Icon name="checkCircle" size={16} /> Check <b>{email}</b> for a sign-in link. You stay signed in on this device after you tap it.</div>
-      ) : sent === "confirm" ? (
-        <div className="notice ok"><Icon name="checkCircle" size={16} /> Check <b>{email}</b> and tap the link to confirm. Your reviews move to that account.</div>
+      {sent ? (
+        <div className="si-sent">
+          <span className="ci"><Glyph name="mail" size={22} /></span>
+          <h2>Check your email</h2>
+          <p>{sent === "link"
+            ? <>We sent a sign-in link to <b>{email}</b>. Tap it and you stay signed in on this device.</>
+            : <>We sent a link to <b>{email}</b>. Tap it to confirm and your reviews move to that account.</>}</p>
+          <button className="btn quiet" onClick={() => setSent("")}>Use a different email</button>
+        </div>
       ) : (
-        <form className="stack" onSubmit={sendLink}>
-          <div className="field">
-            <label htmlFor="email" className="row" style={{ gap: 6 }}><Glyph name="mail" size={14} />Email</label>
-            <input id="email" className="input" type="email" required autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <button className="btn green block" disabled={busy}><Icon name="send" size={18} />{busy ? "Sending…" : "Email me a sign-in link"}</button>
-        </form>
+        <div className="si-actions">
+          <button className="btn ghost block si-google" onClick={google}><GoogleLogo />Continue with Google</button>
+          <div className="si-or">or use your email</div>
+          <form className="si-actions" onSubmit={sendLink}>
+            <input id="email" className="input" type="email" required autoComplete="email" aria-label="Email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button className="btn green block" disabled={busy}><Icon name="send" size={18} />{busy ? "Sending…" : "Email me a sign-in link"}</button>
+          </form>
+          {err && <div className="notice err">{err}</div>}
+        </div>
       )}
 
-      <div className="row" style={{ gap: 12 }}><div className="divider grow" /><span className="tiny muted">or</span><div className="divider grow" /></div>
-      <button className="btn ghost block" onClick={google}><GoogleLogo />Continue with Google</button>
-      {err && <div className="notice err">{err}</div>}
-
-      {isGuest
-        ? <button className="btn quiet block" onClick={() => nav(skipTo, { replace: true })}>Not now</button>
-        : <Link to={skipTo} className="btn quiet block">Continue without signing in</Link>}
-      <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={12} />You stay signed in on this device</p>
+      <p className="si-note"><Icon name="lock" size={12} />No passwords. You stay signed in on this device.</p>
     </div>
   );
 }
