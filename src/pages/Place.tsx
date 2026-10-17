@@ -235,7 +235,6 @@ export default function PlacePage() {
         {cover ? <img className="pn-cover" src={cover} alt="" onError={() => setCoverOk(false)} /> : (
           <>
             <span className="pn-aur" aria-hidden="true" />
-            <span className="pn-mono" aria-hidden="true">{place.name.trim().charAt(0).toUpperCase()}</span>
           </>
         )}
         <div className="pn-fade" />

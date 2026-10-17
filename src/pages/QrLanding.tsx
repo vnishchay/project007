@@ -129,7 +129,6 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     <div className="rvx" data-stage="landing">
       {bar}
       <header className="rvx-hero">
-        <span className="rvx-mono" aria-hidden="true">{peek.place_name.trim().charAt(0).toUpperCase()}</span>
         {visit && <span className="rvx-verified"><Icon name="verified" size={14} />Verified visit</span>}
         <div className="rvx-kicker">{link ? "Review link from the shop" : peek.table_label || "Welcome"}</div>
         <h1>{peek.place_name}</h1>

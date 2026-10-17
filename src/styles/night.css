@@ -1,7 +1,6 @@
 /* The shop page, night edition: dark, cinematic, glass cards, serif names. Scoped to .pl-night so
    the review cards, Google block and links inside it pick the dark palette from the variables. */
 
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&display=swap");
 
 html:has(.pl-night), body:has(.pl-night) { background: #151311; }
 .pl-night {
@@ -39,21 +38,20 @@ html:has(.pl-night), body:has(.pl-night) { background: #151311; }
 .pl-night .gg-g, .pl-night .gg-review, .pl-night .gg-open { background: rgba(255, 255, 255, 0.08); }
 .pl-night .gg-word { color: #cfc7b9; }
 .pl-night .avatar { border: 2px solid #151311; }
-.pl-night .section-title { font-family: Fraunces, Georgia, serif; font-size: 22px; font-weight: 600; }
+.pl-night .section-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
 .pl-night .icon-chip.sm { box-shadow: none; }
 .pl-night h2 { letter-spacing: -0.01em; }
-.pn-lime { color: var(--lime); font-weight: 800; }
+.pn-lime { color: var(--lime); font-weight: 700; }
 
 /* ---------- Hero ---------- */
 .pn-hero { position: relative; margin: 0 -20px; height: 520px; overflow: hidden; background: #151311; color: #fff6ea; }
 .pn-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: pn-zoom 1.6s ease-out both; }
-.pn-mono { position: absolute; right: -10px; top: 56px; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 360px; line-height: 1; color: rgba(255, 246, 234, 0.05); user-select: none; }
 .pn-aur { position: absolute; inset: 0; background: #2b221c; }
 .pn-fade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(13, 10, 26, 0.35), transparent 28%, rgba(13, 10, 26, 0.55) 62%, #151311 100%); }
 .pn-bar { position: absolute; z-index: 3; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 18px 20px; }
-.pn-glass { height: 44px; min-width: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  background: rgba(255, 255, 255, 0.12); color: #fff6ea; font: inherit; font-weight: 800; font-size: 14px; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.pn-glass:hover { transform: scale(1.1); color: #fff; } .pn-glass:active { transform: scale(0.92); }
+.pn-glass { height: 44px; min-width: 44px; border-radius: 50%; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(255, 255, 255, 0.16); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); color: #fff6ea; font: inherit; font-weight: 600; font-size: 15px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+.pn-glass:hover { color: #fff; } .pn-glass:active { transform: scale(0.92); }
 .pn-glass[aria-pressed="true"] { color: var(--pink); background: rgba(217, 138, 122, 0.2); animation: pn-beat 0.8s ease; }
 .pn-glass.pill { padding: 0 16px; border-radius: 99px; color: #151311; background: var(--lime); border-color: transparent; }
 .pn-logo { width: 44px; height: 44px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.25); background: #fff; display: grid; place-items: center; }
@@ -61,13 +59,13 @@ html:has(.pl-night), body:has(.pl-night) { background: #151311; }
 .pn-title { position: absolute; z-index: 2; left: 22px; right: 22px; bottom: 30px; display: flex; flex-direction: column; gap: 13px; }
 .pn-title > * { animation: pn-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .pn-title > :nth-child(2) { animation-delay: 0.15s; } .pn-title > :nth-child(3) { animation-delay: 0.3s; } .pn-title > :nth-child(4) { animation-delay: 0.45s; }
-.pn-eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: var(--lime); }
-.pn-eyebrow span { width: 26px; height: 2px; background: var(--lime); flex: none; }
-.pn-title h1 { margin: 0; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: clamp(44px, 15vw, 66px); line-height: 0.94; letter-spacing: -0.02em; color: #fff6ea; overflow-wrap: anywhere; }
-.pn-title h1 i { font-weight: 500; color: var(--gold); }
+.pn-eyebrow { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lime); }
+.pn-eyebrow span { display: none; }
+.pn-title h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: clamp(42px, 14vw, 60px); line-height: 1; letter-spacing: -0.034em; color: #fff6ea; overflow-wrap: anywhere; }
+.pn-title h1 i { font-style: normal; font-weight: 700; color: var(--gold); }
 .pn-tag { margin: 0; font-size: 15px; line-height: 1.5; color: #e6dfd3; max-width: 300px; }
 .pn-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.pn-chip { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 99px; font: inherit; font-weight: 800; font-size: 13.5px; color: #fff6ea; cursor: default;
+.pn-chip { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 99px; font: inherit; font-weight: 700; font-size: 13.5px; color: #fff6ea; cursor: default;
   background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.16); }
 button.pn-chip { cursor: pointer; }
 .pn-chip span { color: #a39b90; font-weight: 600; font-size: 12.5px; }
@@ -80,14 +78,14 @@ button.pn-chip { cursor: pointer; }
 .pn-ticker-run span { display: flex; align-items: center; gap: 9px; flex: none; font-size: 13px; font-weight: 700; color: var(--ink); }
 .pn-ticker-run svg { color: var(--lime); }
 .pn-dock { display: flex; justify-content: space-around; padding: 10px 0 0; }
-.pn-act { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; color: var(--muted); animation: pn-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.pn-act { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--muted); animation: pn-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .pn-act:nth-child(2) { animation-delay: 0.08s; } .pn-act:nth-child(3) { animation-delay: 0.16s; } .pn-act:nth-child(4) { animation-delay: 0.24s; }
 .pn-act > span { width: 60px; height: 60px; border-radius: 22px; display: grid; place-items: center; color: #fff6ea; background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.14); }
 .pn-act > span.hot { background: #d4623f; border-color: transparent; }
 .pn-act:hover { transform: translateY(-3px); color: #fff; } .pn-act:active { transform: scale(0.93); }
 
 /* ---------- Section headings ---------- */
-.pn-sig h2, .pn-friends h2, .pn-links h2 { font-family: Fraunces, Georgia, serif; font-size: 28px; font-weight: 600; margin: 0 0 14px; }
+.pn-sig h2, .pn-friends h2, .pn-links h2 { font-family: var(--font-display); font-size: 28px; font-weight: 600; margin: 0 0 14px; }
 .pn-sig h2 i, .pn-friends h2 i, .pn-links h2 i { color: var(--gold); }
 .pn-friends h2 i { color: var(--pink); } .pn-links h2 i { color: var(--ember); }
 
@@ -101,7 +99,7 @@ button.pn-chip { cursor: pointer; }
 .pn-sig-img { display: block; height: 170px; border-radius: 22px; overflow: hidden; }
 .pn-sig-img .item-thumb { width: 100%; height: 100%; border-radius: 0; transition: transform 0.7s; }
 .pn-sig-card:hover .pn-sig-img .item-thumb { transform: scale(1.05); }
-.pn-sig-name { font-family: Fraunces, Georgia, serif; font-size: 21px; font-weight: 600; line-height: 1.1; padding: 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pn-sig-name { font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.1; padding: 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pn-sig-foot { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 4px; }
 .pn-sig-foot b { color: var(--gold); font-size: 16px; }
 .pn-sig-foot .pn-lime { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #151311; background: var(--lime); padding: 5px 10px; border-radius: 99px; }
@@ -114,11 +112,11 @@ button.pn-chip { cursor: pointer; }
 .pn-fr:hover { transform: translateY(-4px); border-color: rgba(229, 199, 143, 0.6); }
 .pn-fr .grow { display: flex; flex-direction: column; } .pn-fr .stars { color: var(--gold); }
 .pn-fr.solo { width: auto; flex-direction: row; align-items: center; cursor: default; }
-.pn-quote { font-family: Fraunces, Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.35; }
+.pn-quote { font-family: var(--font-display); font-size: 16px; line-height: 1.35; }
 
 /* ---------- Tabs and panels ---------- */
 .pn-tabs { position: sticky; top: 10px; z-index: 6; display: flex; gap: 4px; padding: 5px; border-radius: 22px; background: #1d1a17; border: 1px solid rgba(255, 255, 255, 0.14); scroll-margin-top: 10px; }
-.pn-tabs button { flex: 1; height: 44px; border: 0; border-radius: 17px; cursor: pointer; font: inherit; font-weight: 800; font-size: 14px; color: var(--muted); background: transparent; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.pn-tabs button { flex: 1; height: 44px; border: 0; border-radius: 17px; cursor: pointer; font: inherit; font-weight: 700; font-size: 14px; color: var(--muted); background: transparent; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .pn-tabs button span { font-size: 11px; opacity: 0.7; }
 .pn-tabs button.on { background: var(--lime); color: #151311;  }
 .pn-panel { display: flex; flex-direction: column; gap: 14px; animation: pn-fade 0.5s ease-out both; }
@@ -128,13 +126,13 @@ button.pn-chip { cursor: pointer; }
 .pn-grid { display: grid !important; grid-template-columns: 1fr 1fr; gap: 12px; overflow: visible; }
 .pn-grid .pl-product { width: auto; border-radius: 24px; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.3s; }
 .pn-grid .pl-product:hover { transform: translateY(-5px); border-color: rgba(229, 199, 143, 0.6); }
-.pn-grid .pl-product-name { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 16px; }
+.pn-grid .pl-product-name { font-family: var(--font-display); font-weight: 600; font-size: 16px; }
 .pn-grid .pl-price { color: var(--gold); }
 .pn-grid .pl-product-more { grid-column: 1 / -1; min-height: 90px; flex-direction: row; }
 .pn-photos { columns: 2; column-gap: 12px; }
 .pn-photos figure { margin: 0 0 12px; break-inside: avoid; border-radius: 24px; overflow: hidden; position: relative; animation: pn-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .pn-photos img { width: 100%; display: block; transition: transform 0.6s; } .pn-photos figure:hover img { transform: scale(1.08); }
-.pn-photos figcaption { position: absolute; left: 10px; bottom: 10px; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 99px; background: rgba(13, 10, 26, 0.7); color: #fff; }
+.pn-photos figcaption { position: absolute; left: 10px; bottom: 10px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: rgba(13, 10, 26, 0.7); color: #fff; }
 .pn-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 16px; border-radius: 26px; text-align: center; color: var(--muted); background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(255, 255, 255, 0.18); }
 
 /* ---------- Links, footer ---------- */
@@ -166,3 +164,6 @@ button.pn-chip { cursor: pointer; }
 .pl-night .pn-dock { margin-top: 24px; }
 .pn-credit { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 .pn-credit a { color: inherit; text-decoration: underline; }
+
+/* Accent words in headings keep the upright system face and take the accent colour instead. */
+.pl-night h2 i, .rvx h2 i { font-style: normal; color: var(--pink); }

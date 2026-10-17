@@ -509,7 +509,6 @@ function ReviewForm() {
 
   const hero = (
     <header className="rvx-hero">
-      <span className="rvx-mono" aria-hidden="true">{place.name.trim().charAt(0).toUpperCase()}</span>
       <span className="rvx-verified"><Icon name="verified" size={14} />Verified visit</span>
       <div className="rvx-kicker">{[place.category, place.area].filter(Boolean).join(" · ")}</div>
       <h1>{place.name}</h1>
