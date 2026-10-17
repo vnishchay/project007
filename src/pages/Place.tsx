@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Place, ReviewRow, SearchResult } from "../lib/types";
-import { fetchGoogleRating, googleConfigured, type GoogleRating } from "../lib/google";
+import { googleConfigured, type GoogleRating } from "../lib/google";
 import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
 import { placeMediaUrl } from "../lib/media";
 import { shareLink, shareOrCopy } from "../lib/invite";
@@ -91,7 +91,7 @@ export default function PlacePage() {
       const pl = data as Place | null;
       setPlace(pl);
       if (!pl) return;
-      if (pl.google_place_id) fetchGoogleRating(pl.google_place_id).then((g) => alive && setGoogle(g));
+      // The Google rating is billed per lookup, so it loads only when someone taps "See on Google".
       const [it, r, sc] = await Promise.all([
         loadShopItems(id),
         supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(100),

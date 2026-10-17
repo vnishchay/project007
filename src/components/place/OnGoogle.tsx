@@ -1,22 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { fetchGoogleDetails, googlePhotoUrl, type GoogleDetails, type GooglePhoto, type GoogleReview } from "../../lib/google";
 import { initials } from "../../lib/util";
 import { Icon, Stars } from "../ui";
-
-/** Waits until the element is near the screen (saves Google calls for people who never scroll). */
-function useNearView<T extends Element>(margin = "300px") {
-  const ref = useRef<T>(null);
-  const [near, setNear] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || near) return;
-    if (!("IntersectionObserver" in window)) { setNear(true); return; }
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setNear(true); }, { rootMargin: margin });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [near, margin]);
-  return [ref, near] as const;
-}
 
 function Photo({ p }: { p: GooglePhoto }) {
   const [broken, setBroken] = useState(false);
@@ -64,7 +49,8 @@ function Review({ r }: { r: GoogleReview }) {
 
 /** Google's own description, photos and reviews, fetched live and never saved. */
 export function OnGoogle({ googlePlaceId }: { googlePlaceId: string }) {
-  const [ref, near] = useNearView<HTMLElement>();
+  // Google bills every lookup, so nothing loads until the visitor asks for it.
+  const [near, setNear] = useState(false);
   const [d, setD] = useState<GoogleDetails | null | undefined>(undefined);
   useEffect(() => {
     if (!near) return;
@@ -73,12 +59,17 @@ export function OnGoogle({ googlePlaceId }: { googlePlaceId: string }) {
     return () => { alive = false; };
   }, [near, googlePlaceId]);
 
+  if (!near) return (
+    <button type="button" className="btn ghost block" id="on-google" onClick={() => setNear(true)}>
+      <span className="gg-g" aria-hidden="true">G</span>See rating, photos and reviews on Google
+    </button>
+  );
   if (d === null) return null;
   const empty = d && !d.summary && !d.photos.length && !d.reviews.length && d.rating == null;
   if (empty && !d.mapsUri) return null;
 
   return (
-    <section ref={ref} className="gg" id="on-google" aria-label="On Google">
+    <section className="gg" id="on-google" aria-label="On Google">
       <div className="gg-head">
         <span className="gg-g" aria-hidden="true">G</span>
         <span className="grow stack tight">
