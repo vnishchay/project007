@@ -55,7 +55,7 @@ function withCustomTags(body: string, custom: string[]): string {
 }
 
 /** Can this person write a review here? Only during a visit started by a table QR scan. */
-type Gate = "loading" | "ok" | "scan" | "guest_used" | "owner";
+type Gate = "loading" | "ok" | "scan" | "guest_used" | "owner" | "paused";
 
 async function checkGate(placeId: string, uid: string): Promise<Gate> {
   const r = await supabase.rpc("can_review", { p_place: placeId, p_device: deviceId() });
@@ -68,6 +68,17 @@ async function checkGate(placeId: string, uid: string): Promise<Gate> {
 
 function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string; reason: Gate }) {
   const used = reason === "guest_used";
+  if (reason === "paused") return (
+    <div className="page">
+      <TopBar title={name || "Reviews"} />
+      <div className="card rv-gate center">
+        <span className="icon-chip lg sky" style={{ margin: "0 auto" }}><Icon name="clock" size={26} /></span>
+        <h2>Reviews are paused here for now</h2>
+        <p className="small muted">You can still see what people loved at this shop.</p>
+        <Link to={`/p/${placeId}`} className="btn green block"><Icon name="eye" size={18} />See reviews</Link>
+      </div>
+    </div>
+  );
   if (reason === "owner") return (
     <div className="page">
       <TopBar title={name || "Reviews"} />

@@ -57,7 +57,7 @@ export function errorText(e: unknown): string {
   if (!e) return "Something went wrong";
   if (typeof e === "string") return e;
   const m = (e as { message?: string }).message;
-  return m || "Something went wrong";
+  return m ? m.charAt(0).toUpperCase() + m.slice(1) : "Something went wrong";
 }
 
 /**
