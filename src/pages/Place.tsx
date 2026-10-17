@@ -16,12 +16,13 @@ import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
 import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
+import { sortReviews, summarize, type ReviewSort } from "../lib/reviews";
 import "../styles/place.css";
 
 export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
 
 interface Stat { sum: number; count: number }
-type Filter = "all" | "photos" | "friends" | `item:${string}`;
+type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}`;
 
 /** Newest columns first; older databases lack kind, then links, then cover/logo. */
 async function loadPlace(id: string) {
@@ -76,6 +77,7 @@ export default function PlacePage() {
   const [loadErr, setLoadErr] = useState("");
   const [allHours, setAllHours] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
+  const [sort, setSort] = useState<ReviewSort>("useful");
   const [coverOk, setCoverOk] = useState(true);
   const [attempt, setAttempt] = useState(0);
 
@@ -137,16 +139,18 @@ export default function PlacePage() {
   const products = useMemo(() => sortShopItems(items, (i) => stats.get(i.id)?.count ?? 0), [items, stats]);
   const imageOf = useMemo(() => new Map(items.map((i) => [i.id, i.image_path])), [items]);
   const isFriend = (r: ReviewRow) => Boolean(r.user_id && friends.has(r.user_id));
-  const sorted = useMemo(() => [...reviews].sort((a, b) => Number(isFriend(b)) - Number(isFriend(a))),
+  const sorted = useMemo(() => sortReviews(reviews, sort, isFriend),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reviews, friends]);
+    [reviews, friends, sort]);
+  const sum = useMemo(() => summarize(reviews), [reviews]);
   const reviewedItems = useMemo(() => {
     const seen = new Map<string, string>();
     for (const r of reviews) if (r.items?.name && !seen.has(r.item_id)) seen.set(r.item_id, r.items.name);
     return [...seen].map(([itemId, name]) => ({ id: itemId, name, count: stats.get(itemId)?.count ?? 0 })).sort((a, b) => b.count - a.count);
   }, [reviews, stats]);
   const shown = sorted.filter((r) =>
-    filter === "all" ? true : filter === "photos" ? Boolean(r.photo_path) : filter === "friends" ? isFriend(r) : r.item_id === filter.slice(5));
+    filter === "all" ? true : filter === "photos" ? Boolean(r.photo_path) : filter === "friends" ? isFriend(r)
+    : filter.startsWith("stars:") ? r.rating === Number(filter.slice(6)) : r.item_id === filter.slice(5));
 
   async function toggleSave() {
     if (!me) { toast("Sign in to save places"); return; }
@@ -250,7 +254,7 @@ export default function PlacePage() {
 
         {canRate
           ? <Link to={rateUrl} className="btn green block pl-cta"><Icon name="star" size={20} fill="#fff" />Rate what you had</Link>
-          : <Link to="/scan" className="btn ghost block pl-cta"><Icon name="scan" size={20} />At the shop? Scan the table QR to review</Link>}
+          : <p className="pl-cta-note"><Icon name="qr" size={16} />At the shop? Point your phone camera at the QR on your table to review.</p>}
       </section>
 
       <ShopLinks links={links} />
@@ -313,6 +317,44 @@ export default function PlacePage() {
           <span className="grow">Reviews</span>
           {reviews.length > 0 && <span className="muted">{reviews.length}</span>}
         </div>
+        {reviews.length > 0 && (
+          <div className="rs" aria-label="Review summary">
+            <div className="rs-avg">
+              <b>{sum.average.toFixed(1)}</b>
+              <Stars value={Math.round(sum.average)} size={14} />
+              <span className="tiny muted">{sum.count} review{sum.count === 1 ? "" : "s"}</span>
+            </div>
+            <div className="rs-bars" role="group" aria-label="Filter by stars">
+              {[5, 4, 3, 2, 1].map((n) => {
+                const c = sum.stars[n - 1] ?? 0;
+                const f = `stars:${n}` as const;
+                return (
+                  <button key={n} type="button" className={`rs-bar ${filter === f ? "on" : ""}`} disabled={!c} aria-pressed={filter === f}
+                    aria-label={`${n} stars: ${c}`} onClick={() => setFilter(filter === f ? "all" : f)}>
+                    <span>{n}★</span><span className="track"><span className="fill" style={{ width: `${sum.count ? (c / sum.count) * 100 : 0}%` }} /></span><span>{c}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {(sum.liked.length > 0 || sum.better.length > 0) && (
+              <div className="rs-tags">
+                {sum.liked.length > 0 && <div><span className="lbl row" style={{ gap: 4 }}><Icon name="thumbs" size={13} />Liked</span>{sum.liked.map(([l, n]) => <span key={l} className="rc-tag">{l}<span>{n}</span></span>)}</div>}
+                {sum.better.length > 0 && <div><span className="lbl row" style={{ gap: 4 }}><Icon name="thumbsDown" size={13} />Could be better</span>{sum.better.map(([l, n]) => <span key={l} className="rc-tag bad">{l}<span>{n}</span></span>)}</div>}
+              </div>
+            )}
+          </div>
+        )}
+        {reviews.length > 1 && (
+          <div className="row" style={{ gap: 8 }}>
+            <span className="small muted">{shown.length === reviews.length ? "All reviews" : `${shown.length} of ${reviews.length}`}</span>
+            <select className="select pl-sort" style={{ width: "auto", padding: "6px 10px", fontSize: 13 }} value={sort} onChange={(e) => setSort(e.target.value as ReviewSort)} aria-label="Sort reviews">
+              <option value="useful">Most useful</option>
+              <option value="newest">Newest</option>
+              <option value="high">Highest rated</option>
+              <option value="low">Lowest rated</option>
+            </select>
+          </div>
+        )}
         {reviews.length > 1 && (
           <div className="hscroll pl-filters" role="group" aria-label="Filter reviews">
             <button type="button" className={`chip ${filter === "all" ? "on" : ""}`} aria-pressed={filter === "all"} onClick={() => setFilter("all")}><Icon name="list" size={15} />All</button>
@@ -329,10 +371,10 @@ export default function PlacePage() {
           </div>
         )}
         {reviews.length === 0 ? (
-          <Link to={rateUrl} className="pl-empty-reviews">
+          <Link to={canRate ? rateUrl : "#"} className="pl-empty-reviews" onClick={canRate ? undefined : (e) => e.preventDefault()}>
             <span className="icon-chip lg amber"><Icon name="star" size={26} fill="currentColor" /></span>
             <b>No reviews yet</b>
-            <span className="small muted">Be the first</span>
+            <span className="small muted">{canRate ? "Be the first" : "Customers review by scanning the QR at the shop"}</span>
           </Link>
         ) : shown.length === 0 ? <div className="empty"><Icon name="filter" size={28} /><p className="small">Nothing here</p></div> :
           shown.map((r) => (

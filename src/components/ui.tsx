@@ -15,7 +15,7 @@ const ICONS = {
   bookmark: L.Bookmark, share: L.Share2, mic: L.Mic, spark: L.Sparkles, copy: L.Copy, external: L.ExternalLink,
   store: L.Store, shield: L.ShieldCheck, plus: L.Plus, print: L.Printer, download: L.Download, camera: L.Camera,
   image: L.Image, imagePlus: L.ImagePlus, edit: L.Pencil, trash: L.Trash2, eye: L.Eye, eyeOff: L.EyeOff,
-  food: L.Utensils, heart: L.Heart, message: L.MessageSquare, thumbs: L.ThumbsUp, verified: L.BadgeCheck,
+  food: L.Utensils, heart: L.Heart, message: L.MessageSquare, thumbs: L.ThumbsUp, thumbsDown: L.ThumbsDown, verified: L.BadgeCheck,
   clock: L.Clock, phone: L.Phone, navigate: L.Navigation, link: L.Link, settings: L.Settings, logout: L.LogOut,
   login: L.LogIn, crown: L.Crown, box: L.Package, tag: L.Tag, rupee: L.IndianRupee, grip: L.GripVertical,
   flame: L.Flame, trophy: L.Trophy, award: L.Award, lock: L.Lock, send: L.Send, info: L.Info, alert: L.CircleAlert,
@@ -102,8 +102,6 @@ function BottomNav() {
     <nav className="nav no-print" aria-label="Main">
       <NavLink to="/" end><Icon name="home" size={22} />Discover</NavLink>
       <NavLink to="/circle"><Icon name="people" size={22} />Friends</NavLink>
-      <NavLink to="/scan" aria-label="Scan a table QR"><span className="scan-dot"><Icon name="scan" size={22} color="#fff" /></span></NavLink>
-      <NavLink to="/rate"><Icon name="star" size={22} />Rate</NavLink>
       <NavLink to="/me"><Icon name="user" size={22} />You</NavLink>
     </nav>
   );

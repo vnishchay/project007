@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./styles.css";
 import "./lib/invite";
 import { AuthProvider } from "./lib/auth";
@@ -10,7 +10,6 @@ import Discover from "./pages/Discover";
 import PlacePage from "./pages/Place";
 import SignIn from "./pages/SignIn";
 import QrLanding from "./pages/QrLanding";
-import Scan from "./pages/Scan";
 import Review from "./pages/Review";
 import Saved from "./pages/Saved";
 import Circle from "./pages/Circle";
@@ -20,7 +19,6 @@ import Business from "./pages/Business";
 import Admin from "./pages/Admin";
 import AdminPlace from "./pages/AdminPlace";
 import NotFound from "./pages/NotFound";
-import Rate from "./pages/Rate";
 import Manage from "./pages/Manage";
 
 function Setup() {
@@ -45,8 +43,9 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/q/:token" element={<QrLanding />} />
                 <Route path="/r/:token" element={<QrLanding link />} />
                 <Route path="/signin" element={<SignIn />} />
-                <Route path="/scan" element={<Scan />} />
-                <Route path="/rate" element={<Rate />} />
+                {/* Customers scan table QRs with their phone camera; old in-app links go home. */}
+                <Route path="/scan" element={<Navigate to="/" replace />} />
+                <Route path="/rate" element={<Navigate to="/" replace />} />
                 <Route path="/u/:id" element={<Person />} />
                 <Route path="/review/:placeId" element={<Review />} />
                 <Route path="/saved/:reviewId" element={<RequireAuth guestOk><Saved /></RequireAuth>} />

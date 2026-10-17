@@ -112,7 +112,28 @@ a.pl-stats-link, .pl-stats a:hover { color: var(--ink); }
 .rc-voice { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 6px; border-radius: 14px; background: var(--sky-soft); }
 .rc-voice audio { flex: 1; min-width: 0; height: 34px; }
 .rc-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.rc-tags { align-items: center; }
 .rc-tag { padding: 4px 10px; border-radius: 999px; background: var(--green-soft); color: var(--green-dark); font-weight: 700; font-size: 12px; }
+.rc-tag.bad { background: var(--coral-soft); color: #a8432a; }
+.rc-rating { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rc-word { font-weight: 800; font-size: 13px; color: var(--ink); }
+
+/* ---------- Review summary on the shop page ---------- */
+.rs { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; display: grid; grid-template-columns: auto 1fr; gap: 12px 18px; align-items: center; }
+.rs-avg { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 84px; }
+.rs-avg b { font-size: 36px; line-height: 1; letter-spacing: -0.02em; }
+.rs-bars { display: flex; flex-direction: column; gap: 4px; }
+.rs-bar { display: grid; grid-template-columns: 22px 1fr 28px; align-items: center; gap: 8px; border: 0; background: none; padding: 2px 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; color: var(--muted); text-align: left; }
+.rs-bar .track { height: 8px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+.rs-bar .fill { display: block; height: 100%; border-radius: 999px; background: var(--amber); }
+.rs-bar.on { color: var(--ink); }
+.rs-bar.on .fill { background: var(--green); }
+.rs-bar:disabled { cursor: default; opacity: 0.55; }
+.rs-tags { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.rs-tags > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rs-tags .lbl { font-size: 12px; font-weight: 800; color: var(--muted); margin-right: 2px; }
+.rs-tags .rc-tag span { opacity: 0.7; margin-left: 4px; }
+.pl-sort { margin-left: auto; }
 
 /* ---------- Product picker ---------- */
 .pp-row { gap: 10px; padding-top: 4px; padding-bottom: 10px; }
@@ -218,3 +239,4 @@ a.gg-name:hover { color: var(--ink); text-decoration: underline; }
 .rc-report-menu { position: absolute; right: 0; bottom: 34px; z-index: 5; display: flex; flex-direction: column; min-width: 200px; padding: 6px; border-radius: 14px; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
 .rc-report-menu button { text-align: left; padding: 10px 12px; border: 0; background: none; border-radius: 10px; font: inherit; font-size: 14px; cursor: pointer; }
 .rc-report-menu button:hover { background: #f3f4f2; }
+.pl-cta-note { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 10px 14px; border-radius: 14px; background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 600; }

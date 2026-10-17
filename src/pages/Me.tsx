@@ -13,6 +13,8 @@ interface SavedRow { place_id: string; places: { name: string; area: string | nu
 interface Draft { id: string; rating: number; body: string }
 interface MyPlace { id: string; name: string; area: string | null; city: string; status: string; cover_path: string | null; logo_path: string | null }
 
+interface OpenVisit { place_id: string; expires_at: string; places: { name: string; area: string | null; category: string } | null }
+
 export default function Me() {
   const { session, profile, refreshProfile, signOut, isAdmin, isGuest } = useAuth();
   const me = session!.user.id;
@@ -48,6 +50,17 @@ export default function Me() {
       .then(({ data, error }) => { if (error) setSavedErr(errorText(error)); else setSaved((data as unknown as SavedRow[]) || []); });
   }, [me]);
   useEffect(() => { loadReviews(); loadSaved(); }, [loadReviews, loadSaved]);
+
+  // Shops you scanned into recently and can still review (the visit is open).
+  const [openVisits, setOpenVisits] = useState<OpenVisit[]>([]);
+  useEffect(() => {
+    supabase.from("visits").select("place_id, expires_at, places(name, area, category)").eq("user_id", me)
+      .gt("expires_at", new Date().toISOString()).order("scanned_at", { ascending: false }).limit(10)
+      .then(({ data }) => {
+        const seen = new Set<string>();
+        setOpenVisits(((data as unknown as OpenVisit[]) || []).filter((v) => v.places && !seen.has(v.place_id) && seen.add(v.place_id)));
+      });
+  }, [me]);
 
   // Friends and your shops. Both quietly stay empty on a database without them.
   useEffect(() => {
@@ -212,6 +225,24 @@ export default function Me() {
         </>
       )}
 
+      {openVisits.length > 0 && (
+        <section className="stack" style={{ gap: 10 }}>
+          <SectionTitle icon="star" tone="amber">Ready to rate</SectionTitle>
+          <div className="menu">
+            {openVisits.map((v) => (
+              <Link key={v.place_id} to={`/review/${v.place_id}`} className="menu-row">
+                <Chip icon={lookFor(v.places!.category).icon} tone={lookFor(v.places!.category).tone} />
+                <span className="grow stack tight" style={{ minWidth: 0 }}>
+                  <span className="t ellipsis">{v.places!.name}</span>
+                  <span className="s ellipsis">{[v.places!.area, "you scanned here"].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className="pill verified"><Icon name="star" size={13} />Rate now</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="tabs" role="tablist" aria-label="Your activity">
         <button type="button" role="tab" aria-selected={tab === "reviews"} className={tab === "reviews" ? "on" : ""} onClick={() => setTab("reviews")}>
           <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="star" size={16} />Reviews{reviews ? ` ${reviews.length}` : ""}</span>
@@ -227,7 +258,7 @@ export default function Me() {
         reviews.length === 0 ? (
           <div className="card">
             <EmptyArt icon="star" tone="amber" title="No reviews yet">
-              <Link to="/scan" className="btn green small"><Icon name="scan" size={16} />Scan a table QR</Link>
+              <span className="small muted">At a shop, point your phone camera at the QR on your table to review.</span>
             </EmptyArt>
           </div>
         ) : (

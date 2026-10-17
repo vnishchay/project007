@@ -4,6 +4,7 @@ import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { timeAgo } from "../lib/util";
+import { splitTags, tagLabels } from "../lib/reviews";
 import { Avatar, Icon, Stars, useToast, type IconName } from "./ui";
 import { ItemThumb } from "./place/ItemThumb";
 import "../styles/place.css";
@@ -24,6 +25,8 @@ export function VoiceNote({ path }: { path: string }) {
     </div>
   ) : null;
 }
+
+export const RATING_WORDS = ["", "Not good", "Okay", "Good", "Great", "Loved it"];
 
 // Anonymous reviews show only a rough date, so a time can't point to a person.
 function roughDate(iso: string): string {
@@ -46,7 +49,7 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
 }) {
   const anon = !r.user_id;
   const name = mine ? "You" : anon ? "Anonymous" : r.author_name || "Someone";
-  const tags = (r.review_tags || []).map((t) => t.tags?.label).filter(Boolean) as string[];
+  const { good, bad } = splitTags(tagLabels(r));
   const who = anon || !r.author_name
     ? <span className="avatar rc-anon" aria-hidden="true"><Icon name="user" size={20} /></span>
     : <Link to={`/u/${r.user_id}`} aria-label={`${name}'s profile`}><Avatar id={r.user_id!} name={r.author_name} path={r.author_avatar} /></Link>;
@@ -61,23 +64,21 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
             {friend && !mine && <span className="badge"><Icon name="people" size={12} />Friend</span>}
             {expert && !mine && <span className="badge warn"><Icon name="award" size={12} />{expert}</span>}
           </span>
-          <span className="row" style={{ gap: 8 }}>
-            <Stars value={r.rating} size={15} />
-            <span className="tiny muted">{anon && !mine ? roughDate(r.created_at) : timeAgo(r.created_at)}</span>
-          </span>
+          <span className="tiny muted">{anon && !mine ? roughDate(r.created_at) : timeAgo(r.created_at)}</span>
         </div>
         {r.verified && <span className="rc-verified" title={r.source === "link" ? "From the shop's review link" : "Scanned at the shop"} aria-label="Verified visit"><Icon name="verified" size={20} /></span>}
       </div>
-      {(r.items?.name || (showPlace && r.places)) && (
-        <div className="rc-item">
-          {r.items?.name && <span className="rc-chip"><ItemThumb path={itemImage} icon={itemIcon} size={26} />{r.items.name}</span>}
-          {showPlace && r.places ? <Link to={`/p/${r.place_id}`} className="rc-chip place"><Icon name="store" size={14} />{r.places.name}</Link> : null}
-        </div>
-      )}
+      <div className="rc-rating">
+        <Stars value={r.rating} size={16} />
+        <span className="rc-word">{RATING_WORDS[r.rating] || ""}</span>
+        {r.items?.name && <span className="rc-chip"><ItemThumb path={itemImage} icon={itemIcon} size={26} />{r.items.name}</span>}
+        {showPlace && r.places ? <Link to={`/p/${r.place_id}`} className="rc-chip place"><Icon name="store" size={14} />{r.places.name}</Link> : null}
+      </div>
+      {good.length > 0 && <div className="rc-tags" aria-label="Liked"><Icon name="thumbs" size={14} color="var(--green)" />{good.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
+      {bad.length > 0 && <div className="rc-tags" aria-label="Could be better"><Icon name="thumbsDown" size={14} color="var(--coral)" />{bad.map((t) => <span key={t} className="rc-tag bad">{t}</span>)}</div>}
       {r.body && <p className="rc-body">{r.body}</p>}
       {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${r.items?.name || "the order"}`} />}
       {r.voice_path && <VoiceNote path={r.voice_path} />}
-      {tags.length > 0 && <div className="rc-tags">{tags.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
       <div className="rc-foot">
         {r.source && <span className="tiny muted row" style={{ gap: 4 }}><Icon name={r.source === "link" ? "link" : "qr"} size={12} />{r.source === "link" ? "From the shop's review link" : "Scanned at the shop"}</span>}
         <span className="grow" />

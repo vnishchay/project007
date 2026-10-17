@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { isNegativeTag } from "../lib/reviews";
+import { RATING_WORDS } from "../components/ReviewCard";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -14,7 +16,6 @@ import { modeOf, tagFits } from "../lib/modes";
 import "../styles/place.css";
 
 type ItemOpt = ShopItem & { count: number };
-const RATING_WORDS = ["", "Not good", "Okay", "Good", "Great", "Loved it"];
 
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 type RecognitionCtor = new () => Recognition;
@@ -87,10 +88,8 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
         <h2>{used ? "You've reviewed here from this phone" : "Reviews come from people at the shop"}</h2>
         <p className="small muted">{used
           ? "Without signing in, each phone gets one review per place. Sign in to rate more of what you had."
-          : "Scan the QR code on your table or counter, or open the review link the shop sent you. It keeps every review genuine."}</p>
-        {used
-          ? <Link to={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`} className="btn green block"><Icon name="login" size={18} />Sign in</Link>
-          : <Link to="/scan" className="btn green block"><Icon name="scan" size={18} />Scan the table QR</Link>}
+          : "Point your phone camera at the QR code on your table or counter, or open the review link the shop sent you. It keeps every review genuine."}</p>
+        {used && <Link to={`/signin?next=${encodeURIComponent(`/review/${placeId}`)}`} className="btn green block"><Icon name="login" size={18} />Sign in</Link>}
         <Link to={`/p/${placeId}`} className="btn ghost block"><Icon name="eye" size={18} />See reviews</Link>
       </div>
     </div>
@@ -389,8 +388,9 @@ function ReviewForm() {
         {picked1 && !custom && <div className="rv-chosen"><Icon name="check" size={16} width={3} /><span className="grow ellipsis">{picked1.name}</span></div>}
         <StarInput value={rating} onChange={setRating} />
         <div className="rv-rating-word" aria-live="polite">{RATING_WORDS[rating] || <span className="muted small">Tap to rate</span>}</div>
-        <div className="chips" role="group" aria-label="Tags" style={{ justifyContent: "center" }}>
-          {tags.map((t) => <button key={t.id} type="button" aria-pressed={picked.includes(t.id)} className={`tag ${picked.includes(t.id) ? "" : "off"}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
+        <div className="rv-tag-head"><Icon name="thumbs" size={14} color="var(--green)" />What was good?</div>
+        <div className="chips" role="group" aria-label="What was good" style={{ justifyContent: "center" }}>
+          {tags.filter((t) => !isNegativeTag(t.label)).map((t) => <button key={t.id} type="button" aria-pressed={picked.includes(t.id)} className={`tag ${picked.includes(t.id) ? "" : "off"}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
           {customTags.map((t) => (
             <button key={`c-${t}`} type="button" className="tag" aria-label={`Remove tag ${t}`} onClick={() => setCustomTags((c) => c.filter((x) => x !== t))}>
               {t} <span aria-hidden="true">×</span>
@@ -418,6 +418,12 @@ function ReviewForm() {
             </span>
           )}
         </div>
+        {tags.some((t) => isNegativeTag(t.label)) && <>
+          <div className="rv-tag-head"><Icon name="thumbsDown" size={14} color="var(--coral)" />What could be better?</div>
+          <div className="chips" role="group" aria-label="What could be better" style={{ justifyContent: "center" }}>
+            {tags.filter((t) => isNegativeTag(t.label)).map((t) => <button key={t.id} type="button" aria-pressed={picked.includes(t.id)} className={`tag bad ${picked.includes(t.id) ? "" : "off"}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
+          </div>
+        </>}
       </section>
 
       <section className="rv-section">
