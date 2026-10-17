@@ -18,6 +18,9 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
+/** Why the last guest sign-in failed (Supabase's own wording), for the console and the page to show. */
+export let lastGuestError = "";
+
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -86,7 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     startGuest: async () => {
       if ((await supabase.auth.getSession()).data.session) return true;
       const { error } = await supabase.auth.signInAnonymously();
-      if (error) { setAuthError(null); return false; }
+      if (error) { lastGuestError = error.message; console.warn("Guest sign-in failed:", error.message); setAuthError(null); return false; }
+      lastGuestError = "";
       return true;
     },
     authError,

@@ -2,7 +2,7 @@ import { setFocusShop } from "../lib/focus";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
-import { useAuth } from "../lib/auth";
+import { lastGuestError, useAuth } from "../lib/auth";
 import { getLocation } from "../lib/util";
 import { Icon, Spinner, TopBar } from "../components/ui";
 import { Chip, EmptyArt, Glyph, Retry } from "../components/home/Kit";
@@ -110,7 +110,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       navTo(`/review/${peek!.place_id}`);
     } else {
       startingGuest.current = false;
-      setGuestErr("Reviewing without an account isn't switched on yet. Sign in to continue.");
+      // "Anonymous sign-ins are disabled" means the Supabase switch is off; anything else is usually a blip.
+      setGuestErr(/anonymous/i.test(lastGuestError) && /disabled/i.test(lastGuestError)
+        ? "Reviewing without an account is switched off for this app right now. Sign in to continue, or ask the shop to tell the app owner."
+        : "We couldn't start your review just now. Tap again, or sign in to continue.");
     }
   }
 
