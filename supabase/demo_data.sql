@@ -375,6 +375,10 @@ $demo$;
 -- =====================================================================================
 -- Menu: every dish and service with price, description, section and a picture.
 -- =====================================================================================
+-- One demo shop per name (the oldest), in case a name was added twice by hand or by an older copy of this file.
+drop table if exists tp_pl;
+create temp table tp_pl as select distinct on (name) id, name from public.places where about like '[Demo]%' order by name, created_at, id;
+
 drop table if exists tp_items;
 create temp table tp_items (shop text, name text, section text, price int, descr text, ord int, topic text, pic text);
 insert into tp_items values
@@ -661,7 +665,7 @@ insert into tp_items values
 insert into public.items (place_id, topic_id, name, price_inr, description, section, image_path, is_listed, is_hidden, sort_order)
 select p.id, t.id, d.name, d.price, d.descr, d.section, d.pic, true, false, d.ord
 from tp_items d
-join public.places p on p.name = d.shop and p.about like '[Demo]%'
+join tp_pl l on l.name = d.shop join public.places p on p.id = l.id
 left join public.topics t on t.name = d.topic
 on conflict (place_id, name_normalized) do update
   set price_inr = excluded.price_inr, description = excluded.description, section = excluded.section, is_listed = true, is_hidden = false,
@@ -746,7 +750,7 @@ insert into tp_news values
 
 insert into public.place_updates (place_id, body, link_url, created_by, created_at)
 select p.id, n.body, n.link, p.owner_id, now() - make_interval(days => n.days_ago, hours => (abs(hashtext(n.body)::bigint) % 10)::int)
-from tp_news n join public.places p on p.name = n.shop and p.about like '[Demo]%'
+from tp_news n join tp_pl l on l.name = n.shop join public.places p on p.id = l.id
 where not exists (select 1 from public.place_updates x where x.place_id = p.id and x.body = n.body);
 
 -- =====================================================================================
@@ -888,7 +892,7 @@ insert into tp_qr values
 
 insert into public.qr_codes (place_id, token, style, table_label, seats, jar_size, active, created_at)
 select p.id, d.token, d.style::public.qr_style, d.label, d.seats, d.seats, true, now() - make_interval(days => d.age)
-from tp_qr d join public.places p on p.name = d.shop and p.about like '[Demo]%'
+from tp_qr d join tp_pl l on l.name = d.shop join public.places p on p.id = l.id
 on conflict (token) do update set table_label = excluded.table_label, seats = excluded.seats, jar_size = excluded.jar_size, active = true;
 
 
@@ -1135,14 +1139,14 @@ insert into public.visits (id, user_id, place_id, qr_code_id, scanned_at, expire
 select md5('xv' || e.shop || e.user_ord::text || e.item_ord::text)::uuid, ('de000000-0000-4000-8000-' || lpad(e.user_ord::text, 12, '0'))::uuid, p.id,
        case when e.src = 'qr' then (select c.id from public.qr_codes c where c.place_id = p.id and c.active order by c.created_at limit 1) end,
        now() - make_interval(hours => e.ago_hours) - interval '1 hour', now() - make_interval(hours => e.ago_hours) + interval '5 hours', e.src, e.near
-from tp_extra e join public.places p on p.name = e.shop and p.about like '[Demo]%'
+from tp_extra e join tp_pl l on l.name = e.shop join public.places p on p.id = l.id
 on conflict (id) do nothing;
 insert into public.reviews (id, user_id, place_id, item_id, rating, body, ai_drafted, visit_id, is_public, by_guest, device_hash, created_at, updated_at)
 select md5('xr' || e.shop || e.user_ord::text || e.item_ord::text)::uuid, ('de000000-0000-4000-8000-' || lpad(e.user_ord::text, 12, '0'))::uuid, p.id, it.id, e.rating, e.body, false,
        md5('xv' || e.shop || e.user_ord::text || e.item_ord::text)::uuid, e.user_ord <= 48 or e.user_ord between 57 and 140, e.user_ord > 140 or e.user_ord between 49 and 56,
        case when e.device = 'busy' then md5('busy-device') when e.user_ord > 140 or e.user_ord between 49 and 56 then md5(e.user_ord::text || p.id::text) end,
        now() - make_interval(hours => e.ago_hours), now() - make_interval(hours => e.ago_hours)
-from tp_extra e join public.places p on p.name = e.shop and p.about like '[Demo]%'
+from tp_extra e join tp_pl l on l.name = e.shop join public.places p on p.id = l.id
 join public.items it on it.place_id = p.id and it.sort_order = e.item_ord
 on conflict (id) do nothing;
 
@@ -1198,7 +1202,7 @@ update public.subscriptions s set
   provider_customer_id = case when t.sub_status = 'trial' then null else 'cust_demo_' || left(md5(p.id::text), 10) end,
   cancel_at_period_end = (t.sub_status = 'cancelled'),
   trial_reviews_left = t.trial_left, updated_at = now()
-from tp_shops t join public.places p on p.name = t.name and p.about like '[Demo]%'
+from tp_shops t join tp_pl l on l.name = t.name join public.places p on p.id = l.id
 where s.place_id = p.id;
 
 delete from public.billing_orders where provider_order_id like 'order_demo_%';
@@ -1262,7 +1266,7 @@ select p.id, ('de000000-0000-4000-8000-' || lpad(v.u::text, 12, '0'))::uuid, v.k
 from (values ('Tandoor Tales', 7, 'claim', 'owner', '+919876500011', 'pending', 3), ('Chaat Street', 12, 'claim', 'manager', '+919876500012', 'pending', 5),
              ('Green Bowl', 20, 'access', 'staff', '+919876500013', 'pending', 2), ('Bombay Bites', 33, 'claim', 'owner', '+919876500014', 'rejected', 12),
              ('Gadget Galaxy', 36, 'claim', 'owner', '+919876500015', 'pending', 1)) as v (pn, u, k, r, ph, st, d)
-join public.places p on p.name = v.pn and p.about like '[Demo]%';
+join tp_pl l on l.name = v.pn join public.places p on p.id = l.id;
 
 alter table public.reviews enable trigger reviews_check_allowed;
 alter table public.reviews enable trigger reviews_stats;
