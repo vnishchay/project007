@@ -28,7 +28,7 @@
 .mg-busy .spinner { margin: 0; }
 
 /* ---------- Tabs with icons ---------- */
-.mg-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; background: var(--surface); padding: 4px; border-radius: 18px; position: sticky; top: 8px; z-index: 8; box-shadow: 0 0 0 6px var(--bg); }
+.mg-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; background: var(--surface); padding: 4px; border-radius: 18px; position: sticky; top: 8px; z-index: 8; box-shadow: 0 0 0 6px var(--bg); }
 .mg-tabs button {
   border: 0; background: none; padding: 8px 0 7px; border-radius: 14px; cursor: pointer; color: var(--muted); min-width: 0;
   display: flex; flex-direction: column; align-items: center; gap: 3px; font-weight: 700; font-size: 11px; letter-spacing: -0.01em;
@@ -276,3 +276,15 @@
 .ai-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ai-list li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.4; }
 .ai-list li svg { flex: none; margin-top: 2px; }
+
+/* Plan tab */
+.pn-bar { height: 8px; border-radius: 99px; background: var(--surface); overflow: hidden; }
+.pn-bar span { display: block; height: 100%; background: var(--green); border-radius: 99px; }
+.pn-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--surface); padding: 4px; border-radius: 14px; }
+.pn-seg button { border: 0; background: none; padding: 9px 6px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.pn-seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+.pn-plan { display: flex; flex-direction: column; gap: 10px; }
+.pn-plan.on { outline: 2px solid var(--green); }
+.pn-price { font-weight: 700; font-size: 18px; }
+.pn-feat { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.pn-feat li { display: flex; gap: 6px; align-items: center; }

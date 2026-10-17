@@ -246,3 +246,11 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 1px 
 .mi-name:focus { border-bottom: 1px solid var(--green); }
 .mi-price { display: inline-flex; align-items: center; gap: 2px; background: var(--surface); border-radius: 10px; padding: 4px 8px; flex: none; }
 .mi-price input { width: 52px; border: 0; background: none; font-weight: 700; outline: none; text-align: right; }
+
+/* Pricing and policy pages */
+.legal h2 { font-size: 20px; }
+.legal h3 { font-size: 16px; margin-top: 4px; }
+.legal p, .legal li { font-size: 15px; line-height: 1.55; }
+.legal ul { padding-left: 20px; margin: 0; display: grid; gap: 6px; }
+.legal-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.legal-table th, .legal-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }

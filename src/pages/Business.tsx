@@ -240,6 +240,9 @@ export default function Business() {
           </form>
         )}
       </div>
+      <nav className="row wrap tiny muted center" style={{ gap: 12, justifyContent: "center", marginTop: 8 }}>
+        <Link to="/pricing">Pricing</Link><Link to="/terms">Terms</Link><Link to="/refunds">Refunds</Link><Link to="/privacy">Privacy</Link><Link to="/contact">Contact</Link>
+      </nav>
     </div>
   );
 }

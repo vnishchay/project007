@@ -13,6 +13,7 @@ import { LinksEditor } from "../components/manage/LinksEditor";
 import { Updates } from "../components/manage/Updates";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
 import { ReviewLinks } from "../components/manage/ReviewLinks";
+import { Plan } from "../components/manage/Plan";
 import type { IconName } from "../components/ui";
 import { modeOf } from "../lib/modes";
 import "../styles/manage.css";
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "updates", label: "Updates", icon: "message" },
   { id: "details", label: "Details", icon: "store" },
   { id: "qr", label: "QR", icon: "qr" },
+  { id: "plan", label: "Plan", icon: "crown" },
 ];
 
 export default function Manage() {
@@ -104,6 +106,7 @@ export default function Manage() {
           <ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} />
           <ReviewLinks placeId={place.id} placeName={place.name} live={place.status === "live"} />
         </>}
+        {tab === "plan" && <Plan placeId={place.id} placeName={place.name} />}
       </div>
       {tab === "qr" && <QrPrintSheet place={place} codes={codes} />}
     </div>

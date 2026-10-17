@@ -9,8 +9,8 @@ import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard
 import { CoordsField } from "../components/CoordsField";
 import "../styles/manage.css";
 
-type Tab = "requests" | "places" | "reviews" | "alerts" | "settings";
-const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["settings", "settings", "Settings"]];
+type Tab = "requests" | "places" | "reviews" | "alerts" | "billing" | "settings";
+const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["billing", "wallet", "Billing"], ["settings", "settings", "Settings"]];
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
@@ -45,6 +45,7 @@ export default function Admin() {
       {tab === "places" && <Places key={n} onChange={refresh} />}
       {tab === "reviews" && <Reviews />}
       {tab === "alerts" && <Alerts />}
+      {tab === "billing" && <Billing />}
       {tab === "settings" && <><Settings /><Vocabulary /></>}
     </div>
   );
@@ -392,6 +393,39 @@ function Alerts() {
             </div>
           );
         })}
+    </div>
+  );
+}
+
+/* ---------- Plan payments ---------- */
+interface BillRow { id: string; place_id: string; place_name: string; plan: string; billing_interval: string; currency: string; amount_minor: number; status: string; provider_payment_id: string | null; created_at: string; paid_at: string | null }
+
+function Billing() {
+  const [rows, setRows] = useState<BillRow[] | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    supabase.rpc("admin_billing", { p_limit: 200 }).then(({ data, error }) => {
+      setErr(error ? (error.code === "PGRST202" ? "Run the latest database update to see payments." : errorText(error)) : "");
+      setRows((data as BillRow[]) || []);
+    });
+  }, []);
+  const paid = (rows || []).filter((r) => r.status === "paid");
+  const total = paid.reduce((n, r) => n + r.amount_minor, 0) / 100;
+  return (
+    <div className="stack">
+      {err && <div className="notice err">{err}</div>}
+      {rows && !err && <div className="card row"><span className="icon-chip"><Icon name="rupee" size={18} /></span><span className="grow stack tight"><span className="strong">₹{total.toLocaleString("en-IN")}</span><span className="tiny muted">{paid.length} paid plans</span></span></div>}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>No plan payments yet.</p></div> :
+        rows.map((r) => (
+          <div key={r.id} className="card row" style={{ gap: 10 }}>
+            <span className={`icon-chip sm ${r.status === "paid" ? "" : r.status === "created" ? "amber" : "coral"}`}><Icon name={r.status === "paid" ? "check" : "clock"} size={15} /></span>
+            <span className="grow stack tight">
+              <Link to={`/p/${r.place_id}`} className="strong" style={{ color: "inherit" }}>{r.place_name}</Link>
+              <span className="tiny muted">{r.plan}, 1 {r.billing_interval} · {r.status === "created" ? "not paid" : r.status} · {timeAgo(r.paid_at || r.created_at)}</span>
+            </span>
+            <span className="strong">₹{(r.amount_minor / 100).toLocaleString("en-IN")}</span>
+          </div>
+        ))}
     </div>
   );
 }
