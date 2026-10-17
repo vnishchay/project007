@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Place, ReviewRow, SearchResult } from "../lib/types";
@@ -16,17 +16,19 @@ import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
 import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
-import { sortReviews, summarize, type ReviewSort } from "../lib/reviews";
+import { ReviewsPanel, type ReviewFilter } from "../components/place/ReviewsPanel";
+import { SiteHome } from "../components/site/SiteHome";
+import { isSiteStyle, siteStyleFor } from "../lib/siteStyles";
 import "../styles/place.css";
 
 export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
 
 interface Stat { sum: number; count: number }
-type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}`;
 
 /** Newest columns first; older databases lack kind, then links, then cover/logo. */
 async function loadPlace(id: string) {
-  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
+  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, site_style, tagline`).eq("id", id).maybeSingle();
+  if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(PLACE_COLS).eq("id", id).maybeSingle();
@@ -52,6 +54,7 @@ export default function PlacePage() {
   const { session } = useAuth();
   const toast = useToast();
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const me = session?.user.id;
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
   const [items, setItems] = useState<ShopItem[]>([]);
@@ -76,8 +79,7 @@ export default function PlacePage() {
   const [err, setErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
   const [allHours, setAllHours] = useState(false);
-  const [filter, setFilter] = useState<Filter>("all");
-  const [sort, setSort] = useState<ReviewSort>("useful");
+  const [filter, setFilter] = useState<ReviewFilter>("all");
   const [coverOk, setCoverOk] = useState(true);
   const [attempt, setAttempt] = useState(0);
 
@@ -138,20 +140,7 @@ export default function PlacePage() {
   }, [reviews]);
   const products = useMemo(() => sortShopItems(items, (i) => stats.get(i.id)?.count ?? 0), [items, stats]);
   const imageOf = useMemo(() => new Map(items.map((i) => [i.id, i.image_path])), [items]);
-  const isFriend = (r: ReviewRow) => Boolean(r.user_id && friends.has(r.user_id));
-  const sorted = useMemo(() => sortReviews(reviews, sort, isFriend),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reviews, friends, sort]);
-  const sum = useMemo(() => summarize(reviews), [reviews]);
-  const reviewedItems = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const r of reviews) if (r.items?.name && !seen.has(r.item_id)) seen.set(r.item_id, r.items.name);
-    return [...seen].map(([itemId, name]) => ({ id: itemId, name, count: stats.get(itemId)?.count ?? 0 })).sort((a, b) => b.count - a.count);
-  }, [reviews, stats]);
-  const shown = sorted.filter((r) =>
-    filter === "all" ? true : filter === "photos" ? Boolean(r.photo_path) : filter === "friends" ? isFriend(r)
-    : filter.startsWith("stars:") ? r.rating === Number(filter.slice(6)) : r.item_id === filter.slice(5));
-
+  const isFriend = useCallback((r: ReviewRow) => Boolean(r.user_id && friends.has(r.user_id)), [friends]);
   async function toggleSave() {
     if (!me) { toast("Sign in to save places"); return; }
     if (saved) {
@@ -179,11 +168,23 @@ export default function PlacePage() {
   const friendNamed = (summary?.friend_ids || []).map((fid) => reviews.find((r) => r.user_id === fid)).filter((r): r is ReviewRow => Boolean(r));
   const friendCount = Math.max(summary?.friend_count ?? 0, friendNamed.length);
   const today = place.hours && Object.keys(place.hours).length ? todaysHours(place.hours) ?? "Closed today" : null;
-  const photoCount = reviews.filter((r) => r.photo_path).length;
-  const friendReviews = reviews.filter(isFriend).length;
   const rateUrl = `/review/${place.id}`;
   const links = cleanLinks((place as Place & { links?: unknown }).links);
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
+
+  const preview = params.get("style");
+  const style = isSiteStyle(preview) ? preview : siteStyleFor(place);
+  if (style !== "classic") return (
+    <SiteHome place={place} style={style} look={look} menuName={look.menu} items={products} stats={stats} reviews={reviews} aiSummary={aiSummary}
+      score={score} verified={verified} google={google} links={links} today={today} canRate={canRate} rateUrl={rateUrl}
+      canManage={canManage} saved={saved} onSave={toggleSave} onShare={share}
+      onReviewFocus={(itemId) => setFilter(itemId ? `item:${itemId}` : "all")}
+      renderReviews={() => (
+        <ReviewsPanel reviews={reviews} isFriend={isFriend} experts={experts} imageOf={imageOf} icon={look.icon} me={me}
+          canRate={canRate} rateUrl={rateUrl} aiSummary={aiSummary} filter={filter} onFilter={setFilter} title={false} />
+      )}
+      googleBlock={onGoogle ? <OnGoogle key={place.google_place_id!} googlePlaceId={place.google_place_id!} /> : null} />
+  );
 
   return (
     <div className="page pl-page">
@@ -303,85 +304,8 @@ export default function PlacePage() {
         )}
       </section>
 
-      <section className="stack" style={{ gap: 12 }} id="reviews">
-        {aiSummary && (
-          <div className="pl-summary">
-            <span className="row tiny strong" style={{ gap: 6 }}><Icon name="spark" size={14} />What people say</span>
-            <p className="small">{aiSummary.summary}</p>
-            {aiSummary.highlights.length > 0 && <div className="row wrap" style={{ gap: 6 }}>{aiSummary.highlights.map((h) => <span key={h} className="pill">{h}</span>)}</div>}
-            <span className="tiny muted">Summarised by AI from reviews here</span>
-          </div>
-        )}
-        <div className="section-title">
-          <span className="icon-chip sm amber"><Icon name="message" size={16} /></span>
-          <span className="grow">Reviews</span>
-          {reviews.length > 0 && <span className="muted">{reviews.length}</span>}
-        </div>
-        {reviews.length > 0 && (
-          <div className="rs" aria-label="Review summary">
-            <div className="rs-avg">
-              <b>{sum.average.toFixed(1)}</b>
-              <Stars value={Math.round(sum.average)} size={14} />
-              <span className="tiny muted">{sum.count} review{sum.count === 1 ? "" : "s"}</span>
-            </div>
-            <div className="rs-bars" role="group" aria-label="Filter by stars">
-              {[5, 4, 3, 2, 1].map((n) => {
-                const c = sum.stars[n - 1] ?? 0;
-                const f = `stars:${n}` as const;
-                return (
-                  <button key={n} type="button" className={`rs-bar ${filter === f ? "on" : ""}`} disabled={!c} aria-pressed={filter === f}
-                    aria-label={`${n} stars: ${c}`} onClick={() => setFilter(filter === f ? "all" : f)}>
-                    <span>{n}★</span><span className="track"><span className="fill" style={{ width: `${sum.count ? (c / sum.count) * 100 : 0}%` }} /></span><span>{c}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {(sum.liked.length > 0 || sum.better.length > 0) && (
-              <div className="rs-tags">
-                {sum.liked.length > 0 && <div><span className="lbl row" style={{ gap: 4 }}><Icon name="thumbs" size={13} />Liked</span>{sum.liked.map(([l, n]) => <span key={l} className="rc-tag">{l}<span>{n}</span></span>)}</div>}
-                {sum.better.length > 0 && <div><span className="lbl row" style={{ gap: 4 }}><Icon name="thumbsDown" size={13} />Could be better</span>{sum.better.map(([l, n]) => <span key={l} className="rc-tag bad">{l}<span>{n}</span></span>)}</div>}
-              </div>
-            )}
-          </div>
-        )}
-        {reviews.length > 1 && (
-          <div className="row" style={{ gap: 8 }}>
-            <span className="small muted">{shown.length === reviews.length ? "All reviews" : `${shown.length} of ${reviews.length}`}</span>
-            <select className="select pl-sort" style={{ width: "auto", padding: "6px 10px", fontSize: 13 }} value={sort} onChange={(e) => setSort(e.target.value as ReviewSort)} aria-label="Sort reviews">
-              <option value="useful">Most useful</option>
-              <option value="newest">Newest</option>
-              <option value="high">Highest rated</option>
-              <option value="low">Lowest rated</option>
-            </select>
-          </div>
-        )}
-        {reviews.length > 1 && (
-          <div className="hscroll pl-filters" role="group" aria-label="Filter reviews">
-            <button type="button" className={`chip ${filter === "all" ? "on" : ""}`} aria-pressed={filter === "all"} onClick={() => setFilter("all")}><Icon name="list" size={15} />All</button>
-            {photoCount > 0 && <button type="button" className={`chip ${filter === "photos" ? "on" : ""}`} aria-pressed={filter === "photos"} onClick={() => setFilter("photos")}><Icon name="camera" size={15} />{photoCount}</button>}
-            {friendReviews > 0 && <button type="button" className={`chip ${filter === "friends" ? "on" : ""}`} aria-pressed={filter === "friends"} onClick={() => setFilter("friends")}><Icon name="people" size={15} />{friendReviews}</button>}
-            {reviewedItems.length > 1 && reviewedItems.map((i) => {
-              const f = `item:${i.id}` as const;
-              return (
-                <button key={i.id} type="button" className={`chip pl-item-chip ${filter === f ? "on" : ""}`} aria-pressed={filter === f} onClick={() => setFilter(filter === f ? "all" : f)}>
-                  <ItemThumb path={imageOf.get(i.id)} icon={look.icon} size={24} />{i.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {reviews.length === 0 ? (
-          <Link to={canRate ? rateUrl : "#"} className="pl-empty-reviews" onClick={canRate ? undefined : (e) => e.preventDefault()}>
-            <span className="icon-chip lg amber"><Icon name="star" size={26} fill="currentColor" /></span>
-            <b>No reviews yet</b>
-            <span className="small muted">{canRate ? "Be the first" : "Customers review by scanning the QR at the shop"}</span>
-          </Link>
-        ) : shown.length === 0 ? <div className="empty"><Icon name="filter" size={28} /><p className="small">Nothing here</p></div> :
-          shown.map((r) => (
-            <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={isFriend(r)} expert={r.user_id ? experts[r.user_id] || null : null}
-              itemImage={imageOf.get(r.item_id)} itemIcon={look.icon} />
-          ))}
-      </section>
+      <ReviewsPanel reviews={reviews} isFriend={isFriend} experts={experts} imageOf={imageOf} icon={look.icon} me={me}
+        canRate={canRate} rateUrl={rateUrl} aiSummary={aiSummary} filter={filter} onFilter={setFilter} />
 
       {(place.about || (!onGoogle && (place.google_place_id || google))) && (
         <section className="pl-about">

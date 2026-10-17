@@ -10,7 +10,7 @@ import { assist } from "../../lib/assist";
 interface ShopStats { reviews: number; avg_rating: number | null; reviews_30d: number; verified: number; google_handoffs: number; google_handoffs_30d: number; scans_30d: number; saves: number; items_rated: number }
 interface ItemStat { item_id: string; name: string; image_path: string | null; reviews: number; avg_rating: number; low_ratings: number }
 
-export type ManageTab = "insights" | "products" | "links" | "updates" | "details" | "qr";
+export type ManageTab = "insights" | "site" | "products" | "links" | "updates" | "details" | "qr";
 
 const n = (x: number | null | undefined) => (x ?? 0).toLocaleString("en-IN");
 

@@ -32,6 +32,10 @@ export interface Place {
   links?: { kind: string; url: string; label?: string | null }[] | null;
   /** business type, see src/lib/modes.ts */
   kind?: string;
+  /** homepage template, see src/lib/siteStyles.ts */
+  site_style?: string | null;
+  /** one line in the owner's words */
+  tagline?: string | null;
 }
 
 /** A product or dish at a place. Shops add their own with photos (is_listed). */

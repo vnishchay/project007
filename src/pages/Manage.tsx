@@ -13,6 +13,7 @@ import { LinksEditor } from "../components/manage/LinksEditor";
 import { Updates } from "../components/manage/Updates";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
 import { ReviewLinks } from "../components/manage/ReviewLinks";
+import { SiteStylePicker } from "../components/manage/SiteStylePicker";
 import type { IconName } from "../components/ui";
 import { modeOf } from "../lib/modes";
 import "../styles/manage.css";
@@ -21,6 +22,7 @@ const COLS = "id, google_place_id, name, kind, category, area, city, about, hour
 type Tab = ManageTab;
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "insights", label: "Insights", icon: "chart" },
+  { id: "site", label: "Website", icon: "globe" },
   { id: "products", label: "Products", icon: "box" },
   { id: "links", label: "Links", icon: "link" },
   { id: "updates", label: "Updates", icon: "message" },
@@ -50,7 +52,8 @@ export default function Manage() {
       if (ok === null) { setErr(errorText(can.error)); return; }
       setAllowed(ok);
       if (!ok) return;
-      let res = await supabase.from("places").select(`${COLS}, links`).eq("id", placeId).maybeSingle();
+      let res = await supabase.from("places").select(`${COLS}, links, site_style, tagline`).eq("id", placeId).maybeSingle();
+      if (res.error?.code === "42703") res = await supabase.from("places").select(`${COLS}, links`).eq("id", placeId).maybeSingle();
       if (res.error?.code === "42703") res = await supabase.from("places").select(COLS.replace(" kind,", "")).eq("id", placeId).maybeSingle();
       if (!alive) return;
       const { data, error } = res;
@@ -93,6 +96,7 @@ export default function Manage() {
           ))}
         </div>
         {tab === "insights" && <Insights place={place} onGo={setTab} />}
+        {tab === "site" && <SiteStylePicker place={place} onSaved={merge} />}
         {tab === "products" && <Products placeId={place.id} isAdmin={isAdmin} mode={modeOf(place.kind, place.category)} onCount={onCount} />}
         {tab === "links" && <LinksEditor placeId={place.id} links={place.links ?? []} onSaved={(links) => merge({ links })} />}
         {tab === "updates" && <Updates placeId={place.id} live={place.status === "live"} />}
