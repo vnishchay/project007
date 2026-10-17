@@ -288,3 +288,7 @@
 .pn-price { font-weight: 700; font-size: 18px; }
 .pn-feat { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
 .pn-feat li { display: flex; gap: 6px; align-items: center; }
+.pn-pick { text-align: left; font: inherit; color: inherit; cursor: pointer; border: 1px solid var(--line); }
+.pn-pick:disabled { opacity: 0.5; cursor: default; }
+.biz-plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.biz-plans .biz-price { display: flex; flex-direction: column; gap: 2px; padding: 12px; }

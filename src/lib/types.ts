@@ -115,6 +115,9 @@ export interface ListingRequest {
   note: string | null;
   wants_qr: boolean;
   qr_style: QrStyle | null;
+  plan: string | null;
+  billing_interval: "month" | "year" | null;
+  tables: number | null;
   amount_inr: number;
   status: RequestStatus;
   decided_at: string | null;

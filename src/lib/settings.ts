@@ -2,16 +2,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
 export interface AppSettings {
-  listing_price_inr: number;
-  qr_price_inr: number;
   visit_window_hours: number;
-  upi_id: string;
-  payee_name: string;
   support_phone: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  listing_price_inr: 199, qr_price_inr: 399, visit_window_hours: 6, upi_id: "", payee_name: "Trusted Picks", support_phone: "",
+  visit_window_hours: 6, support_phone: "",
 };
 
 export function useSettings(): [AppSettings, () => void] {
@@ -25,10 +21,4 @@ export function useSettings(): [AppSettings, () => void] {
     });
   }, [n]);
   return [s, () => setN((x) => x + 1)];
-}
-
-export function upiLink(s: AppSettings, amount: number, note: string): string | null {
-  if (!s.upi_id) return null;
-  const p = new URLSearchParams({ pa: s.upi_id, pn: s.payee_name || "Trusted Picks", am: String(amount), cu: "INR", tn: note });
-  return `upi://pay?${p.toString()}`;
 }

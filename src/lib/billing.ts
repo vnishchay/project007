@@ -47,15 +47,19 @@ function loadCheckout(): Promise<void> {
   });
 }
 
-/** Opens Razorpay checkout for a plan. Resolves true once paid and the plan has started, false if closed. */
-export async function payForPlan(placeId: string, placeName: string, plan: string, interval: "month" | "year"): Promise<boolean> {
+type PayTarget = { placeId: string; plan: string; interval: "month" | "year" } | { requestId: string };
+
+/** Opens Razorpay checkout. Resolves true once paid and verified, false if the person closed it. */
+export async function pay(target: PayTarget, label: string): Promise<boolean> {
   await loadCheckout();
   const o = await billing<{ key_id: string; order_id: string; amount: number; currency: string; plan_name: string; email: string | null }>(
-    { action: "order", place_id: placeId, plan, interval });
+    "requestId" in target
+      ? { action: "order", request_id: target.requestId }
+      : { action: "order", place_id: target.placeId, plan: target.plan, interval: target.interval });
   const paid = await new Promise<RazorpayResult | null>((resolve, reject) => {
     const rz = new window.Razorpay!({
       key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency,
-      name: "Trusted Picks", description: `${o.plan_name} plan, 1 ${interval}, ${placeName}`,
+      name: "Trusted Picks", description: `${o.plan_name} plan, ${label}`,
       prefill: o.email ? { email: o.email } : undefined,
       theme: { color: "#1E7A46" },
       handler: (r: RazorpayResult) => resolve(r),
@@ -68,3 +72,7 @@ export async function payForPlan(placeId: string, placeName: string, plan: strin
   await billing({ action: "verify", order_id: paid.razorpay_order_id, payment_id: paid.razorpay_payment_id, signature: paid.razorpay_signature });
   return true;
 }
+
+export const payForPlan = (placeId: string, placeName: string, plan: string, interval: "month" | "year") =>
+  pay({ placeId, plan, interval }, `1 ${interval}, ${placeName}`);
+export const payForRequest = (requestId: string, shopName: string) => pay({ requestId }, shopName);

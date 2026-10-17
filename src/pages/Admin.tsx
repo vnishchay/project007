@@ -84,7 +84,7 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
   const [ref, setRef] = useState("");
   const [gid, setGid] = useState(r.google_place_id || "");
   const [coords, setCoords] = useState("");
-  const [tables, setTables] = useState("10");
+  const [tables, setTables] = useState(String(r.tables ?? 10));
   const [busy, setBusy] = useState(false);
   const code = `TP-${r.id.slice(0, 8).toUpperCase()}`;
 
@@ -128,13 +128,14 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
         <div className="stack">
           <div className="small" style={{ lineHeight: 1.6 }}>
             <div>Ref <b>{code}</b> · <a href={`tel:${r.phone}`}>{r.phone}</a></div>
-            <div>{r.wants_qr ? `Wants table QR (${r.qr_style || "neon"})` : "Listing only"}</div>
+            <div>{r.wants_qr ? `${r.tables ? `${r.tables} table QRs` : "Table QRs"} (${r.qr_style || "neon"})` : "Listing only"}</div>
+            <div>Plan <b>{r.plan || "trial"}</b>{r.billing_interval ? `, ${r.billing_interval === "year" ? "yearly" : "monthly"}` : ""} · {r.amount_inr > 0 ? (r.status === "pending" ? "waiting for payment" : "paid") : "free trial"}</div>
             {r.note && <div className="muted">“{r.note}”</div>}
           </div>
-          {r.status === "pending" && (
+          {r.status === "pending" && r.amount_inr > 0 && (
             <div className="row">
-              <input className="input" placeholder="UPI / payment ref (optional)" value={ref} onChange={(e) => setRef(e.target.value)} />
-              <button className="btn small green" style={{ height: 50 }} disabled={busy} onClick={markPaid}><Icon name="wallet" size={16} />Paid</button>
+              <input className="input" placeholder="Paid outside the app? Reference (optional)" value={ref} onChange={(e) => setRef(e.target.value)} />
+              <button className="btn small green" style={{ height: 50 }} disabled={busy} onClick={markPaid}><Icon name="wallet" size={16} />Mark paid</button>
             </div>
           )}
           {(r.status === "pending" || r.status === "paid") && (
@@ -148,7 +149,7 @@ function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void
               <div className="grid2">
                 {r.wants_qr && <div className="field"><label>Tables</label><input className="input" type="number" min={0} max={200} value={tables} onChange={(e) => setTables(e.target.value)} /></div>}
               </div>
-              {r.status === "pending" && <div className="notice warn small">Not marked paid yet. Approving anyway records no payment.</div>}
+              {r.status === "pending" && r.amount_inr > 0 && <div className="notice warn small">Not paid yet. If you approve now the shop starts on the free trial; give a plan later from Billing.</div>}
               <div className="row">
                 <button className="btn small green grow" disabled={busy} onClick={approve}><Icon name="checkCircle" size={17} />Approve and go live</button>
                 <button className="btn small danger" disabled={busy} onClick={decline} aria-label="Decline"><Icon name="close" size={17} />Decline</button>
@@ -262,11 +263,7 @@ function Settings() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const rows = [
-      { key: "listing_price_inr", value: Number(v.listing_price_inr) || 0 },
-      { key: "qr_price_inr", value: Number(v.qr_price_inr) || 0 },
       { key: "visit_window_hours", value: Math.max(1, Number(v.visit_window_hours) || 6) },
-      { key: "upi_id", value: v.upi_id.trim() },
-      { key: "payee_name", value: v.payee_name.trim() },
       { key: "support_phone", value: v.support_phone.trim() },
     ];
     const { error } = await supabase.from("app_settings").upsert(rows);
@@ -279,16 +276,10 @@ function Settings() {
 
   return (
     <form className="stack" onSubmit={save}>
-      <div className="grid2">
-        {field("listing_price_inr", "Listing ₹ / year", "number")}
-        {field("qr_price_inr", "Table QR ₹ (once)", "number")}
-      </div>
-      {field("upi_id", "UPI ID for payments", "text", "yourname@okhdfcbank")}
-      {field("payee_name", "Payee name")}
       {field("support_phone", "WhatsApp number for businesses", "tel", "919800000000")}
       {field("visit_window_hours", "Hours a QR scan counts as a visit", "number")}
       <button className="btn green block"><Icon name="check" size={18} />Save settings</button>
-      <p className="tiny muted">New prices apply to new requests. Existing requests keep the amount they were sent with.</p>
+      <p className="tiny muted">Plan prices and QR limits are under Billing.</p>
     </form>
   );
 }
@@ -455,6 +446,22 @@ function Claims() {
 interface BillRow { id: string; place_id: string; place_name: string; plan: string; billing_interval: string; currency: string; amount_minor: number; status: string; provider_payment_id: string | null; created_at: string; paid_at: string | null }
 
 function Billing() {
+  const [view, setView] = useState<"payments" | "shops" | "prices">("payments");
+  return (
+    <div className="stack">
+      <div className="chips">
+        {([["payments", "Payments"], ["shops", "Shops and plans"], ["prices", "Plan prices"]] as const).map(([k, l]) => (
+          <button key={k} className={`chip ${view === k ? "on" : ""}`} onClick={() => setView(k)}>{l}</button>
+        ))}
+      </div>
+      {view === "payments" && <Payments />}
+      {view === "shops" && <ShopPlans />}
+      {view === "prices" && <PlanPrices />}
+    </div>
+  );
+}
+
+function Payments() {
   const [rows, setRows] = useState<BillRow[] | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
@@ -468,18 +475,117 @@ function Billing() {
   return (
     <div className="stack">
       {err && <div className="notice err">{err}</div>}
-      {rows && !err && <div className="card row"><span className="icon-chip"><Icon name="rupee" size={18} /></span><span className="grow stack tight"><span className="strong">₹{total.toLocaleString("en-IN")}</span><span className="tiny muted">{paid.length} paid plans</span></span></div>}
-      {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>No plan payments yet.</p></div> :
+      {rows && !err && <div className="card row"><span className="icon-chip"><Icon name="rupee" size={18} /></span><span className="grow stack tight"><span className="strong">₹{total.toLocaleString("en-IN")}</span><span className="tiny muted">{paid.length} Razorpay payments</span></span></div>}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>No Razorpay payments yet.</p></div> :
         rows.map((r) => (
           <div key={r.id} className="card row" style={{ gap: 10 }}>
             <span className={`icon-chip sm ${r.status === "paid" ? "" : r.status === "created" ? "amber" : "coral"}`}><Icon name={r.status === "paid" ? "check" : "clock"} size={15} /></span>
             <span className="grow stack tight">
-              <Link to={`/p/${r.place_id}`} className="strong" style={{ color: "inherit" }}>{r.place_name}</Link>
-              <span className="tiny muted">{r.plan}, 1 {r.billing_interval} · {r.status === "created" ? "not paid" : r.status} · {timeAgo(r.paid_at || r.created_at)}</span>
+              {r.place_id ? <Link to={`/p/${r.place_id}`} className="strong" style={{ color: "inherit" }}>{r.place_name}</Link> : <span className="strong">{r.place_name} <span className="tiny muted">(sign-up)</span></span>}
+              <span className="tiny muted">{r.plan}, 1 {r.billing_interval} · {r.status === "created" ? "not paid" : r.status} · {timeAgo(r.paid_at || r.created_at)}{r.provider_payment_id ? ` · ${r.provider_payment_id}` : ""}</span>
             </span>
             <span className="strong">₹{(r.amount_minor / 100).toLocaleString("en-IN")}</span>
           </div>
         ))}
+    </div>
+  );
+}
+
+interface ShopPlan { place_id: string; place_name: string; area: string | null; plan: string; plan_name: string; status: string; period_end: string; qr_used: number; qr_limit: number; reviews_open: boolean }
+interface PlanDef { code: string; name: string; qr_limit: number; price_inr_year: number | null; price_inr_month: number | null; price_usd_year: number | null; price_usd_month: number | null }
+
+function ShopPlans() {
+  const toast = useToast();
+  const [rows, setRows] = useState<ShopPlan[] | null>(null);
+  const [plans, setPlans] = useState<PlanDef[]>([]);
+  const [err, setErr] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [f, setF] = useState({ plan: "starter", months: "12", amount: "", ref: "" });
+  const [find, setFind] = useState("");
+  const load = () => {
+    supabase.rpc("admin_shop_plans").then(({ data, error }) => {
+      setErr(error ? (error.code === "PGRST202" ? "Run the latest database update to see plans." : errorText(error)) : "");
+      setRows((data as ShopPlan[]) || []);
+    });
+  };
+  useEffect(() => { load(); supabase.from("plans").select("*").order("sort_order").then(({ data }) => setPlans((data as PlanDef[]) || [])); }, []);
+
+  async function give(r: ShopPlan) {
+    const { error } = await supabase.rpc("admin_set_plan", { p_place: r.place_id, p_plan: f.plan, p_months: parseInt(f.months, 10) || 0, p_amount_inr: parseInt(f.amount, 10) || 0, p_ref: f.ref || null });
+    if (error) toast(errorText(error)); else { toast("Plan updated"); setOpen(null); load(); }
+  }
+  const shown = (rows || []).filter((r) => !find.trim() || r.place_name.toLowerCase().includes(find.trim().toLowerCase()));
+  return (
+    <div className="stack">
+      {err && <div className="notice err">{err}</div>}
+      <div className="search"><Icon name="search" color="var(--muted)" /><input type="search" placeholder="Find a shop" value={find} onChange={(e) => setFind(e.target.value)} aria-label="Find a shop" /></div>
+      {rows === null ? <div className="skeleton" /> : shown.map((r) => (
+        <div key={r.place_id} className="card stack" style={{ gap: 8 }}>
+          <button className="row" style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", gap: 10 }} onClick={() => setOpen(open === r.place_id ? null : r.place_id)}>
+            <span className={`icon-chip sm ${r.reviews_open ? "" : "coral"}`}><Icon name={r.reviews_open ? "check" : "clock"} size={15} /></span>
+            <span className="grow stack tight"><span className="strong">{r.place_name}</span>
+              <span className="tiny muted">{r.plan_name} · {r.status === "expired" ? "ended" : `until ${new Date(r.period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`} · {r.qr_used}/{r.qr_limit} QRs</span></span>
+            <span className={`badge ${r.reviews_open ? "" : "warn"}`}>{r.reviews_open ? "Reviews on" : "Paused"}</span>
+          </button>
+          {open === r.place_id && (
+            <div className="stack" style={{ gap: 8 }}>
+              <div className="grid2">
+                <div className="field"><label>Plan</label>
+                  <select className="input" value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })}>{plans.filter((p) => p.code !== "trial").map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}</select></div>
+                <div className="field"><label>Months</label><input className="input" type="number" min={1} max={36} value={f.months} onChange={(e) => setF({ ...f, months: e.target.value })} /></div>
+              </div>
+              <div className="grid2">
+                <div className="field"><label>Received ₹ (optional)</label><input className="input" type="number" min={0} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} /></div>
+                <div className="field"><label>Reference</label><input className="input" value={f.ref} onChange={(e) => setF({ ...f, ref: e.target.value })} placeholder="Cash, UPI id…" /></div>
+              </div>
+              <button className="btn small green" onClick={() => give(r)}><Icon name="check" size={16} />Give or extend plan</button>
+              <Link to={`/admin/place/${r.place_id}`} className="link-btn tiny"><Icon name="settings" size={14} />Place and QR codes</Link>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlanPrices() {
+  const toast = useToast();
+  const [plans, setPlans] = useState<PlanDef[] | null>(null);
+  const load = () => supabase.from("plans").select("*").order("sort_order").then(({ data }) => setPlans((data as PlanDef[]) || []));
+  useEffect(() => { load(); }, []);
+  const edit = (code: string, k: keyof PlanDef, v: string) => setPlans((ps) => (ps || []).map((p) => (p.code === code ? { ...p, [k]: k === "name" ? v : Number(v) } : p)));
+  async function save(p: PlanDef) {
+    const { error } = await supabase.rpc("admin_update_plan", {
+      p_code: p.code, p_name: p.name, p_qr_limit: p.qr_limit, p_price_inr_year: p.price_inr_year ?? 0, p_price_inr_month: p.price_inr_month ?? 0,
+      p_price_usd_year: p.price_usd_year ?? 0, p_price_usd_month: p.price_usd_month ?? 0,
+    });
+    if (error) toast(errorText(error)); else { toast(`${p.name} saved`); load(); }
+  }
+  if (!plans) return <div className="skeleton" />;
+  return (
+    <div className="stack">
+      <p className="small muted">New prices apply to new payments. Sign-up requests already sent keep the price they showed.</p>
+      {plans.map((p) => (
+        <div key={p.code} className="card stack" style={{ gap: 8 }}>
+          <div className="grid2">
+            <div className="field"><label>Name</label><input className="input" value={p.name} onChange={(e) => edit(p.code, "name", e.target.value)} /></div>
+            <div className="field"><label>Review QRs</label><input className="input" type="number" min={1} value={p.qr_limit} onChange={(e) => edit(p.code, "qr_limit", e.target.value)} /></div>
+          </div>
+          {p.code !== "trial" && (
+            <>
+              <div className="grid2">
+                <div className="field"><label>₹ yearly</label><input className="input" type="number" min={0} value={p.price_inr_year ?? 0} onChange={(e) => edit(p.code, "price_inr_year", e.target.value)} /></div>
+                <div className="field"><label>₹ monthly</label><input className="input" type="number" min={0} value={p.price_inr_month ?? 0} onChange={(e) => edit(p.code, "price_inr_month", e.target.value)} /></div>
+              </div>
+              <div className="grid2">
+                <div className="field"><label>$ yearly (later)</label><input className="input" type="number" min={0} value={p.price_usd_year ?? 0} onChange={(e) => edit(p.code, "price_usd_year", e.target.value)} /></div>
+                <div className="field"><label>$ monthly (later)</label><input className="input" type="number" min={0} value={p.price_usd_month ?? 0} onChange={(e) => edit(p.code, "price_usd_month", e.target.value)} /></div>
+              </div>
+            </>
+          )}
+          <button className="btn small green" onClick={() => save(p)}><Icon name="check" size={16} />Save {p.name}</button>
+        </div>
+      ))}
     </div>
   );
 }

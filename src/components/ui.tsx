@@ -18,7 +18,7 @@ const ICONS = {
   image: L.Image, imagePlus: L.ImagePlus, edit: L.Pencil, trash: L.Trash2, eye: L.Eye, eyeOff: L.EyeOff,
   food: L.Utensils, heart: L.Heart, message: L.MessageSquare, thumbs: L.ThumbsUp, thumbsDown: L.ThumbsDown, verified: L.BadgeCheck,
   clock: L.Clock, phone: L.Phone, navigate: L.Navigation, link: L.Link, settings: L.Settings, logout: L.LogOut,
-  login: L.LogIn, crown: L.Crown, box: L.Package, tag: L.Tag, rupee: L.IndianRupee, grip: L.GripVertical,
+  login: L.LogIn, minus: L.Minus, crown: L.Crown, box: L.Package, tag: L.Tag, rupee: L.IndianRupee, grip: L.GripVertical,
   flame: L.Flame, trophy: L.Trophy, award: L.Award, lock: L.Lock, send: L.Send, info: L.Info, alert: L.CircleAlert,
   zap: L.Zap, flag: L.Flag, wallet: L.Wallet, dashboard: L.LayoutDashboard, chart: L.ChartBar, filter: L.Filter, list: L.List,
   grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, cake: L.CakeSlice, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,

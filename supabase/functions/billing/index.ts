@@ -4,7 +4,8 @@
 // so nothing renews by itself and there's nothing to cancel.
 //
 // POST JSON:
-//   {action: "order", place_id, plan, interval: "month"|"year"}  -> Razorpay order for checkout
+//   {action: "order", place_id, plan, interval: "month"|"year"}  -> Razorpay order for a shop's plan
+//   {action: "order", request_id}                                   -> Razorpay order for a sign-up request (plan chosen there)
 //   {action: "verify", order_id, payment_id, signature}           -> checks the signature, starts the plan
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -48,35 +49,49 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json(400, { error: "Bad request" }); }
 
   if (body.action === "order") {
-    const placeId = String(body.place_id || ""), plan = String(body.plan || ""), interval = body.interval === "month" ? "month" : "year";
-    if (!UUID.test(placeId)) return json(400, { error: "Pick a shop" });
-    // my_plan only returns a row to the shop's owner (or an admin).
-    const mine = await user.rpc("my_plan", { p_place: placeId });
-    if (mine.error || !mine.data?.length) return json(403, { error: "Only the shop owner can pay for a plan" });
-    const { data: p } = await admin.from("plans").select("code, name, price_inr_year, price_inr_month").eq("code", plan).maybeSingle();
-    const rupees = interval === "year" ? p?.price_inr_year : p?.price_inr_month;
-    if (!p || !rupees || rupees <= 0) return json(400, { error: "Pick a plan" });
+    const requestId = String(body.request_id || "");
+    let placeId: string | null = null, plan = "", interval: "month" | "year" = "year", rupees = 0, planName = "";
+    if (requestId) {
+      // Sign-up request: the plan, period and price were fixed when the owner sent it.
+      if (!UUID.test(requestId)) return json(400, { error: "Bad request" });
+      const { data: lr } = await user.from("listing_requests").select("id, status, plan, billing_interval, amount_inr, requester_id").eq("id", requestId).maybeSingle();
+      if (!lr || lr.requester_id !== who.user.id) return json(404, { error: "Request not found" });
+      if (lr.status !== "pending" || !lr.amount_inr || lr.amount_inr <= 0) return json(400, { error: "Nothing to pay for this request" });
+      plan = lr.plan; interval = lr.billing_interval === "month" ? "month" : "year"; rupees = lr.amount_inr;
+      const { data: p } = await admin.from("plans").select("name").eq("code", plan).maybeSingle();
+      planName = p?.name || plan;
+    } else {
+      placeId = String(body.place_id || ""); plan = String(body.plan || ""); interval = body.interval === "month" ? "month" : "year";
+      if (!UUID.test(placeId)) return json(400, { error: "Pick a shop" });
+      // my_plan only returns a row to the shop's owner (or an admin).
+      const mine = await user.rpc("my_plan", { p_place: placeId });
+      if (mine.error || !mine.data?.length) return json(403, { error: "Only the shop owner can pay for a plan" });
+      const { data: p } = await admin.from("plans").select("code, name, price_inr_year, price_inr_month").eq("code", plan).maybeSingle();
+      rupees = (interval === "year" ? p?.price_inr_year : p?.price_inr_month) || 0;
+      if (!p || rupees <= 0) return json(400, { error: "Pick a plan" });
+      planName = p.name;
+    }
     const amount = rupees * 100;
     const rp = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Basic " + btoa(`${keyId}:${keySecret}`) },
-      body: JSON.stringify({ amount, currency: "INR", receipt: `tp-${placeId.slice(0, 8)}-${Date.now()}`, notes: { place_id: placeId, plan, interval } }),
+      body: JSON.stringify({ amount, currency: "INR", receipt: `tp-${(placeId || requestId).slice(0, 8)}-${Date.now()}`, notes: { place_id: placeId, request_id: requestId || null, plan, interval } }),
     });
     const order = await rp.json().catch(() => null);
     if (!rp.ok || !order?.id) { console.error("razorpay order", rp.status, order?.error?.description); return json(502, { error: "Couldn't start the payment. Try again." }); }
     const ins = await admin.from("billing_orders").insert({
-      place_id: placeId, plan, billing_interval: interval, currency: "INR", amount_minor: amount,
+      place_id: placeId, request_id: requestId || null, plan, billing_interval: interval, currency: "INR", amount_minor: amount,
       provider_order_id: order.id, created_by: who.user.id,
     });
     if (ins.error) { console.error(ins.error); return json(500, { error: "Couldn't start the payment" }); }
-    return json(200, { key_id: keyId, order_id: order.id, amount, currency: "INR", plan_name: p.name, email: who.user.email ?? null });
+    return json(200, { key_id: keyId, order_id: order.id, amount, currency: "INR", plan_name: planName, email: who.user.email ?? null });
   }
 
   if (body.action === "verify") {
     const orderId = String(body.order_id || ""), paymentId = String(body.payment_id || ""), sig = String(body.signature || "");
     if (!orderId || !paymentId || !sig) return json(400, { error: "Bad request" });
     if (!sameText(await hmacHex(keySecret, `${orderId}|${paymentId}`), sig)) return json(400, { error: "Payment couldn't be verified" });
-    const { data: o } = await admin.from("billing_orders").select("place_id, created_by").eq("provider_order_id", orderId).maybeSingle();
+    const { data: o } = await admin.from("billing_orders").select("place_id, request_id, created_by").eq("provider_order_id", orderId).maybeSingle();
     if (!o || o.created_by !== who.user.id) return json(404, { error: "Order not found" });
     const r = await admin.rpc("billing_mark_paid", { p_order: orderId, p_payment: paymentId, p_amount: null });
     if (r.error || !r.data) return json(500, { error: "Payment received but the plan didn't start. We'll fix it soon." });
