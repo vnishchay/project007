@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { demoArtUrl, isDemoArt } from "../lib/demoArt";
 import { useSettings, type AppSettings } from "../lib/settings";
-import type { ListingRequest, Place, ReviewRow, Topic } from "../lib/types";
+import type { Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
 import { syncPinFromGoogle } from "../lib/pin";
 import { Icon, useToast, type IconName } from "../components/ui";
@@ -11,13 +11,13 @@ import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard
 import { CoordsField } from "../components/CoordsField";
 import "../styles/manage.css";
 
-type Tab = "requests" | "places" | "reviews" | "alerts" | "claims" | "billing" | "settings";
-const TABS: [Tab, IconName, string][] = [["requests", "ticket", "Requests"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["claims", "shield", "Claims"], ["billing", "wallet", "Billing"], ["settings", "settings", "Settings"]];
+type Tab = "verify" | "places" | "reviews" | "alerts" | "claims" | "billing" | "settings";
+const TABS: [Tab, IconName, string][] = [["verify", "shield", "Verify"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["claims", "shield", "Claims"], ["billing", "wallet", "Billing"], ["settings", "settings", "Settings"]];
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
 export default function Admin() {
-  const [tab, setTab] = useState<Tab>("requests");
+  const [tab, setTab] = useState<Tab>("verify");
   const [sum, setSum] = useState<Summary | null>(null);
   const [n, setN] = useState(0);
   const refresh = () => setN((x) => x + 1);
@@ -43,7 +43,7 @@ export default function Admin() {
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}><Icon name={icon} size={18} />{label}</button>
         ))}
       </div>
-      {tab === "requests" && <Requests key={n} onChange={refresh} />}
+      {tab === "verify" && <Verify key={n} onChange={refresh} />}
       {tab === "places" && <Places key={n} onChange={refresh} />}
       {tab === "reviews" && <Reviews />}
       {tab === "alerts" && <Alerts />}
@@ -54,121 +54,55 @@ export default function Admin() {
   );
 }
 
-/* ---------- Requests ---------- */
-function Requests({ onChange }: { onChange: () => void }) {
-  const [rows, setRows] = useState<ListingRequest[] | null>(null);
-  const [filter, setFilter] = useState<"open" | "all">("open");
+/* ---------- Verify: shops list themselves; the team checks the Google page and links ---------- */
+interface ToVerify { id: string; name: string; category: string; area: string | null; city: string; google_place_id: string | null; links: { kind: string; url: string }[] | null; contact_phone: string | null; verification_note: string | null; owner_name: string | null; created_at: string; has_location: boolean }
+
+function Verify({ onChange }: { onChange: () => void }) {
+  const [rows, setRows] = useState<ToVerify[] | null>(null);
   const [err, setErr] = useState("");
-
   const load = () => {
-    let q = supabase.from("listing_requests").select("*").order("created_at", { ascending: false }).limit(200);
-    if (filter === "open") q = q.in("status", ["pending", "paid"]);
-    q.then(({ data, error }) => { setErr(error ? errorText(error) : ""); setRows((data as ListingRequest[]) || []); });
+    supabase.rpc("admin_places_to_verify").then(({ data, error }) => { setErr(error ? errorText(error) : ""); setRows((data as ToVerify[]) || []); });
   };
-  useEffect(load, [filter]);
-
+  useEffect(load, []);
   return (
     <div className="stack">
-      <div className="chips">
-        <button className={`chip ${filter === "open" ? "on" : ""}`} onClick={() => setFilter("open")}>To review</button>
-        <button className={`chip ${filter === "all" ? "on" : ""}`} onClick={() => setFilter("all")}>All</button>
-      </div>
       {err && <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={load}>Retry</button></div>}
-      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><span className="icon-chip lg"><Icon name="checkCircle" size={26} /></span><p>{filter === "open" ? "No requests waiting." : "No requests yet."}</p></div> :
-        rows.map((r) => <RequestAdminCard key={r.id} r={r} onDone={() => { load(); onChange(); }} />)}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><span className="icon-chip lg"><Icon name="checkCircle" size={26} /></span><p>No shops waiting to be checked.</p></div> :
+        rows.map((r) => <VerifyCard key={r.id} r={r} onDone={() => { load(); onChange(); }} />)}
     </div>
   );
 }
 
-function RequestAdminCard({ r, onDone }: { r: ListingRequest; onDone: () => void }) {
+function VerifyCard({ r, onDone }: { r: ToVerify; onDone: () => void }) {
   const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [ref, setRef] = useState("");
-  const [gid, setGid] = useState(r.google_place_id || "");
   const [coords, setCoords] = useState("");
-  const [tables, setTables] = useState(String(r.tables ?? 10));
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const code = `TP-${r.id.slice(0, 8).toUpperCase()}`;
-
-  async function run(fn: () => Promise<{ error: unknown }>, ok: string) {
+  async function decide(ok: boolean) {
+    const c = coords.trim() ? parseCoords(coords) : null;
+    if (coords.trim() && !c) { toast("Check the location"); return; }
+    if (!ok && !note.trim()) { toast("Say why, so the owner can fix it"); return; }
     setBusy(true);
-    const { error } = await fn();
+    const { error } = await supabase.rpc("verify_place", { p_place: r.id, p_ok: ok, p_note: note.trim() || null, p_lat: c?.lat ?? null, p_lng: c?.lng ?? null });
     setBusy(false);
-    if (error) toast(errorText(error)); else { toast(ok); onDone(); }
+    if (error) toast(errorText(error)); else { toast(ok ? "Verified" : "Removed"); onDone(); }
   }
-
-  const markPaid = () => run(async () => await supabase.rpc("mark_request_paid", { p_request: r.id, p_provider_ref: ref.trim() || null }), "Marked paid");
-  const decline = () => { if (confirm(`Decline ${r.business_name}?`)) run(async () => await supabase.rpc("decline_listing", { p_request: r.id }), "Declined"); };
-  const approve = () => run(async () => {
-    const raw = gid.trim();
-    const id = raw ? extractPlaceId(raw) : "";
-    if (raw && !id) return { error: "That isn't a Google Place ID. Paste an ID like ChIJ…, or leave it empty." };
-    if (id !== (r.google_place_id || "")) {
-      const u = await supabase.from("listing_requests").update({ google_place_id: id || null }).eq("id", r.id);
-      if (u.error) return u;
-    }
-    const m = parseCoords(coords);
-    const n = Math.max(0, Math.min(200, parseInt(tables, 10) || 0));
-    const labels = r.wants_qr ? Array.from({ length: n }, (_, i) => `Table ${i + 1}`) : [];
-    const res = await supabase.rpc("approve_listing", { p_request: r.id, p_lat: m ? m.lat : null, p_lng: m ? m.lng : null, p_table_labels: labels });
-    // A Google-linked shop takes Google's own pin; the typed one stays only if Google can't be read.
-    if (!res.error && id && res.data) await syncPinFromGoogle((res.data as { id: string }).id, id);
-    return res;
-  }, "Approved and live");
-
-  const badge = r.status === "pending" ? "warn" : r.status === "paid" ? "" : r.status === "declined" ? "red" : "gray";
+  const gmaps = r.google_place_id ? `https://www.google.com/maps/place/?q=place_id:${r.google_place_id}` : null;
   return (
     <div className="card">
-      <button className="row between" style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer" }} onClick={() => setOpen(!open)}>
-        <span className="stack tight grow">
-          <span className="strong">{r.business_name}</span>
-          <span className="small muted">{[r.category, r.area, r.city].filter(Boolean).join(" · ")} · {timeAgo(r.created_at)}</span>
-        </span>
-        <span className="stack tight" style={{ alignItems: "flex-end" }}>
-          <span className={`badge ${badge}`}>{r.status}</span>
-          <span className="small strong">{rupees(r.amount_inr)}</span>
-        </span>
-      </button>
-      {open && (
-        <div className="stack">
-          <div className="small" style={{ lineHeight: 1.6 }}>
-            <div>Ref <b>{code}</b> · <a href={`tel:${r.phone}`}>{r.phone}</a></div>
-            <div>{r.wants_qr ? `${r.tables ? `${r.tables} table QRs` : "Table QRs"} (${r.qr_style || "neon"})` : "Listing only"}</div>
-            <div>Plan <b>{r.plan || "trial"}</b>{r.billing_interval ? `, ${r.billing_interval === "year" ? "yearly" : "monthly"}` : ""} · {r.amount_inr > 0 ? (r.status === "pending" ? "waiting for payment" : "paid") : "free trial"}</div>
-            {r.note && <div className="muted">“{r.note}”</div>}
-          </div>
-          {r.status === "pending" && r.amount_inr > 0 && (
-            <div className="row">
-              <input className="input" placeholder="Paid outside the app? Reference (optional)" value={ref} onChange={(e) => setRef(e.target.value)} />
-              <button className="btn small green" style={{ height: 50 }} disabled={busy} onClick={markPaid}><Icon name="wallet" size={16} />Mark paid</button>
-            </div>
-          )}
-          {(r.status === "pending" || r.status === "paid") && (
-            <>
-              <div className="field">
-                <label>Google Place ID</label>
-                <input className="input" value={gid} onChange={(e) => setGid(e.target.value)} placeholder="ChIJ…" />
-                <a className="tiny" href="https://developers.google.com/maps/documentation/places/web-service/place-id#find-id" target="_blank" rel="noreferrer">Find a Place ID</a>
-              </div>
-              <CoordsField value={coords} onChange={setCoords} />
-              <div className="grid2">
-                {r.wants_qr && <div className="field"><label>Tables</label><input className="input" type="number" min={0} max={200} value={tables} onChange={(e) => setTables(e.target.value)} /></div>}
-              </div>
-              {r.status === "pending" && r.amount_inr > 0 && <div className="notice warn small">Not paid yet. If you approve now the shop starts on the free trial; give a plan later from Billing.</div>}
-              <div className="row">
-                <button className="btn small green grow" disabled={busy} onClick={approve}><Icon name="checkCircle" size={17} />Approve and go live</button>
-                <button className="btn small danger" disabled={busy} onClick={decline} aria-label="Decline"><Icon name="close" size={17} />Decline</button>
-              </div>
-            </>
-          )}
-          {r.place_id && (
-            <div className="row wrap" style={{ gap: 16 }}>
-              <Link to={`/admin/place/${r.place_id}`} className="link-btn"><Icon name="settings" size={15} />Place and QR codes</Link>
-              <Link to={`/manage/${r.place_id}`} className="link-btn"><Icon name="box" size={15} />Products</Link>
-            </div>
-          )}
-        </div>
-      )}
+      <div className="row between"><Link to={`/p/${r.id}`} className="strong ellipsis grow">{r.name}</Link><span className="tiny muted">{timeAgo(r.created_at)}</span></div>
+      <span className="small muted">{[r.category, r.area, r.city].filter(Boolean).join(" · ")}{r.owner_name ? ` · by ${r.owner_name}` : ""}{r.contact_phone ? ` · ${r.contact_phone}` : ""}</span>
+      {r.verification_note && <p className="small">{r.verification_note}</p>}
+      <div className="stack tight">
+        {gmaps ? <a className="small" href={gmaps} target="_blank" rel="noopener noreferrer">Google page: check name and address match</a> : <span className="small" style={{ color: "var(--danger)" }}>No Google page given</span>}
+        {(r.links || []).map((l) => <a key={l.url} className="small ellipsis" href={l.url} target="_blank" rel="noopener noreferrer">{l.kind}: {l.url}</a>)}
+      </div>
+      {!r.has_location && <CoordsField value={coords} onChange={setCoords} />}
+      <input className="input" placeholder="Note to the owner (needed to remove)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <div className="grid2">
+        <button className="btn small danger" disabled={busy} onClick={() => decide(false)}>Remove</button>
+        <button className="btn small green" disabled={busy} onClick={() => decide(true)}><Icon name="check" size={16} />Verify</button>
+      </div>
     </div>
   );
 }

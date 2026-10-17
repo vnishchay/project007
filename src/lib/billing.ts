@@ -75,4 +75,3 @@ export async function pay(target: PayTarget, label: string): Promise<boolean> {
 
 export const payForPlan = (placeId: string, placeName: string, plan: string, interval: "month" | "year") =>
   pay({ placeId, plan, interval }, `1 ${interval}, ${placeName}`);
-export const payForRequest = (requestId: string, shopName: string) => pay({ requestId }, shopName);

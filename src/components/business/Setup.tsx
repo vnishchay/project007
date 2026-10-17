@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
-import { loadPlans, payForRequest, type PlanRow } from "../../lib/billing";
+import { loadPlans, payForPlan, type PlanRow } from "../../lib/billing";
 import { googleConfigured, type GoogleMatch } from "../../lib/google";
 import { extractPlaceId, googleMapsUrl, QR_STYLES, rupees } from "../../lib/util";
 import type { QrStyle } from "../../lib/types";
@@ -58,8 +58,8 @@ export function Setup() {
   const [interval, setInterval] = useState<Interval>("year");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [requestId, setRequestId] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<null | "paid" | "review" | "unpaid">(null);
+  const [shopId, setShopId] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<null | "paid" | "live" | "unpaid">(null);
 
   useEffect(() => { loadPlans().then(setPlans); }, []);
   // A reload loses what was typed, so start again from the first screen instead of showing an empty one.
@@ -118,28 +118,29 @@ export function Setup() {
   async function finish() {
     if (!chosen) return;
     setBusy(true); setErr("");
+    let id = shopId;
     try {
-      let id = requestId;
       if (!id) {
         const raw = form.google_place_id.trim();
         const placeId = raw ? extractPlaceId(raw) : null;
         const note = [form.note.trim(), raw && !placeId ? `Google Maps link: ${raw}` : ""].filter(Boolean).join("\n");
-        const ins = await supabase.from("listing_requests").insert({
-          requester_id: session!.user.id, business_name: form.business_name.trim(), category: form.category.trim(),
-          area: form.area.trim() || null, city: form.city.trim(), phone: form.phone.trim(), google_place_id: placeId, note: note || null,
-          wants_qr: tables > 0, qr_style: tables > 0 ? style : null, tables, plan: chosen.code, links: buildLinks(),
-          billing_interval: chosen.code === "trial" ? null : interval,
-        }).select("id").single();
+        const ins = await supabase.rpc("list_my_shop", {
+          p_name: form.business_name.trim(), p_category: form.category.trim(), p_city: form.city.trim(), p_phone: form.phone.trim(),
+          p_area: form.area.trim() || null, p_google_place_id: placeId, p_links: buildLinks(), p_note: note || null,
+        });
         if (ins.error) throw ins.error;
         id = (ins.data as { id: string }).id;
-        setRequestId(id);
+        setShopId(id);
+        // The free trial QR right away; paid tables come after payment.
+        if (tables > 0) await supabase.rpc("make_table_qrs", { p_place: id, p_tables: tables, p_style: style });
       }
-      if (price <= 0) { setOutcome("review"); return; }
-      const paid = await payForRequest(id, form.business_name.trim());
+      if (price <= 0) { setOutcome("live"); return; }
+      const paid = await payForPlan(id, form.business_name.trim(), chosen.code, interval);
+      if (paid && tables > 0) await supabase.rpc("make_table_qrs", { p_place: id, p_tables: tables, p_style: style });
       setOutcome(paid ? "paid" : "unpaid");
     } catch (e) {
       setErr(errorText(e));
-      if (requestId) toast("Your request is saved. You can pay from Your requests.");
+      if (id) toast("Your shop is listed. You can pay from its Plan tab.");
     }
     setBusy(false);
   }
@@ -151,12 +152,12 @@ export function Setup() {
         <main className="su-body su-card su-done" data-dir="fwd" data-step="7">
           {outcome !== "unpaid" && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#c9604a", "#d9a441", "#c2492b", "#6d5fb0", "#4a78b8", "#2f7d6e"][i % 6] }} />)}
           <span className={`icon-chip lg ${outcome === "unpaid" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" ? "wallet" : "check"} size={26} /></span>
-          <h2>{paid ? "Paid. You're all set" : outcome === "review" ? "Request sent" : "Request saved"}</h2>
+          <h2>{paid ? "Paid. Your shop is live" : outcome === "live" ? "Your shop is live" : "Your shop is live, payment pending"}</h2>
           <p className="small muted">{outcome === "unpaid"
-            ? "Your payment wasn't completed. Pay from Your requests whenever you're ready."
-            : "We'll check your details and switch on your page, usually within a day. You'll see it under Your requests."}</p>
+            ? "Your payment wasn't completed, so you're on the free trial QR for now. Pay from your shop's Plan tab whenever you're ready."
+            : "Your QR codes are ready to print. We'll check your Google page and links, usually within a day, then show your links on your page."}</p>
         </main>
-        <footer className="su-foot"><button className="btn green block" onClick={() => nav("/business", { replace: true })}><Icon name="ticket" size={18} />See your requests</button></footer>
+        <footer className="su-foot"><button className="btn green block" onClick={() => nav(shopId ? `/manage/${shopId}` : "/business", { replace: true })}><Icon name="store" size={18} />Open my shop</button></footer>
       </div>
     );
   }

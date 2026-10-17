@@ -30,6 +30,8 @@ export interface Place {
   cover_path?: string | null;
   logo_path?: string | null;
   links?: { kind: string; url: string; label?: string | null }[] | null;
+  /** the team's check of a self-listed shop */
+  verification?: "pending" | "verified" | "rejected";
   /** business type, see src/lib/modes.ts */
   kind?: string;
 }
