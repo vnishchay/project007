@@ -29,13 +29,13 @@
 }
 .pl-logo {
   position: absolute; top: -38px; left: 18px; width: 78px; height: 78px; border-radius: 22px; overflow: hidden;
-  border: 4px solid var(--card); background: var(--surface); box-shadow: 0 6px 18px rgba(17, 40, 24, 0.18);
+  border: 4px solid var(--card); background: var(--surface); box-shadow: 0 6px 18px rgba(60, 20, 110, 0.18);
   display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 26px; letter-spacing: -0.02em;
 }
 .pl-logo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #fff; z-index: 1; }
 .pl-score {
   position: absolute; top: 14px; right: 16px; display: flex; flex-direction: column; align-items: center; gap: 1px;
-  padding: 7px 12px 6px; border-radius: 16px; background: var(--grad-hero); color: #fff; box-shadow: 0 6px 16px rgba(30, 122, 70, 0.3);
+  padding: 7px 12px 6px; border-radius: 16px; background: var(--grad-hero); color: #fff; box-shadow: 0 6px 16px rgba(232, 73, 31, 0.3);
 }
 .pl-score .n { display: inline-flex; align-items: center; gap: 3px; font-size: 22px; font-weight: 800; line-height: 1; }
 .pl-score .l { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.9; }
@@ -60,7 +60,7 @@ a.pl-stats-link, .pl-stats a:hover { color: var(--ink); }
 .pl-friends { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 14px; background: var(--sky-soft); color: #18407f; }
 .pl-friends .avatar.sm { width: 28px; height: 28px; border-color: var(--sky-soft); }
 .pl-fdot { background: #fff; color: #1d5fd1; }
-.pl-cta { margin-top: 4px; height: 54px; font-size: 17px; box-shadow: 0 8px 20px rgba(30, 122, 70, 0.28); }
+.pl-cta { margin-top: 4px; height: 54px; font-size: 17px; box-shadow: 0 8px 20px rgba(232, 73, 31, 0.28); }
 
 /* Products */
 .pl-products { gap: 12px; padding-bottom: 12px; }
@@ -90,7 +90,7 @@ a.pl-stats-link, .pl-stats a:hover { color: var(--ink); }
 
 /* Review filters and states */
 .pl-filters { gap: 8px; padding-bottom: 4px; }
-.pl-filters .chip { box-shadow: 0 1px 2px rgba(17, 40, 24, 0.04); }
+.pl-filters .chip { box-shadow: 0 1px 2px rgba(60, 20, 110, 0.04); }
 .pl-item-chip { padding: 4px 12px 4px 4px; }
 .pl-item-chip .item-thumb { border-radius: 999px; }
 .pl-empty-reviews { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 16px; border-radius: 20px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); text-align: center; }
@@ -99,7 +99,7 @@ a.pl-stats-link, .pl-stats a:hover { color: var(--ink); }
 .pl-about p { line-height: 1.55; color: var(--ink-2); font-size: 15px; }
 
 /* ---------- Review card ---------- */
-.rc { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(17, 40, 24, 0.04); }
+.rc { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(60, 20, 110, 0.04); }
 .rc-head { display: flex; align-items: center; gap: 10px; }
 .rc-anon { background: var(--surface); color: var(--muted); }
 .rc-verified { color: var(--green); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px; background: var(--green-soft); flex: none; }
@@ -113,7 +113,7 @@ a.pl-stats-link, .pl-stats a:hover { color: var(--ink); }
 .rc-voice audio { flex: 1; min-width: 0; height: 34px; }
 .rc-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .rc-tags { align-items: center; }
-.rc-tag { padding: 4px 10px; border-radius: 999px; background: var(--green-soft); color: var(--green-dark); font-weight: 700; font-size: 12px; }
+.rc-tag { padding: 4px 10px; border-radius: 999px; background: var(--good-soft); color: var(--good-dark); font-weight: 700; font-size: 12px; }
 .rc-tag.bad { background: var(--coral-soft); color: #a8432a; }
 .rc-rating { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .rc-word { font-weight: 800; font-size: 13px; color: var(--ink); }
@@ -177,7 +177,7 @@ a.pl-stats-link, .pl-stats a:hover { color: var(--ink); }
 .pl-links > .pl-link:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .pl-link {
   display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 10px 12px 10px 10px; border-radius: 18px;
-  background: var(--card); box-shadow: var(--shadow); color: var(--ink); border: 1px solid rgba(17, 40, 24, 0.04);
+  background: var(--card); box-shadow: var(--shadow); color: var(--ink); border: 1px solid rgba(60, 20, 110, 0.04);
   transition: transform 0.12s ease;
 }
 .pl-link:hover { color: var(--ink); transform: translateY(-1px); }

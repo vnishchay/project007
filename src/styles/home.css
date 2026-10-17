@@ -51,7 +51,7 @@
 /* ---------- Place cards ---------- */
 .place-card {
   display: flex; gap: 12px; padding: 10px; border-radius: 20px; background: var(--card); box-shadow: var(--shadow);
-  color: inherit; align-items: stretch; border: 1px solid rgba(17, 40, 24, 0.04);
+  color: inherit; align-items: stretch; border: 1px solid rgba(60, 20, 110, 0.04);
 }
 a.place-card:hover { color: inherit; box-shadow: var(--shadow-lg); }
 .place-card .thumb { width: 88px; height: 88px; position: relative; }
@@ -61,7 +61,7 @@ a.place-card:hover { color: inherit; box-shadow: var(--shadow-lg); }
 .place-card .meta > span { display: inline-flex; align-items: center; gap: 3px; }
 .place-card .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .thumb-fallback { width: 100%; height: 100%; display: grid; place-items: center; }
-.thumb-fallback.green { background: linear-gradient(135deg, #e8f3ec, #c9ebd4); color: var(--green-dark); }
+.thumb-fallback.green { background: linear-gradient(135deg, #ffe9df, #c9ebd4); color: var(--green-dark); }
 .thumb-fallback.amber { background: linear-gradient(135deg, #fff3d9, #ffe0a1); color: #9a6200; }
 .thumb-fallback.coral { background: linear-gradient(135deg, #fde9e3, #fbc7b8); color: #b2401f; }
 .thumb-fallback.sky { background: linear-gradient(135deg, #e5efff, #c2d9ff); color: #1d5fd1; }

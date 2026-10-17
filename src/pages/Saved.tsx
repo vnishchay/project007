@@ -238,12 +238,12 @@ async function storyCard(r: ReviewRow): Promise<File | null> {
     const g = c.getContext("2d")!;
     g.fillStyle = "#F5F6F4"; g.fillRect(0, 0, 1080, 1350);
     g.fillStyle = "#FFFFFF"; roundRect(g, 80, 160, 920, 1030, 56); g.fill();
-    g.fillStyle = "#1E7A46"; g.font = "700 40px Manrope, sans-serif"; g.fillText("Trusted Picks", 150, 270);
-    g.fillStyle = "#111311"; g.font = "800 72px Manrope, sans-serif";
+    g.fillStyle = "#e8491f"; g.font = "700 40px Manrope, sans-serif"; g.fillText("Trusted Picks", 150, 270);
+    g.fillStyle = "#1a1236"; g.font = "800 72px Manrope, sans-serif";
     wrap(g, r.items?.name || "", 150, 400, 780, 84, 2);
-    g.fillStyle = "#5F665F"; g.font = "600 40px Manrope, sans-serif"; g.fillText(r.places?.name || "", 150, 560);
+    g.fillStyle = "#6b6385"; g.font = "600 40px Manrope, sans-serif"; g.fillText(r.places?.name || "", 150, 560);
     g.fillStyle = "#E0A100"; g.font = "64px sans-serif"; g.fillText("★".repeat(r.rating) + "☆".repeat(5 - r.rating), 150, 670);
-    g.fillStyle = "#3A403A"; g.font = "500 40px Manrope, sans-serif";
+    g.fillStyle = "#3d3560"; g.font = "500 40px Manrope, sans-serif";
     wrap(g, r.body ? `“${r.body}”` : "", 150, 780, 780, 58, 6);
     const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
     return blob ? new File([blob], "trusted-pick.png", { type: "image/png" }) : null;

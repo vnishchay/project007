@@ -4,29 +4,52 @@ import { supabase, errorText } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { loadPlans, payForRequest, type PlanRow } from "../../lib/billing";
 import { googleConfigured, type GoogleMatch } from "../../lib/google";
-import { extractPlaceId, QR_STYLES, rupees } from "../../lib/util";
+import { extractPlaceId, googleMapsUrl, QR_STYLES, rupees } from "../../lib/util";
 import type { QrStyle } from "../../lib/types";
 import { areaCityFromAddress, GoogleFind, GooglePreview, matchCategory } from "../manage/Google";
 import { Icon, QrImage, useToast } from "../ui";
+import { LinkIcon, guessLinkKind } from "../LinkIcon";
+import "../../styles/setup.css";
 
 const EMPTY = { business_name: "", category: "", area: "", city: "", phone: "", google_place_id: "", note: "" };
 const TABLE_CHOICES = [1, 3, 5, 10, 15, 25];
 type Interval = "year" | "month";
+const LAST = 5;
+const LINK_FIELDS = [
+  { key: "zomato", label: "Zomato", ph: "Paste your Zomato link" },
+  { key: "swiggy", label: "Swiggy", ph: "Paste your Swiggy link" },
+  { key: "instagram", label: "Instagram", ph: "Paste your Instagram link" },
+  { key: "website", label: "Website", ph: "Paste your website" },
+] as const;
+type LinkKey = (typeof LINK_FIELDS)[number]["key"];
+
+/** A pasted address, with https:// added when it is missing; null when it can't be a web address. */
+function cleanUrl(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return "";
+  const u = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  try { const x = new URL(u); return x.hostname.includes(".") ? x.toString() : null; } catch { return null; }
+}
 
 /**
- * Setting up a business, one question per slide: the shop, how to reach you, how many tables
- * need a QR, which plan, and last of all the payment.
+ * Setting up a business, one question per slide: the shop, how to reach you, where else you are
+ * listed, how many tables need a QR, which plan, and last of all the payment. Every slide flies in
+ * from the direction you are travelling.
  */
 export function Setup({ onSent }: { onSent: () => void }) {
   const { session } = useAuth();
   const toast = useToast();
   const [step, setStep] = useState(0);
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
+  const [urls, setUrls] = useState<Record<LinkKey, string>>({ zomato: "", swiggy: "", instagram: "", website: "" });
+  const [extras, setExtras] = useState<string[]>([]);
   const [form, setForm] = useState(EMPTY);
   const [picked, setPicked] = useState<GoogleMatch | null>(null);
   const [tables, setTables] = useState(5);
   const [style, setStyle] = useState<QrStyle>("paper");
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [plan, setPlan] = useState("");
+  const [manual, setManual] = useState(false);
   const [interval, setInterval] = useState<Interval>("year");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -38,10 +61,10 @@ export function Setup({ onSent }: { onSent: () => void }) {
 
   // The smallest plan that covers the tables is pre-selected; the free trial covers one QR.
   const fits = (p: PlanRow) => p.qr_limit >= tables;
-  const suggested = useMemo(() => plans.filter((p) => p.code !== "trial" && fits(p)).sort((a, b) => a.qr_limit - b.qr_limit)[0]?.code ?? "", [plans, tables]); // eslint-disable-line react-hooks/exhaustive-deps
+  const suggested = useMemo(() => (tables <= 1 && plans.some((p) => p.code === "trial") ? "trial" : plans.filter((p) => p.code !== "trial" && fits(p)).sort((a, b) => a.qr_limit - b.qr_limit)[0]?.code ?? ""), [plans, tables]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const cur = plans.find((p) => p.code === plan);
-    if (!cur || !fits(cur)) setPlan(suggested || (tables <= 1 ? "trial" : ""));
+    if (!cur || !fits(cur) || !manual) setPlan(suggested);
   }, [suggested, plans, tables]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chosen = plans.find((p) => p.code === plan);
@@ -61,8 +84,23 @@ export function Setup({ onSent }: { onSent: () => void }) {
       if (!form.category.trim() || !form.city.trim()) { setErr("Add a category and a city."); return; }
       if (form.phone.replace(/\D/g, "").length < 10) { setErr("Enter a full phone number so we can reach you."); return; }
     }
-    if (step === 3 && !chosen) { setErr("Pick a plan."); return; }
-    setStep((s) => s + 1);
+    if (step === 2) {
+      for (const f of LINK_FIELDS) if (cleanUrl(urls[f.key]) === null) { setErr(`Check the ${f.label} link.`); return; }
+      if (extras.some((x) => cleanUrl(x) === null)) { setErr("Check the extra link."); return; }
+    }
+    if (step === 4 && !chosen) { setErr("Pick a plan."); return; }
+    go(1);
+  }
+  function go(d: 1 | -1) { setDir(d === 1 ? "fwd" : "back"); setErr(""); setStep((s) => s + d); }
+
+  /** What goes on the shop page: Google Maps first, then whatever was pasted. */
+  function buildLinks() {
+    const out: { kind: string; url: string }[] = [];
+    const gid = extractPlaceId(form.google_place_id.trim());
+    if (gid) out.push({ kind: "maps", url: googleMapsUrl(gid, form.business_name) });
+    for (const f of LINK_FIELDS) { const u = cleanUrl(urls[f.key]); if (u) out.push({ kind: f.key === "website" ? "website" : f.key, url: u }); }
+    for (const x of extras) { const u = cleanUrl(x); if (u) out.push({ kind: guessLinkKind(u), url: u }); }
+    return out;
   }
 
   async function finish() {
@@ -77,7 +115,7 @@ export function Setup({ onSent }: { onSent: () => void }) {
         const ins = await supabase.from("listing_requests").insert({
           requester_id: session!.user.id, business_name: form.business_name.trim(), category: form.category.trim(),
           area: form.area.trim() || null, city: form.city.trim(), phone: form.phone.trim(), google_place_id: placeId, note: note || null,
-          wants_qr: tables > 0, qr_style: tables > 0 ? style : null, tables, plan: chosen.code,
+          wants_qr: tables > 0, qr_style: tables > 0 ? style : null, tables, plan: chosen.code, links: buildLinks(),
           billing_interval: chosen.code === "trial" ? null : interval,
         }).select("id").single();
         if (ins.error) throw ins.error;
@@ -98,7 +136,8 @@ export function Setup({ onSent }: { onSent: () => void }) {
   if (outcome) {
     const paid = outcome === "paid";
     return (
-      <div className="card rv-gate center cl-slide">
+      <div className="card rv-gate center su-card su-done" data-dir="fwd" data-step="7">
+        {outcome !== "unpaid" && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#ff3d6e", "#ffb800", "#e8491f", "#6c3bff", "#1561f0", "#0f9d8a"][i % 6] }} />)}
         <span className={`icon-chip lg ${outcome === "unpaid" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" ? "wallet" : "check"} size={26} /></span>
         <h2>{paid ? "Paid. You're all set" : outcome === "review" ? "Request sent" : "Request saved"}</h2>
         <p className="small muted">{outcome === "unpaid"
@@ -144,6 +183,29 @@ export function Setup({ onSent }: { onSent: () => void }) {
       </div>
     </>,
     <>
+      <span className="icon-chip lg violet" style={{ margin: "0 auto" }}><Icon name="link" size={26} /></span>
+      <h2>Where else are you listed?</h2>
+      <p className="small muted">Paste what you have and skip the rest. Customers get one button for each, and you can add more later.</p>
+      <div className="stack" style={{ textAlign: "left", gap: 10 }}>
+        {extractPlaceId(form.google_place_id.trim()) ? (
+          <div className="su-link on"><LinkIcon kind="maps" size={40} /><span className="grow"><b className="tiny muted">Google Maps</b><br /><span className="strong small">{form.business_name || "Found on Google"}</span></span><span className="su-found"><Icon name="check" size={16} width={3} /></span></div>
+        ) : (
+          <label className="su-link"><LinkIcon kind="maps" size={40} /><span className="grow"><b className="tiny muted">Google Maps</b>
+            <input className="su-input" value={form.google_place_id} onChange={set("google_place_id")} placeholder="Paste your Google Maps link" inputMode="url" /></span></label>
+        )}
+        {LINK_FIELDS.map((f) => (
+          <label key={f.key} className={`su-link ${urls[f.key].trim() ? "on" : ""}`}><LinkIcon kind={f.key} size={40} /><span className="grow"><b className="tiny muted">{f.label}</b>
+            <input className="su-input" value={urls[f.key]} onChange={(e) => setUrls((u) => ({ ...u, [f.key]: e.target.value }))} placeholder={f.ph} inputMode="url" autoCapitalize="off" /></span></label>
+        ))}
+        {extras.map((x, i) => (
+          <label key={i} className={`su-link ${x.trim() ? "on" : ""}`}><LinkIcon kind={guessLinkKind(x)} size={40} /><span className="grow"><b className="tiny muted">Another link</b>
+            <input className="su-input" value={x} onChange={(e) => setExtras((a) => a.map((v, j) => (j === i ? e.target.value : v)))} placeholder="Facebook, YouTube, Justdial…" inputMode="url" autoCapitalize="off" /></span></label>
+        ))}
+        {extras.length < 3 && <button type="button" className="su-add" onClick={() => setExtras((a) => [...a, ""])}><Icon name="plus" size={16} />Add another link</button>}
+      </div>
+      <p className="tiny muted su-note"><Icon name="info" size={14} />Your Google rating and reviews show on your page by themselves. Zomato and Swiggy appear as buttons because those sites don't share their reviews.</p>
+    </>,
+    <>
       <span className="icon-chip lg amber" style={{ margin: "0 auto" }}><Icon name="qr" size={26} /></span>
       <h2>How many tables or counters need a QR?</h2>
       <p className="small muted">Customers scan it to review. You can add more later.</p>
@@ -186,7 +248,7 @@ export function Setup({ onSent }: { onSent: () => void }) {
           const ok = fits(p);
           const amt = p.code === "trial" ? 0 : (interval === "year" ? p.price_inr_year : p.price_inr_month) ?? 0;
           return (
-            <button key={p.code} type="button" disabled={!ok} aria-pressed={plan === p.code} onClick={() => setPlan(p.code)}
+            <button key={p.code} type="button" disabled={!ok} aria-pressed={plan === p.code} onClick={() => { setManual(true); setPlan(p.code); }}
               className={`card pn-plan pn-pick ${plan === p.code ? "on" : ""}`}>
               <span className="row" style={{ gap: 8 }}>
                 <strong className="grow">{p.name}{p.code === suggested && <span className="badge" style={{ marginLeft: 8 }}>Best fit</span>}</strong>
@@ -221,13 +283,17 @@ export function Setup({ onSent }: { onSent: () => void }) {
 
   return (
     <div className="stack" style={{ gap: 12 }}>
-      <div className="cl-dots" aria-label={`Step ${step + 1} of ${slides.length}`}>{slides.map((_, i) => <span key={i} className={i <= step ? "on" : ""} />)}</div>
-      <div className="card rv-gate center cl-slide" key={step}>
-        {slides[step]}
-        {err && step < 4 && <div className="notice err">{err}</div>}
-        {step < 4 && <button className="btn green block" onClick={next}>Next<Icon name="chev" size={18} /></button>}
+      <div className="su-bar" aria-label={`Step ${step + 1} of ${slides.length}`}>
+        {slides.map((_, i) => <span key={i} className={i < step ? "done" : i === step ? "now" : ""} />)}
+        <b>{step + 1}/{slides.length}</b>
       </div>
-      {step > 0 && !busy && <button className="btn quiet" onClick={() => { setErr(""); setStep((s) => s - 1); }}><Icon name="back" size={16} />Back</button>}
+      <div className="card rv-gate center su-card" key={step} data-dir={dir} data-step={step}>
+        {slides[step]}
+        {err && step < LAST && <div className="notice err">{err}</div>}
+        {step < LAST && <button className="btn green block su-cta" onClick={next}>Next<Icon name="chev" size={18} /></button>}
+        {step === 2 && <button type="button" className="link-btn su-skip" onClick={() => { setUrls({ zomato: "", swiggy: "", instagram: "", website: "" }); setExtras([]); go(1); }}>Skip for now</button>}
+      </div>
+      {step > 0 && !busy && <button className="btn quiet" onClick={() => go(-1)}><Icon name="back" size={16} />Back</button>}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
 import { placeMediaUrl } from "../lib/media";
 import { shareLink, shareOrCopy } from "../lib/invite";
 import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
-import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
+import { ReviewCard, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { ItemThumb } from "../components/place/ItemThumb";
 import { loadShopItems, missingColumn, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
 import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
@@ -19,6 +19,7 @@ import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
 import { sortReviews, summarize, type ReviewSort } from "../lib/reviews";
 import "../styles/place.css";
+import "../styles/night.css";
 
 export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
 
@@ -76,7 +77,7 @@ export default function PlacePage() {
   const [experts, setExperts] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
-  const [allHours, setAllHours] = useState(false);
+  const [tab, setTab] = useState<"menu" | "reviews" | "photos" | "about">("menu");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<ReviewSort>("useful");
   const [coverOk, setCoverOk] = useState(true);
@@ -189,96 +190,136 @@ export default function PlacePage() {
   const links = cleanLinks((place as Place & { links?: unknown }).links);
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
 
+  const openReviews = (f: Filter) => {
+    setFilter(f); setTab("reviews");
+    window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
+  const [first, ...restWords] = place.name.trim().split(/\s+/);
+  const find = (k: string) => links.find((l) => l.kind === k)?.url;
+  const directions = place.google_place_id ? googleMapsUrl(place.google_place_id, place.name) : find("maps");
+  type DockItem = { icon: "navigate" | "phone" | "message" | "globe"; label: string; href: string; hot?: boolean };
+  const dock: DockItem[] = [];
+  if (directions) dock.push({ icon: "navigate", label: "Directions", href: directions, hot: true });
+  if (find("phone")) dock.push({ icon: "phone", label: "Call", href: find("phone")! });
+  if (find("whatsapp")) dock.push({ icon: "message", label: "WhatsApp", href: find("whatsapp")! });
+  if (find("website")) dock.push({ icon: "globe", label: "Website", href: find("website")! });
+  // Items people rate highly, for the big cards at the top.
+  const signature = products.filter((p) => { const st = stats.get(p.id); return st && st.sum / st.count >= 3.5; })
+    .sort((a, b) => { const x = stats.get(a.id)!, y = stats.get(b.id)!; return y.sum / y.count - x.sum / x.count || y.count - x.count; }).slice(0, 5);
+  const ticker = reviews.filter((r) => r.author_name && r.rating >= 4).slice(0, 6)
+    .map((r) => `${r.author_name!.split(" ")[0]} rated ${r.items?.name || "it"} ${r.rating}★`);
+  const photos = reviews.filter((r) => r.photo_path);
+  const tabs: { id: typeof tab; label: string; n?: number }[] = [
+    { id: "menu", label: look.menu, n: products.length || undefined },
+    { id: "reviews", label: "Reviews", n: reviews.length || undefined },
+    { id: "photos", label: "Photos", n: photos.length || undefined },
+    { id: "about", label: "About" },
+  ];
+
   return (
-    <div className="page pl-page">
-      <div className={`pl-hero ${cover ? "has-cover" : ""}`} style={cover ? undefined : { background: look.grad }}>
-        {cover ? <img className="pl-cover" src={cover} alt="" onError={() => setCoverOk(false)} /> : (
-          <span className="pl-hero-art" aria-hidden="true"><Icon name={look.icon} size={150} width={1.2} /></span>
+    <div className="page pl-page pl-night">
+      <div className={`pn-hero ${cover ? "has-cover" : ""}`}>
+        {cover ? <img className="pn-cover" src={cover} alt="" onError={() => setCoverOk(false)} /> : (
+          <>
+            <span className="pn-aur" aria-hidden="true" />
+            <span className="pn-plate a" aria-hidden="true" /><span className="pn-plate b" aria-hidden="true" /><span className="pn-plate c" aria-hidden="true" />
+          </>
         )}
-        <div className="pl-hero-bar">
-          {!focusShop() && <button className="pl-glass" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>}
+        <div className="pn-fade" />
+        <div className="pn-bar">
+          {!focusShop() && <button className="pn-glass" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>}
+          {logo && <span className="pn-logo"><Img src={logo} alt={`${place.name} logo`} /></span>}
           <span className="grow" />
-          {canManage && <Link to={`/manage/${place.id}`} className="pl-glass pill"><Icon name="settings" size={18} />Manage shop</Link>}
-          <button className="pl-glass" aria-label={saved ? "Unsave" : "Save"} aria-pressed={saved} onClick={toggleSave}><Icon name="bookmark" fill={saved ? "currentColor" : undefined} /></button>
-          <button className="pl-glass" aria-label="Share" onClick={share}><Icon name="share" /></button>
+          {canManage && <Link to={`/manage/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}
+          <button className="pn-glass" aria-label={saved ? "Unsave" : "Save"} aria-pressed={saved} onClick={toggleSave}><Icon name="heart" fill={saved ? "currentColor" : undefined} /></button>
+          <button className="pn-glass" aria-label="Share" onClick={share}><Icon name="share" /></button>
+        </div>
+        <div className="pn-title">
+          <div className="pn-eyebrow"><span />{[place.category, place.area || place.city].filter(Boolean).join(" · ")}</div>
+          <h1>{first}{restWords.length > 0 && <><br /><i>{restWords.join(" ")}</i></>}</h1>
+          {place.about && <p className="pn-tag">{place.about.length > 120 ? `${place.about.slice(0, 117)}…` : place.about}</p>}
+          <div className="pn-chips">
+            {score != null
+              ? <span className="pn-chip" aria-label={`Trust score ${score.toFixed(1)} of 5`}><Icon name="star" size={15} fill="currentColor" color="#ffc857" /><b>{score.toFixed(1)}</b><span>{reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span></span>
+              : <span className="pn-chip"><Icon name="spark" size={15} color="#ffc857" /><b>New</b><span>on Trusted Picks</span></span>}
+            {today && <button type="button" className="pn-chip" onClick={() => { setTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }}><span className="pn-dot" />{today}</button>}
+            {verified > 0 && <span className="pn-chip"><Icon name="verified" size={15} color="#c6ff3d" />{verified} verified</span>}
+            {priceText(place.price_level) && <span className="pn-chip gold">{priceText(place.price_level)}</span>}
+          </div>
         </div>
       </div>
 
-      <section className="pl-head">
-        <span className="pl-logo" style={{ background: look.grad }}>
-          <Img src={logo} alt={`${place.name} logo`} />
-          <span className="pl-logo-txt">{initials(place.name)}</span>
-        </span>
-        {score != null ? (
-          <div className="pl-score" aria-label={`Trust score ${score.toFixed(1)} of 5`}>
-            <span className="n">{score.toFixed(1)}<Icon name="star" size={15} fill="currentColor" /></span>
-            <span className="l"><Icon name="shield" size={11} />Trust</span>
-          </div>
-        ) : (
-          <div className="pl-score none" aria-label="Not rated yet">
-            <span className="n"><Icon name="spark" size={18} /></span>
-            <span className="l">New</span>
-          </div>
-        )}
-        <h1>{place.name}</h1>
-        <div className="pl-meta">
-          <span><Icon name={look.icon} size={15} />{place.category}</span>
-          {(place.area || place.city) && <span><Icon name="pin" size={15} />{place.area || place.city}</span>}
-          {priceText(place.price_level) && <span className="pl-price-level">{priceText(place.price_level)}</span>}
+      {ticker.length >= 2 && (
+        <div className="pn-ticker" aria-label="What friends and others rated">
+          <div className="pn-ticker-run">{[...ticker, ...ticker].map((t, i) => <span key={i}><Icon name="star" size={13} fill="currentColor" />{t}</span>)}</div>
         </div>
-        {today && (
-          <button type="button" className="pl-hours" onClick={() => setAllHours(!allHours)} aria-expanded={allHours}>
-            <Icon name="clock" size={15} /><span>{today}</span><Icon name={allHours ? "up" : "down"} size={14} />
+      )}
+
+      {dock.length > 0 && (
+        <div className="pn-dock">
+          {dock.map((d) => (
+            <a key={d.label} className="pn-act" href={d.href} {...(/^https?:/i.test(d.href) ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+              <span className={d.hot ? "hot" : ""}><Icon name={d.icon} size={23} /></span>{d.label}
+            </a>
+          ))}
+        </div>
+      )}
+
+      {signature.length > 0 && (
+        <section className="pn-sig" aria-label="Signature picks">
+          <h2>Signature <i>picks</i></h2>
+          <div className="pn-sig-row">
+            {signature.map((p, i) => {
+              const st = stats.get(p.id)!;
+              return (
+                <button key={p.id} type="button" className="pn-sig-card" style={{ animationDelay: `${0.1 + i * 0.1}s` }} onClick={() => (canRate ? nav(`${rateUrl}?item=${p.id}`) : openReviews(`item:${p.id}`))}>
+                  <span className="pn-sig-img"><ItemThumb path={p.image_path} icon={look.icon} /></span>
+                  <span className="pn-sig-name">{p.name}</span>
+                  <span className="pn-sig-foot"><b>{priceLabel(p.price_inr) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{(st.sum / st.count).toFixed(1)} · {st.count}</span></span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {(friendLiked.length > 0 || friendCount > 0) && (
+        <section className="pn-friends" aria-label="Your friends liked">
+          <h2>Your friends <i>liked</i></h2>
+          {friendLiked.length > 0 ? (
+            <div className="pn-fr-row">
+              {friendLiked.map((r) => (
+                <button key={r.id} type="button" className="pn-fr" onClick={() => openReviews("friends")}>
+                  <span className="row" style={{ gap: 10 }}>
+                    <Avatar id={r.user_id!} name={r.author_name} path={r.author_avatar} size="sm" />
+                    <span className="grow"><b>{r.author_name!.split(" ")[0]}</b><span className="pn-lime tiny">Your friend</span></span>
+                    <Stars value={r.rating} size={12} />
+                  </span>
+                  <span className="pn-quote">{r.body?.trim() ? `“${r.body.trim().slice(0, 90)}${r.body.trim().length > 90 ? "…" : ""}”` : `Loved ${r.items?.name || "it here"}`}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="pn-fr solo"><span className="avatars">{friendNamed.slice(0, 3).map((r) => <Avatar key={r.user_id} id={r.user_id!} name={r.author_name} path={r.author_avatar} size="sm" />)}</span>
+              <span className="small">{friendNamed.length ? <><b>{friendNamed[0]!.author_name || "A friend"}</b>{friendCount > 1 ? ` + ${friendCount - 1} more` : ""} rated this</> : <><b>{friendCount} friends</b> rated this</>}</span></div>
+          )}
+        </section>
+      )}
+
+      <div className="pn-tabs" id="pn-tabs" role="tablist" aria-label="Shop sections">
+        {tabs.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
+            {t.label}{t.n ? <span>{t.n}</span> : null}
           </button>
-        )}
-        {allHours && place.hours && (
-          <div className="pl-hours-all">{Object.entries(place.hours).map(([d, h]) => <div key={d}><b>{d}</b><span>{h}</span></div>)}</div>
-        )}
-
-        <div className="pl-stats">
-          <span title="Reviews"><Icon name="message" size={16} /><b>{reviewCount}</b><span>reviews</span></span>
-          <span title="Verified visits"><Icon name="verified" size={16} /><b>{verified}</b><span>verified</span></span>
-          {google ? <a href={onGoogle ? "#on-google" : place.google_place_id ? googleMapsUrl(place.google_place_id, place.name) : undefined} {...(onGoogle ? { onClick: (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("on-google")?.scrollIntoView({ behavior: "smooth", block: "start" }); } } : { target: "_blank", rel: "noreferrer" })} title="Google rating"><Icon name="globe" size={16} /><b>{google.rating.toFixed(1)}</b><span>Google</span></a>
-            : summary?.has_qr ? <span title="Table QR"><Icon name="qr" size={16} /><b><Icon name="check" size={14} width={3} /></b><span>table QR</span></span> : null}
-        </div>
-
-        {friendCount > 0 && (
-          <div className="pl-friends">
-            <span className="avatars">
-              {friendNamed.slice(0, 3).map((r) => <Avatar key={r.user_id} id={r.user_id!} name={r.author_name} path={r.author_avatar} size="sm" />)}
-              {!friendNamed.length && <span className="avatar sm pl-fdot"><Icon name="people" size={13} /></span>}
-            </span>
-            <span className="small">
-              {friendNamed.length
-                ? <><b>{friendNamed[0]!.author_name || "A friend"}</b>{friendCount > 1 ? ` + ${friendCount - 1} friend${friendCount > 2 ? "s" : ""}` : ""} rated this</>
-                : <><b>{friendCount} friends</b> rated this</>}
-            </span>
-          </div>
-        )}
-
-        {friendLiked.length > 0 && (
-          <div className="pl-fliked" aria-label="Your friends liked">
-            <span className="strong small row" style={{ gap: 6 }}><Icon name="heart" size={15} color="var(--coral)" />Your friends liked</span>
-            {friendLiked.map((r) => (
-              <button key={r.id} type="button" className="pl-fliked-row" onClick={() => { setFilter("friends"); document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" }); }}>
-                <Avatar id={r.user_id!} name={r.author_name} path={r.author_avatar} size="sm" />
-                <span className="grow small ellipsis"><b>{r.author_name!.split(" ")[0]}</b> loved {r.items?.name || "it here"}</span>
-                <Stars value={r.rating} size={12} />
-              </button>
-            ))}
-          </div>
-        )}
-
-        {canRate
-          ? <Link to={rateUrl} className="btn green block pl-cta"><Icon name="star" size={20} fill="#fff" />Rate what you had</Link>
-          : <p className="pl-cta-note"><Icon name="qr" size={16} />At the shop? Point your phone camera at the QR on your table to review.</p>}
-      </section>
-
-      <ShopLinks links={links} />
-      <ShopUpdates placeId={place.id} />
+        ))}
+      </div>
 
       {loadErr && <div className="notice err row"><span className="grow">Couldn't load everything: {loadErr}</span><button className="link-btn" onClick={() => setAttempt((n) => n + 1)}><Icon name="refresh" size={16} />Retry</button></div>}
 
+      <div className="pn-panel" key={tab}>
+        {tab === "menu" && (
+          <>
+            <ShopUpdates placeId={place.id} />
       <section className="stack" style={{ gap: 12 }}>
         <div className="section-title">
           <span className={`icon-chip sm ${look.tint}`}><Icon name={look.icon} size={16} /></span>
@@ -292,12 +333,12 @@ export default function PlacePage() {
             <Icon name="chev" />
           </Link>
         ) : (
-          <div className="hscroll pl-products">
+          <div className="pl-products pn-grid">
             {products.map((p) => {
               const s = stats.get(p.id);
               return (
                 <Link key={p.id} to={canRate ? `${rateUrl}?item=${p.id}` : `#reviews`} className="pl-product" aria-label={canRate ? `Rate ${p.name}` : `Reviews of ${p.name}`}
-                  onClick={canRate ? undefined : (e) => { e.preventDefault(); if (s) { setFilter(`item:${p.id}`); document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" }); } }}>
+                  onClick={canRate ? undefined : (e) => { e.preventDefault(); if (s) { openReviews(`item:${p.id}`); } }}>
                   <span className="pl-product-img">
                     <ItemThumb path={p.image_path} icon={look.icon} />
                     {s && <span className="pl-product-rate"><Icon name="star" size={12} fill="currentColor" />{(s.sum / s.count).toFixed(1)}<span>· {s.count}</span></span>}
@@ -320,6 +361,10 @@ export default function PlacePage() {
         )}
       </section>
 
+          </>
+        )}
+        {tab === "reviews" && (
+          <>
       <section className="stack" style={{ gap: 12 }} id="reviews">
         {aiSummary && (
           <div className="pl-summary">
@@ -400,6 +445,15 @@ export default function PlacePage() {
           ))}
       </section>
 
+          </>
+        )}
+        {tab === "photos" && (
+          photos.length === 0
+            ? <div className="pn-empty"><Icon name="camera" size={28} /><b>No photos yet</b><span className="small">Photos from verified visitors show up here</span></div>
+            : <div className="pn-photos">{photos.map((r, i) => <figure key={r.id} style={{ animationDelay: `${i * 0.06}s` }}><img src={reviewPhotoUrl(r.photo_path)!} alt={`Photo of ${r.items?.name || "the order"}`} loading="lazy" /><figcaption>{r.items?.name}</figcaption></figure>)}</div>
+        )}
+        {tab === "about" && (
+          <>
       {(place.about || (!onGoogle && (place.google_place_id || google))) && (
         <section className="pl-about">
           <div className="section-title">
@@ -421,9 +475,32 @@ export default function PlacePage() {
         </section>
       )}
 
+            {place.hours && Object.keys(place.hours).length > 0 && (
+              <section className="pl-about">
+                <div className="section-title"><span className="icon-chip sm amber"><Icon name="clock" size={16} /></span><span className="grow">Opening hours</span></div>
+                <div className="pl-hours-all">{Object.entries(place.hours).map(([d, h]) => <div key={d}><b>{d}</b><span>{h}</span></div>)}</div>
+              </section>
+            )}
       {onGoogle && <OnGoogle key={place.google_place_id!} googlePlaceId={place.google_place_id!} />}
 
+          </>
+        )}
+      </div>
+
+      {links.length > 0 && (
+        <section className="pn-links">
+          <h2>Also find us <i>on</i></h2>
+          <ShopLinks links={links} />
+        </section>
+      )}
+
       <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>
+
+      <div className="pn-foot">
+        {canRate
+          ? <Link to={rateUrl} className="pn-foot-btn"><span className="pn-pulse"><Icon name="star" size={22} fill="currentColor" /></span><span className="grow"><b>Rate what you had</b><br />Takes under a minute</span><Icon name="chev" /></Link>
+          : <div className="pn-foot-btn"><span className="pn-pulse"><Icon name="qr" size={22} /></span><span className="grow"><b>Eating here?</b><br />Scan the QR on your table to rate what you ordered</span></div>}
+      </div>
     </div>
   );
 }

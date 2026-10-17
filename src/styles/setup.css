@@ -1,0 +1,68 @@
+/* Business setup: every slide flies in from the direction you are travelling, its parts spring in
+   one after another, and the progress bar fills as you go. */
+
+.su-bar { display: flex; align-items: center; gap: 6px; }
+.su-bar > span { flex: 1; height: 7px; border-radius: 99px; background: var(--line); position: relative; overflow: hidden; }
+.su-bar > span::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(90deg, #ff7a3d, #e8491f, #ffb800); transform: scaleX(0); transform-origin: left; }
+.su-bar > span.done::after { transform: scaleX(1); }
+.su-bar > span.now::after { animation: su-fill 0.7s cubic-bezier(0.34, 1.2, 0.5, 1) 0.15s both; }
+.su-bar > b { font-size: 13px; color: var(--muted); margin-left: 6px; min-width: 28px; text-align: right; }
+@keyframes su-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* The card: where it comes from depends on the step and the direction. */
+.su-card { position: relative; overflow: hidden; --from: translateX(70px) scale(0.95); animation: su-in 0.75s cubic-bezier(0.34, 1.3, 0.5, 1) both; }
+.su-card[data-dir="back"] { --from: translateX(-70px) scale(0.95); }
+.su-card[data-step="1"][data-dir="fwd"] { --from: translateX(70px) rotate(2deg) scale(0.95); }
+.su-card[data-step="2"][data-dir="fwd"] { --from: translateY(80px) scale(0.94); }
+.su-card[data-step="3"][data-dir="fwd"] { --from: translateX(70px) scale(0.9) rotate(-2deg); }
+.su-card[data-step="4"][data-dir="fwd"] { --from: scale(0.7) rotate(-4deg); }
+.su-card[data-step="5"][data-dir="fwd"] { --from: translateX(70px) skewX(-7deg); }
+.su-card[data-step="7"] { --from: scale(0.6); }
+@keyframes su-in { from { opacity: 0; transform: var(--from); } to { opacity: 1; transform: none; } }
+
+/* Parts spring in one after another. */
+.su-card > * { animation: su-rise 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.su-card > *:nth-child(1) { animation-delay: 0.12s; } .su-card > *:nth-child(2) { animation-delay: 0.2s; } .su-card > *:nth-child(3) { animation-delay: 0.28s; }
+.su-card > *:nth-child(4) { animation-delay: 0.36s; } .su-card > *:nth-child(5) { animation-delay: 0.44s; } .su-card > *:nth-child(6) { animation-delay: 0.52s; }
+.su-card > *:nth-child(n + 7) { animation-delay: 0.6s; }
+@keyframes su-rise { from { opacity: 0; transform: translateY(26px) scale(0.94); } to { opacity: 1; transform: none; } }
+.su-card .icon-chip.lg { animation: su-pop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both; box-shadow: 0 10px 24px rgba(232, 73, 31, 0.25); }
+@keyframes su-pop { 0% { opacity: 0; transform: scale(0.3) rotate(-16deg); } 60% { transform: scale(1.18) rotate(6deg); } 100% { opacity: 1; transform: none; } }
+.su-card .btn.green { background: linear-gradient(135deg, #ff7a3d, #e8491f 55%, #ffa41b); box-shadow: 0 10px 24px rgba(232, 73, 31, 0.4); }
+.su-cta, .su-card .btn.green:not(:disabled) { animation: su-rise 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both, su-pulse 2.4s ease-in-out 1.6s infinite; }
+@keyframes su-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); box-shadow: 0 14px 32px rgba(232, 73, 31, 0.6); } }
+.su-card .btn:active, .su-add:active, .chip:active, .su-link:active { transform: scale(0.95); }
+
+/* QR styles flip in, plans slide in from alternate sides. */
+.su-card .biz-style { animation: su-flip 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.su-card .biz-style:nth-child(1) { animation-delay: 0.5s; } .su-card .biz-style:nth-child(2) { animation-delay: 0.6s; } .su-card .biz-style:nth-child(3) { animation-delay: 0.7s; } .su-card .biz-style:nth-child(4) { animation-delay: 0.8s; }
+@keyframes su-flip { from { opacity: 0; transform: perspective(400px) rotateY(-90deg) scale(0.7); } to { opacity: 1; transform: none; } }
+.su-card .pn-pick:nth-child(odd) { animation: su-left 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s both; }
+.su-card .pn-pick:nth-child(even) { animation: su-right 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both; }
+@keyframes su-left { from { opacity: 0; transform: translateX(-60px); } to { opacity: 1; transform: none; } }
+@keyframes su-right { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
+.su-card .chip { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.su-card .chip.on { transform: scale(1.12); background: linear-gradient(135deg, #2a0f6b, #6c3bff); border-color: transparent; }
+
+/* Links slide. */
+.su-link { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1.5px solid var(--line); border-radius: 18px; padding: 8px 12px; transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.su-link:focus-within { border-color: var(--green); box-shadow: 0 0 0 4px rgba(232, 73, 31, 0.15); transform: scale(1.02); }
+.su-link.on { border-color: var(--good); }
+.su-link .grow { min-width: 0; }
+.su-input { width: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-weight: 700; font-size: 15px; color: var(--ink); padding: 2px 0; }
+.su-input::placeholder { color: #a39cbd; font-weight: 600; }
+.su-found { width: 26px; height: 26px; border-radius: 99px; background: var(--good); color: #fff; display: grid; place-items: center; animation: su-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both; }
+.su-add { display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border-radius: 16px; border: 2px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
+.su-add:hover { border-color: var(--green); color: var(--green); }
+.su-note { display: flex; gap: 8px; text-align: left; align-items: flex-start; background: var(--green-soft); color: #8a2a12; border-radius: 14px; padding: 10px 12px; line-height: 1.45; }
+.su-note svg { flex: none; margin-top: 1px; }
+.su-skip { align-self: center; color: var(--muted); font-weight: 700; }
+
+/* Confetti on the finished slide. */
+.su-done .su-cf { position: absolute; top: -16px; width: 9px; height: 15px; border-radius: 3px; animation: su-fall 3.2s ease-in infinite; pointer-events: none; z-index: 2; }
+@keyframes su-fall { 0% { transform: translateY(0) rotate(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(420px) rotate(720deg); opacity: 1; } }
+.su-done > .su-cf { animation-name: su-fall; }
+
+@media (prefers-reduced-motion: reduce) {
+  .su-card, .su-card *, .su-bar > span::after, .su-done .su-cf { animation: none !important; }
+}

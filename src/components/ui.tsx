@@ -163,7 +163,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export const useToast = () => useContext(ToastCtx);
 
 /* ---------- QR image ---------- */
-export function QrImage({ text, size = 200, dark = "#111311", light = "#FFFFFF" }: { text: string; size?: number; dark?: string; light?: string }) {
+export function QrImage({ text, size = 200, dark = "#1a1236", light = "#FFFFFF" }: { text: string; size?: number; dark?: string; light?: string }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
     QRCode.toDataURL(text, { width: size * 2, margin: 1, errorCorrectionLevel: "M", color: { dark, light } }).then(setSrc);
@@ -171,6 +171,6 @@ export function QrImage({ text, size = 200, dark = "#111311", light = "#FFFFFF" 
   return src ? <img src={src} width={size} height={size} alt="QR code" /> : <div style={{ width: size, height: size }} />;
 }
 
-export async function qrPngDataUrl(text: string, dark = "#111311", light = "#FFFFFF"): Promise<string> {
+export async function qrPngDataUrl(text: string, dark = "#1a1236", light = "#FFFFFF"): Promise<string> {
   return QRCode.toDataURL(text, { width: 1200, margin: 2, errorCorrectionLevel: "M", color: { dark, light } });
 }

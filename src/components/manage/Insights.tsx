@@ -20,6 +20,7 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   const [items, setItems] = useState<ItemStat[]>([]);
   const [err, setErr] = useState("");
   const [old, setOld] = useState(false);
+  const [menuCount, setMenuCount] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -37,6 +38,13 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
     });
     return () => { alive = false; };
   }, [place.id, attempt]);
+
+  useEffect(() => {
+    let alive = true;
+    supabase.from("items").select("id", { count: "exact", head: true }).eq("place_id", place.id).eq("is_hidden", false)
+      .then(({ count }) => { if (alive) setMenuCount(count ?? 0); }, () => {});
+    return () => { alive = false; };
+  }, [place.id]);
 
   if (stats === undefined) return (
     <div className="stack"><div className="skeleton" style={{ height: 132, borderRadius: 24 }} /><div className="grid2"><div className="skeleton" style={{ height: 96 }} /><div className="skeleton" style={{ height: 96 }} /></div></div>
@@ -76,16 +84,7 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
       )}
 
       {s.reviews === 0 ? (
-        <div className="mg-empty">
-          <div className="mg-empty-art" aria-hidden="true">
-            <span className="icon-chip lg violet a"><Icon name="scan" size={24} /></span>
-            <span className="icon-chip lg amber b" style={{ width: 60, height: 60 }}><Icon name="star" size={28} /></span>
-            <span className="icon-chip lg c"><Icon name="chart" size={24} /></span>
-          </div>
-          <h2>Your first reviews start here</h2>
-          <p className="small muted" style={{ maxWidth: 270 }}>Put a QR on each table. Customers scan, rate what they had, and these numbers grow.</p>
-          <button className="btn green" onClick={() => onGo("qr")}><Icon name="print" size={18} />Print table QRs</button>
-        </div>
+        <Finish place={place} menuCount={menuCount} onGo={onGo} />
       ) : (
         <>
           {best.length > 0 && <ItemBlock title="Most loved" icon="trophy" cls="amber" rows={best} />}
@@ -96,6 +95,31 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
       )}
       <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Counts only. Customers stay private.</p>
     </div>
+  );
+}
+
+/** The free way to finish a shop: menu, then links, then (optionally, with a plan) table QRs. */
+function Finish({ place, menuCount, onGo }: { place: Place; menuCount: number | null; onGo: (t: ManageTab) => void }) {
+  const links = ((place as Place & { links?: { kind: string }[] }).links ?? []).filter((l) => l.kind !== "maps").length;
+  const steps: { id: ManageTab; icon: IconName; tint: string; title: string; sub: string; done: boolean; cta: string; tag?: string }[] = [
+    { id: "products", icon: "box", tint: "violet", title: "Add your menu", sub: "Snap a photo and we add the items", done: (menuCount ?? 0) > 0, cta: "Start", tag: "Free" },
+    { id: "links", icon: "link", tint: "sky", title: "Add your links", sub: "Swiggy, Zomato, Instagram, WhatsApp", done: links > 0, cta: "Add", tag: "Free" },
+    { id: "qr", icon: "qr", tint: "amber", title: "Print your table QRs", sub: "Optional. Pick a plan when you are ready", done: false, cta: "Unlock" },
+  ];
+  const done = steps.filter((x) => x.done).length;
+  const first = steps.findIndex((x) => !x.done);
+  return (
+    <section className="fn" aria-label="Finish your shop">
+      <div className="fn-head"><span className="grow">Finish your shop</span><span className="fn-count">{done} of {steps.length} done</span></div>
+      <p className="small muted">Your page works fully for free. Add the rest in any order.</p>
+      {steps.map((x, i) => (
+        <button key={x.id} type="button" className={`fn-step ${x.done ? "done" : ""} ${i === first ? "now" : ""}`} onClick={() => onGo(x.id)}>
+          <span className={`icon-chip ${x.tint}`}><Icon name={x.done ? "check" : x.icon} size={20} width={x.done ? 3 : 2} /></span>
+          <span className="grow"><b>{x.title}{x.tag && <span className="fn-tag">{x.tag}</span>}</b><span className="small muted">{x.sub}</span></span>
+          {x.done ? null : i === first ? <span className="fn-go">{x.cta}</span> : <Icon name="chev" size={18} color="var(--muted)" />}
+        </button>
+      ))}
+    </section>
   );
 }
 

@@ -61,7 +61,7 @@ export async function pay(target: PayTarget, label: string): Promise<boolean> {
       key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency,
       name: "Trusted Picks", description: `${o.plan_name} plan, ${label}`,
       prefill: o.email ? { email: o.email } : undefined,
-      theme: { color: "#1E7A46" },
+      theme: { color: "#e8491f" },
       handler: (r: RazorpayResult) => resolve(r),
       modal: { ondismiss: () => resolve(null) },
     });

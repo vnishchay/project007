@@ -77,7 +77,7 @@ export default function Business() {
 
       <div className="biz-steps">
         {([
-          ["store", "", "Your shop", "Name and details"],
+          ["store", "", "Your shop", "Details and links"],
           ["qr", "amber", "Tables and QR", "On every table"],
           ["wallet", "violet", "Plan and pay", "Reviews go live"],
         ] as [IconName, string, string, string][]).map(([icon, cls, t, s], i) => (

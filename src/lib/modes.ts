@@ -66,13 +66,13 @@ export const MODES: Record<Kind, Mode> = {
   },
   services: {
     kind: "services", label: "Services", icon: "settings", tint: "green",
-    grad: "linear-gradient(135deg, #155c34 0%, #1e7a46 55%, #8fd16a 100%)",
+    grad: "linear-gradient(135deg, #b53213 0%, #e8491f 55%, #ffc23f 100%)",
     catalog: "Services", item: "service", itemPlural: "services", ratePrompt: "What did they do for you?", itemExample: "AC service",
     sections: ["Services", "Packages"],
   },
   other: {
     kind: "other", label: "Other business", icon: "store", tint: "green",
-    grad: "linear-gradient(135deg, #1e7a46 0%, #2f9e5e 55%, #8fd16a 100%)",
+    grad: "linear-gradient(135deg, #e8491f 0%, #ff7a3d 55%, #ffc23f 100%)",
     catalog: "What we offer", item: "item", itemPlural: "items", ratePrompt: "What did you try?", itemExample: "Your best seller",
     sections: [],
   },
