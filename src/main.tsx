@@ -17,6 +17,7 @@ import Saved from "./pages/Saved";
 import Person from "./pages/Person";
 import Me from "./pages/Me";
 import Business from "./pages/Business";
+import BusinessSetup from "./pages/BusinessSetup";
 import Admin from "./pages/Admin";
 import AdminPlace from "./pages/AdminPlace";
 import NotFound from "./pages/NotFound";
@@ -53,6 +54,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/circle" element={<Navigate to="/me" replace />} />
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
+                <Route path="/business/setup" element={<RequireAuth><BusinessSetup /></RequireAuth>} />
                 <Route path="/manage/:placeId" element={<RequireAuth><Manage /></RequireAuth>} />
                 <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
                 <Route path="/admin/place/:id" element={<RequireAuth admin><AdminPlace /></RequireAuth>} />

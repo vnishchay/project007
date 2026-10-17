@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { loadPlans, payForRequest, type PlanRow } from "../../lib/billing";
@@ -32,15 +32,20 @@ function cleanUrl(raw: string): string | null {
 }
 
 /**
- * Setting up a business, one question per slide: the shop, how to reach you, where else you are
- * listed, how many tables need a QR, which plan, and last of all the payment. Every slide flies in
- * from the direction you are travelling.
+ * Setting up a business as a stack of full screens, one question each: the shop, how to reach you,
+ * where else you are listed, how many tables need a QR, which plan, and last of all the payment.
+ * The step lives in the address (?s=), so the phone's back button goes to the screen before.
+ * Every screen flies in from the direction you are travelling.
  */
-export function Setup({ onSent }: { onSent: () => void }) {
+export function Setup() {
   const { session } = useAuth();
   const toast = useToast();
-  const [step, setStep] = useState(0);
-  const [dir, setDir] = useState<"fwd" | "back">("fwd");
+  const nav = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const step = Math.min(LAST, Math.max(0, parseInt(params.get("s") || "0", 10) || 0));
+  const lastStep = useRef(step);
+  const dir: "fwd" | "back" = step >= lastStep.current ? "fwd" : "back";
+  useEffect(() => { lastStep.current = step; }, [step]);
   const [urls, setUrls] = useState<Record<LinkKey, string>>({ zomato: "", swiggy: "", instagram: "", website: "" });
   const [extras, setExtras] = useState<string[]>([]);
   const [form, setForm] = useState(EMPTY);
@@ -57,6 +62,8 @@ export function Setup({ onSent }: { onSent: () => void }) {
   const [outcome, setOutcome] = useState<null | "paid" | "review" | "unpaid">(null);
 
   useEffect(() => { loadPlans().then(setPlans); }, []);
+  // A reload loses what was typed, so start again from the first screen instead of showing an empty one.
+  useEffect(() => { if (step > 0 && !form.business_name.trim() && !outcome) setParams({}, { replace: true }); }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   // The smallest plan that covers the tables is pre-selected; the free trial covers one QR.
@@ -91,7 +98,12 @@ export function Setup({ onSent }: { onSent: () => void }) {
     if (step === 4 && !chosen) { setErr("Pick a plan."); return; }
     go(1);
   }
-  function go(d: 1 | -1) { setDir(d === 1 ? "fwd" : "back"); setErr(""); setStep((s) => s + d); }
+  function go(d: 1 | -1) {
+    setErr("");
+    if (d === -1) { nav(-1); return; }
+    setParams({ s: String(step + 1) });
+    window.scrollTo({ top: 0 });
+  }
 
   /** What goes on the shop page: Google Maps first, then whatever was pasted. */
   function buildLinks() {
@@ -122,10 +134,9 @@ export function Setup({ onSent }: { onSent: () => void }) {
         id = (ins.data as { id: string }).id;
         setRequestId(id);
       }
-      if (price <= 0) { setOutcome("review"); onSent(); return; }
+      if (price <= 0) { setOutcome("review"); return; }
       const paid = await payForRequest(id, form.business_name.trim());
       setOutcome(paid ? "paid" : "unpaid");
-      onSent();
     } catch (e) {
       setErr(errorText(e));
       if (requestId) toast("Your request is saved. You can pay from Your requests.");
@@ -136,14 +147,16 @@ export function Setup({ onSent }: { onSent: () => void }) {
   if (outcome) {
     const paid = outcome === "paid";
     return (
-      <div className="card rv-gate center su-card su-done" data-dir="fwd" data-step="7">
-        {outcome !== "unpaid" && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#ff3d6e", "#d9a441", "#c2492b", "#6c3bff", "#1561f0", "#0f9d8a"][i % 6] }} />)}
-        <span className={`icon-chip lg ${outcome === "unpaid" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" ? "wallet" : "check"} size={26} /></span>
-        <h2>{paid ? "Paid. You're all set" : outcome === "review" ? "Request sent" : "Request saved"}</h2>
-        <p className="small muted">{outcome === "unpaid"
-          ? "Your payment wasn't completed. Pay from Your requests above whenever you're ready."
-          : "We'll check your details and switch on your page, usually within a day. You'll see it under Your requests."}</p>
-        <button className="btn ghost block" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><Icon name="ticket" size={18} />See Your requests</button>
+      <div className="su-screen">
+        <main className="su-body su-card su-done" data-dir="fwd" data-step="7">
+          {outcome !== "unpaid" && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#c9604a", "#d9a441", "#c2492b", "#6d5fb0", "#4a78b8", "#2f7d6e"][i % 6] }} />)}
+          <span className={`icon-chip lg ${outcome === "unpaid" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" ? "wallet" : "check"} size={26} /></span>
+          <h2>{paid ? "Paid. You're all set" : outcome === "review" ? "Request sent" : "Request saved"}</h2>
+          <p className="small muted">{outcome === "unpaid"
+            ? "Your payment wasn't completed. Pay from Your requests whenever you're ready."
+            : "We'll check your details and switch on your page, usually within a day. You'll see it under Your requests."}</p>
+        </main>
+        <footer className="su-foot"><button className="btn green block" onClick={() => nav("/business", { replace: true })}><Icon name="ticket" size={18} />See Your requests</button></footer>
       </div>
     );
   }
@@ -243,6 +256,7 @@ export function Setup({ onSent }: { onSent: () => void }) {
           <button key={i} type="button" role="tab" aria-selected={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>{i === "year" ? "Yearly (2 months free)" : "Monthly"}</button>
         ))}
       </div>
+      {plans.length === 0 && <div className="notice row" style={{ textAlign: "left" }}><span className="grow">Loading plans…</span><button type="button" className="link-btn" onClick={() => loadPlans().then(setPlans)}><Icon name="refresh" size={15} />Retry</button></div>}
       <div className="stack" style={{ textAlign: "left" }}>
         {plans.map((p) => {
           const ok = fits(p);
@@ -272,28 +286,32 @@ export function Setup({ onSent }: { onSent: () => void }) {
         <label className="mg-label" htmlFor="nt"><Icon name="message" size={15} />Anything else <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></label>
         <textarea id="nt" className="textarea" style={{ minHeight: 60 }} value={form.note} onChange={set("note")} placeholder="Best time to call…" />
       </div>
-      {err && <div className="notice err">{err}</div>}
-      <button className="btn green block" disabled={busy} onClick={finish}>
-        <Icon name={price > 0 ? "wallet" : "send"} size={18} />{busy ? "One moment…" : price > 0 ? `Pay ${rupees(price)} with Razorpay` : "Send for review"}
-      </button>
       <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="shield" size={14} />
         {price > 0 ? <>One payment, no auto-renew. <Link to="/refunds">Refunds</Link></> : "No payment now. Pick a plan any time."}</p>
     </>,
   ];
 
+  const final = step === LAST;
   return (
-    <div className="stack" style={{ gap: 12 }}>
-      <div className="su-bar" aria-label={`Step ${step + 1} of ${slides.length}`}>
-        {slides.map((_, i) => <span key={i} className={i < step ? "done" : i === step ? "now" : ""} />)}
-        <b>{step + 1}/{slides.length}</b>
-      </div>
-      <div className="card rv-gate center su-card" key={step} data-dir={dir} data-step={step}>
+    <div className="su-screen">
+      <header className="su-top">
+        <button type="button" className="icon-btn" aria-label="Close setup" onClick={() => nav("/business", { replace: true })}><Icon name="close" /></button>
+        <div className="su-bar" aria-label={`Step ${step + 1} of ${slides.length}`}>
+          {slides.map((_, i) => <span key={i} className={i < step ? "done" : i === step ? "now" : ""} />)}
+          <b>{step + 1}/{slides.length}</b>
+        </div>
+      </header>
+      <main className="su-body su-card" key={step} data-dir={dir} data-step={step}>
         {slides[step]}
-        {err && step < LAST && <div className="notice err">{err}</div>}
-        {step < LAST && <button className="btn green block su-cta" onClick={next}>Next<Icon name="chev" size={18} /></button>}
+        {err && <div className="notice err">{err}</div>}
         {step === 2 && <button type="button" className="link-btn su-skip" onClick={() => { setUrls({ zomato: "", swiggy: "", instagram: "", website: "" }); setExtras([]); go(1); }}>Skip for now</button>}
-      </div>
-      {step > 0 && !busy && <button className="btn quiet" onClick={() => go(-1)}><Icon name="back" size={16} />Back</button>}
+      </main>
+      <footer className="su-foot">
+        {step > 0 && <button type="button" className="icon-btn su-back" aria-label="Back" disabled={busy} onClick={() => go(-1)}><Icon name="back" /></button>}
+        {final
+          ? <button className="btn green grow" disabled={busy} onClick={finish}><Icon name={price > 0 ? "wallet" : "send"} size={18} />{busy ? "One moment…" : price > 0 ? `Pay ${rupees(price)} with Razorpay` : "Send for review"}</button>
+          : <button className="btn green grow su-cta" onClick={next}>Next<Icon name="chev" size={18} /></button>}
+      </footer>
     </div>
   );
 }

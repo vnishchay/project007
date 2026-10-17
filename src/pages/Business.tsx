@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useSettings } from "../lib/settings";
 import { loadPlans, payForRequest, type PlanRow } from "../lib/billing";
-import { Setup } from "../components/business/Setup";
 import type { ListingRequest } from "../lib/types";
 import { initials, rupees, timeAgo } from "../lib/util";
 import type { AppSettings } from "../lib/settings";
@@ -29,7 +28,6 @@ export default function Business() {
   const [mine, setMine] = useState<ListingRequest[]>([]);
   const [shops, setShops] = useState<MyPlace[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
-  const formRef = useRef<HTMLDivElement>(null);
 
   const load = () => {
     if (!session) return;
@@ -40,7 +38,7 @@ export default function Business() {
   useEffect(load, [session]);
   useEffect(() => { loadPlans().then((p) => setPlans(p.filter((x) => x.code !== "trial"))); }, []);
 
-  const toForm = () => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const startUrl = session ? "/business/setup" : "/signin?next=/business/setup";
 
   return (
     <div className="page">
@@ -54,7 +52,7 @@ export default function Business() {
         <span className="biz-hero-pills"><span><Icon name="verified" size={13} />Friend-trusted</span><span><Icon name="box" size={13} />Item by item</span></span>
         <h1>Let friends find your best</h1>
         <p>Customers rate the exact dish, cut or cake they had. Their friends see it first.</p>
-        <button type="button" className="btn small" onClick={toForm}><Icon name="plus" size={17} />List my shop</button>
+        <Link to={startUrl} className="btn small"><Icon name="plus" size={17} />List my shop</Link>
       </div>
 
       {shops.length > 0 && (
@@ -110,17 +108,11 @@ export default function Business() {
         </div>
       )}
 
-      <div ref={formRef} style={{ scrollMarginTop: 16 }}>
-        {!session ? (
-          <div className="biz-form" style={{ alignItems: "center", textAlign: "center" }}>
-            <span className="icon-chip lg violet"><Icon name="login" size={24} /></span>
-            <p className="small muted">Sign in first so we can keep you updated on your listing.</p>
-            <Link to="/signin?next=/business" className="btn block"><Icon name="login" size={18} />Sign in to continue</Link>
-          </div>
-        ) : (
-          <Setup onSent={load} />
-        )}
-      </div>
+      <Link to={startUrl} className="biz-start">
+        <span className="icon-chip lg"><Icon name="store" size={24} /></span>
+        <span className="grow stack tight"><span className="strong" style={{ fontSize: 17 }}>Set up my shop</span><span className="small muted">{session ? "Six quick screens. Free to start." : "Sign in, then six quick screens. Free to start."}</span></span>
+        <span className="biz-start-go"><Icon name="chev" size={20} /></span>
+      </Link>
       <nav className="row wrap tiny muted center" style={{ gap: 12, justifyContent: "center", marginTop: 8 }}>
         <Link to="/pricing">Pricing</Link><Link to="/terms">Terms</Link><Link to="/refunds">Refunds</Link><Link to="/privacy">Privacy</Link><Link to="/contact">Contact</Link>
       </nav>
