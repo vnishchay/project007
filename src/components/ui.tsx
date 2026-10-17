@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { avatarUrl } from "../lib/supabase";
 import { acceptPendingInvite, pendingRef } from "../lib/invite";
 import { avatarColor, initials } from "../lib/util";
+import { goBack } from "../lib/nav";
 
 /* ---------- Icons (lucide) ---------- */
 const ICONS = {
@@ -108,7 +109,7 @@ export function TopBar({ title, sub, right }: { title?: ReactNode; sub?: ReactNo
   const nav = useNavigate();
   return (
     <div className="topbar">
-      {!focusShop() && <button className="icon-btn" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>}
+      {!focusShop() && <button className="icon-btn" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
       <div className="grow">
         {title && <div className="strong ellipsis" style={{ fontSize: 16 }}>{title}</div>}
         {sub && <div className="tiny muted ellipsis">{sub}</div>}

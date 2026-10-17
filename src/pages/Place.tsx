@@ -1,4 +1,5 @@
 import { focusShop } from "../lib/focus";
+import { goBack } from "../lib/nav";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
@@ -267,7 +268,7 @@ export default function PlacePage() {
         )}
         <div className="pn-fade" />
         <div className="pn-bar">
-          {!focusShop() && <button className="pn-glass" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>}
+          {!focusShop() && <button className="pn-glass" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
           {logo && <span className="pn-logo"><Img src={logo} alt={`${place.name} logo`} /></span>}
           <span className="grow" />
           {canManage && <Link to={`/manage/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}

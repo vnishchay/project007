@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { goBack } from "../lib/nav";
 import { supabase, PROFILE_COLS, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useFollowing } from "../lib/follows";
@@ -86,7 +87,7 @@ export default function Person() {
     <div className="page" style={{ gap: 18 }}>
       <header className="hero sky">
         <div className="row">
-          <button type="button" className="glass-btn round" aria-label="Back" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/"))}><Icon name="back" /></button>
+          <button type="button" className="glass-btn round" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>
           <span className="grow" />
           {me && on ? (
             <button type="button" className={`btn small ${on ? "glass" : "white"}`} onClick={toggle} disabled={busy}

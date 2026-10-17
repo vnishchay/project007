@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { canGoBack } from "../lib/nav";
 import { Icon, Spinner } from "../components/ui";
 import { Glyph } from "../components/home/Kit";
 import "../styles/signin.css";
@@ -20,6 +21,13 @@ function landingPath(next: string | null): string {
   return next;
 }
 
+/** Pressing Back onto the sign-in page while already signed in: step over it instead of bouncing forward. */
+function StepBack() {
+  const nav = useNavigate();
+  useEffect(() => { nav(-1); }, [nav]);
+  return <div className="page"><Spinner /></div>;
+}
+
 export default function SignIn() {
   const [params] = useSearchParams();
   const nav = useNavigate();
@@ -30,9 +38,12 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [taken, setTaken] = useState(false);
+  // Whether this screen was opened with a full account already there (a Back press), not signed in on it.
+  const arrivedSigned = useRef<boolean | undefined>(undefined);
 
   if (loading) return <div className="page"><Spinner /></div>;
-  if (session && !isGuest) return <Navigate to={next} replace />;
+  if (arrivedSigned.current === undefined) arrivedSigned.current = Boolean(session && !isGuest);
+  if (session && !isGuest) return arrivedSigned.current && canGoBack() ? <StepBack /> : <Navigate to={next} replace />;
   const redirectTo = `${window.location.origin}${next}`;
   // Pages that work without an account; anything else goes back to Discover.
   const skipTo = /^\/(q|review|p|saved)\//.test(next) ? next : "/";

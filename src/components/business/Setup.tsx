@@ -4,6 +4,7 @@ import { supabase, errorText } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { loadPlans, payForPlan, type PlanRow } from "../../lib/billing";
 import { googleConfigured, type GoogleMatch } from "../../lib/google";
+import { goBack } from "../../lib/nav";
 import { extractPlaceId, googleMapsUrl, QR_STYLES, rupees } from "../../lib/util";
 import type { QrStyle } from "../../lib/types";
 import { areaCityFromAddress, GoogleFind, GooglePreview, matchCategory } from "../manage/Google";
@@ -34,7 +35,8 @@ function cleanUrl(raw: string): string | null {
 /**
  * Setting up a business as a stack of full screens, one question each: the shop, how to reach you,
  * where else you are listed, how many tables need a QR, which plan, and last of all the payment.
- * The step lives in the address (?s=), so the phone's back button goes to the screen before.
+ * The step lives in the address (?s=) but replaces itself, so the phone's back button leaves the setup in one press;
+ * the arrow in the footer goes to the screen before, and the X discards the setup.
  * Every screen flies in from the direction you are travelling.
  */
 export function Setup() {
@@ -100,8 +102,8 @@ export function Setup() {
   }
   function go(d: 1 | -1) {
     setErr("");
-    if (d === -1) { nav(-1); return; }
-    setParams({ s: String(step + 1) });
+    // Steps replace each other in the history, so one Back (or the X) leaves the whole setup.
+    setParams(d === -1 ? (step > 1 ? { s: String(step - 1) } : {}) : { s: String(step + 1) }, { replace: true });
     window.scrollTo({ top: 0 });
   }
 
@@ -293,10 +295,16 @@ export function Setup() {
   ];
 
   const final = step === LAST;
+  /** Leave the setup from any screen: back to where it was started, asking first when something was typed. */
+  function discard() {
+    const typed = form.business_name.trim() || form.phone.trim() || form.category.trim();
+    if (typed && !shopId && !window.confirm("Discard your shop setup? What you typed will be lost.")) return;
+    goBack(nav, "/business");
+  }
   return (
     <div className="su-screen">
       <header className="su-top">
-        <button type="button" className="icon-btn" aria-label="Close setup" onClick={() => nav("/business", { replace: true })}><Icon name="close" /></button>
+        <button type="button" className="icon-btn" aria-label="Close setup" onClick={discard}><Icon name="close" /></button>
         <div className="su-bar" aria-label={`Step ${step + 1} of ${slides.length}`}>
           {slides.map((_, i) => <span key={i} className={i < step ? "done" : i === step ? "now" : ""} />)}
           <b>{step + 1}/{slides.length}</b>

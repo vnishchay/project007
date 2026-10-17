@@ -212,7 +212,7 @@ export default function Saved() {
 
       <div className="stack" style={{ marginTop: "auto" }}>
         <button type="button" className="btn green block" onClick={openGoogle}><Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}</button>
-        <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Not now"}</Link>
+        <Link to={`/p/${r.place_id}`} replace={opened} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Not now"}</Link>
       </div>
 
       {isGuest && opened && (

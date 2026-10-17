@@ -147,7 +147,7 @@ export default function Discover() {
     rec.onresult = (e) => {
       const said = e.results[0]?.[0]?.transcript?.trim().replace(/[.?!]$/, "") || "";
       const clean = said.replace(/^(best|find|show me|search for)\s+/i, "").replace(/\s+near (me|by)$/i, "");
-      if (clean) { setText(clean); setParams({ q: clean }); }
+      if (clean) { setText(clean); setParams({ q: clean }, { replace: true }); }
     };
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
@@ -158,14 +158,14 @@ export default function Discover() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const v = text.trim();
-    setParams({ ...(v ? { q: v } : {}), ...(type ? { type } : {}) });
+    setParams({ ...(v ? { q: v } : {}), ...(type ? { type } : {}) }, { replace: true });
   }
   const go = (v: string) => {
     const next = q.toLowerCase() === v.toLowerCase() ? "" : v;
     setText(next);
-    setParams({ ...(next ? { q: next } : {}), ...(type ? { type } : {}) });
+    setParams({ ...(next ? { q: next } : {}), ...(type ? { type } : {}) }, { replace: true });
   };
-  const setType = (k: string) => setParams({ ...(q ? { q } : {}), ...(k ? { type: k } : {}) });
+  const setType = (k: string) => setParams({ ...(q ? { q } : {}), ...(k ? { type: k } : {}) }, { replace: true });
 
   const label = locating ? "Finding you…" : whereLabel(effective);
   const nearYou = effective.kind === "near" && coords;
@@ -198,7 +198,7 @@ export default function Discover() {
         <form className="search" onSubmit={submit} role="search">
           <Icon name="search" color="var(--muted)" />
           <input aria-label="Search" placeholder="Pizza, filter coffee, haircut…" value={text} onChange={(e) => setText(e.target.value)} enterKeyHint="search" />
-          {q && <button type="button" className="link-btn" onClick={() => { setText(""); setParams({}); }} aria-label="Clear search"><Icon name="close" size={18} color="var(--muted)" /></button>}
+          {q && <button type="button" className="link-btn" onClick={() => { setText(""); setParams({}, { replace: true }); }} aria-label="Clear search"><Icon name="close" size={18} color="var(--muted)" /></button>}
           {SR && <button type="button" className={`mic-btn ${listening ? "on" : ""}`} onClick={voiceSearch} aria-label={listening ? "Listening" : "Search by voice"} disabled={listening}><Icon name="mic" size={18} /></button>}
         </form>
       </header>
@@ -280,7 +280,7 @@ export default function Discover() {
             <div className="row wrap" style={{ justifyContent: "center", gap: 8 }}>
               {effective.kind !== "all" && <button className="btn small ghost" onClick={() => setWhere({ kind: "all" })}><Icon name="globe" size={16} />Everywhere</button>}
               <button className="btn small ghost" onClick={() => setPicking(true)}><Icon name="pin" size={16} />Change area</button>
-              {q && <button className="btn small ghost" onClick={() => { setText(""); setParams({}); }}><Icon name="close" size={16} />Clear</button>}
+              {q && <button className="btn small ghost" onClick={() => { setText(""); setParams({}, { replace: true }); }}><Icon name="close" size={16} />Clear</button>}
             </div>
           </EmptyArt>
         ) : (

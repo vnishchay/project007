@@ -99,7 +99,7 @@ export default function Claim() {
         ? "Someone already manages this shop. Our team will check and get back to you."
         : result === "owner" ? "Open Manage shop to set it up." : "We'll check the photo and switch on Manage shop for you, usually within a day."}</p>
       {result === "owner" && <Link to={`/manage/${placeId}`} className="btn green block"><Icon name="settings" size={18} />Manage shop</Link>}
-      <Link to={`/p/${placeId}`} className="btn ghost block"><Icon name="eye" size={18} />Back to the shop</Link>
+      <Link to={`/p/${placeId}`} replace className="btn ghost block"><Icon name="eye" size={18} />Back to the shop</Link>
     </>,
   ];
 
