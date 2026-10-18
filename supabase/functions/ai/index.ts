@@ -192,20 +192,27 @@ prices, staff names or dishes they didn't mention. Match the tone to the stars: 
     if (!pasted && urlStr) {
       try {
         const u = new URL(urlStr);
-        if (!["http:", "https:"].includes(u.protocol)) {
-          throw new Fail(400, "Invalid menu URL. Must begin with http:// or https://");
-        }
+        if (u.protocol !== "https:") throw new Fail(400, "Use the https:// link of your own website");
         const host = u.hostname.toLowerCase();
-        const BANNED = ["zomato.com", "swiggy.com", "ubereats.com", "doordash.com", "foodpanda.com", "magicpin.in"];
+        const BANNED = ["zomato.com", "swiggy.com", "ubereats.com", "doordash.com", "foodpanda.com", "magicpin.in", "google.com", "goo.gl"];
         if (BANNED.some((d) => host === d || host.endsWith("." + d))) {
-          throw new Fail(400, "Direct scraping from food aggregator apps is not supported due to terms of service. Please paste your menu text directly or upload a photo/PDF.");
+          throw new Fail(400, "Menus can't be fetched from food apps or Google. Paste the menu text or upload a photo or PDF instead.");
         }
+        // Only the shop's own website link, saved on its page, and only a public name (never an address or internal host).
+        if (/^[\d.]+$/.test(host) || host.includes(":") || host === "localhost" || /\.(local|internal|localhost)$/.test(host) || !host.includes(".")) {
+          throw new Fail(400, "That isn't a public website address");
+        }
+        const { data: pl } = await c.admin.from("places").select("links").eq("id", clean(b.placeId, 40)).maybeSingle();
+        const own = ((pl as { links?: { kind?: string; url?: string }[] } | null)?.links || []).filter((l) => l.kind === "website" && typeof l.url === "string")
+          .some((l) => { try { return new URL(l.url!).hostname.toLowerCase() === host; } catch { return false; } });
+        if (!own) throw new Fail(400, "Add this website to your shop's links first. We only read your own website.");
         const resp = await fetch(urlStr, {
           headers: { "User-Agent": "Mozilla/5.0 (compatible; TrustedPicksMenuBot/1.0; +https://trustedpicks.app)" },
           signal: AbortSignal.timeout(6000),
+          redirect: "error",
         });
         if (!resp.ok) throw new Fail(400, `Could not read website menu (HTTP ${resp.status})`);
-        const html = await resp.text();
+        const html = (await resp.text()).slice(0, 2_000_000);
         const textOnly = html
           .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
           .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
@@ -350,6 +357,8 @@ Use only the facts given; never invent awards, years, prices or claims. No hasht
   async insights(c, b) {
     const placeId = clean(b.placeId, 40);
     const who = await ownerPlace(c, placeId);
+    const { data: allowed } = await c.user.rpc("place_has_feature", { p_place: placeId, p_feature: "ai_insights" });
+    if (allowed !== true) throw new Fail(403, "AI tips come with the Pro plan");
     const reviews = await publicReviews(c, placeId, 60);
     if (reviews.length < 3) return { summary: "", loved: [], fix: [], count: reviews.length };
     await take(c);

@@ -131,7 +131,7 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
               </div>
             </div>
           )}
-          <PrivateNotes placeId={place.id} onGo={onGo} isPro={isPro} />
+          <PrivateNotes placeId={place.id} onGo={onGo} />
           {s.reviews >= 3 && <AiTips placeId={place.id} isPro={isPro} onGo={onGo} />}
         </>
       )}
@@ -140,166 +140,59 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   );
 }
 
-interface FeedbackRow {
-  id: string;
-  item_name: string | null;
-  rating: number | null;
-  message: string;
-  contact_info: string | null;
-  status: "unread" | "resolved" | "archived";
-  created_at: string;
-}
+interface NoteRow { id: string; item_name: string | null; created_at: string; read_at: string | null; locked: boolean; body: string | null; contact: string | null }
 
-function PrivateNotes({ placeId, onGo, isPro: isProProp }: { placeId: string; onGo: (t: ManageTab) => void; isPro?: boolean }) {
-  const [feedback, setFeedback] = useState<FeedbackRow[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [planCode, setPlanCode] = useState<string>("trial");
+/** Private notes from customers at the shop. The server withholds the text and contact until the plan includes notes. */
+function PrivateNotes({ placeId, onGo }: { placeId: string; onGo: (t: ManageTab) => void }) {
+  const [notes, setNotes] = useState<NoteRow[] | null>(null);
 
   useEffect(() => {
     let alive = true;
-    supabase.rpc("my_plan", { p_place: placeId }).then(({ data }) => {
-      if (alive) {
-        const p = (data as { plan?: string }[] | null)?.[0]?.plan;
-        if (p) setPlanCode(p);
-      }
-    });
-
-    supabase.from("owner_notes").select("id, item_id, body, contact, read_at, created_at").eq("place_id", placeId).order("created_at", { ascending: false }).then(({ data: notes, error: notesErr }) => {
-      if (!alive) return;
-      if (!notesErr && notes && notes.length > 0) {
-        setLoading(false);
-        setFeedback(notes.map((n) => ({
-          id: n.id,
-          item_name: null,
-          rating: null,
-          message: n.body,
-          contact_info: n.contact,
-          status: n.read_at ? "resolved" : "unread",
-          created_at: n.created_at,
-        })));
-        return;
-      }
-      supabase.rpc("get_place_feedback", { p_place: placeId }).then(({ data, error }) => {
-        if (!alive) return;
-        setLoading(false);
-        if (!error && data) {
-          setFeedback(data as FeedbackRow[]);
-        } else {
-          supabase.from("place_feedback").select("*").eq("place_id", placeId).order("created_at", { ascending: false }).then(({ data: d }) => {
-            if (alive) setFeedback((d as FeedbackRow[]) || []);
-          });
-        }
-      });
+    supabase.rpc("my_owner_notes", { p_place: placeId }).then(({ data, error }) => {
+      if (alive) setNotes(error ? [] : ((data as NoteRow[]) || []));
     });
     return () => { alive = false; };
-  }, [placeId, isProProp]);
+  }, [placeId]);
 
-  async function resolve(id: string) {
-    const { error } = await supabase.from("place_feedback").update({ status: "resolved" }).eq("id", id);
-    if (!error) {
-      setFeedback((prev) => (prev || []).map((f) => (f.id === id ? { ...f, status: "resolved" } : f)));
-    }
+  async function markRead(id: string) {
+    const { error } = await supabase.rpc("mark_note_read", { p_note: id });
+    if (!error) setNotes((prev) => (prev || []).map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)));
   }
 
-  if (loading || !feedback || feedback.length === 0) return null;
-
-  const isPro = isProProp ?? (planCode === "growth_pro" || planCode === "autopilot_vip" || planCode === "pro");
-  const unreadCount = feedback.filter((f) => f.status === "unread").length;
+  if (!notes || notes.length === 0) return null;
+  const locked = notes.some((n) => n.locked);
+  const unread = notes.filter((n) => !n.read_at).length;
 
   return (
-    <section className="mg-section" style={{ gap: 10, border: "1.5px solid rgba(220, 38, 38, 0.2)", background: "var(--card)", borderRadius: 20, padding: 16 }}>
+    <section className="mg-section" style={{ gap: 10 }}>
       <div className="mg-section-head">
-        <span className="icon-chip sm coral"><Icon name="shield" size={16} /></span>
-        <span className="grow strong">Reputation Shield: Intercepted Notes</span>
-        {unreadCount > 0 && <span className="badge coral">{unreadCount} new</span>}
+        <span className="icon-chip sm coral"><Icon name="message" size={16} /></span>
+        <span className="grow strong">Private notes</span>
+        {unread > 0 && <span className="badge coral">{unread} new</span>}
       </div>
-      <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>
-        Unhappy guests who used your VIP direct channel instead of posting publicly on Google:
-      </p>
-
+      <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>Customers at your shop can send you a note. You never see who sent it, unless they leave a phone or email for a reply.</p>
       <div className="stack" style={{ gap: 8 }}>
-        {feedback.slice(0, 5).map((f) => {
-          const isResolved = f.status === "resolved";
-          return (
-            <div key={f.id} className="card" style={{ padding: 12, background: isResolved ? "var(--surface)" : "rgba(220, 38, 38, 0.04)", border: isResolved ? "1px solid var(--line)" : "1px solid rgba(220, 38, 38, 0.2)" }}>
-              <div className="row" style={{ alignItems: "center", gap: 6, marginBottom: 4 }}>
-                {f.rating && (
-                  <span className="badge coral" style={{ padding: "2px 6px", fontSize: 11 }}>
-                    <Icon name="star" size={10} fill="currentColor" /> {f.rating}★
-                  </span>
-                )}
-                {f.item_name && <strong className="small grow ellipsis">{f.item_name}</strong>}
-                <span className="tiny muted" style={{ marginLeft: "auto" }}>
-                  {new Date(f.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
-                </span>
-              </div>
-
-              {/* Blurred paywall for free tier vs unblurred for Growth Pro */}
-              <div style={{ position: "relative", margin: "4px 0" }}>
-                <p className="small" style={{
-                  margin: 0,
-                  color: "var(--ink-2)",
-                  whiteSpace: "pre-wrap",
-                  filter: !isPro ? "blur(4.5px)" : "none",
-                  userSelect: !isPro ? "none" : "auto",
-                  pointerEvents: !isPro ? "none" : "auto",
-                }}>
-                  {!isPro
-                    ? "The portion size was much smaller than advertised and when we asked the waiter they were dismissive of our feedback."
-                    : `"${f.message}"`}
-                </p>
-              </div>
-
-              <div className="row" style={{ alignItems: "center", gap: 8, marginTop: 8 }}>
-                {isPro ? (
-                  <>
-                    {f.contact_info ? (
-                      <span className="tiny muted row" style={{ gap: 4 }}>
-                        <Icon name="phone" size={12} /> Contact: <strong style={{ color: "var(--ink)" }}>{f.contact_info}</strong>
-                      </span>
-                    ) : (
-                      <span className="tiny muted">Sent anonymously</span>
-                    )}
-                    {!isResolved ? (
-                      <button type="button" className="btn small green" style={{ marginLeft: "auto", padding: "3px 10px", fontSize: 12 }} onClick={() => resolve(f.id)}>
-                        <Icon name="check" size={13} /> Mark Resolved
-                      </button>
-                    ) : (
-                      <span className="tiny green strong row" style={{ marginLeft: "auto", gap: 4 }}>
-                        <Icon name="checkCircle" size={13} /> Resolved
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span className="tiny muted row" style={{ gap: 4, filter: "blur(3.5px)", userSelect: "none" }}>
-                    <Icon name="phone" size={12} /> Contact: diner@example.com (555) 019-2834
-                  </span>
-                )}
-              </div>
+        {notes.slice(0, 10).map((n) => (
+          <div key={n.id} className="card" style={{ padding: 12 }}>
+            <div className="row" style={{ alignItems: "center", gap: 6, marginBottom: 4 }}>
+              {n.item_name && <strong className="small grow ellipsis">{n.item_name}</strong>}
+              <span className="tiny muted" style={{ marginLeft: "auto" }}>{new Date(n.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
             </div>
-          );
-        })}
-
-        {!isPro && (
-          <div className="callout violet" style={{ padding: "12px 14px", marginTop: 4, alignItems: "flex-start" }}>
-            <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
-            <div className="grow stack tight">
-              <strong style={{ fontSize: 14 }}>Unlock Guest Details & VIP Return Vouchers</strong>
-              <span className="tiny" style={{ opacity: 0.9 }}>
-                Growth Pro lets you read full intercepted complaints, see diner contact info, and resolve issues before they become 1-star Google reviews.
-              </span>
-              <button
-                type="button"
-                className="btn green small"
-                style={{ alignSelf: "flex-start", marginTop: 6 }}
-                onClick={() => onGo("plan")}
-              >
-                <Icon name="crown" size={14} /> Upgrade to Growth Pro ($59/mo)
-              </button>
-            </div>
+            {n.locked ? (
+              <p className="small" aria-hidden="true" style={{ margin: 0, filter: "blur(5px)", userSelect: "none" }}>A private note is waiting for you. Upgrade your plan to read it.</p>
+            ) : (
+              <>
+                <p className="small" style={{ margin: 0, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{n.body}</p>
+                {n.contact && <p className="tiny muted" style={{ margin: "6px 0 0" }}>Reply to: <strong style={{ color: "var(--ink)" }}>{n.contact}</strong></p>}
+                {!n.read_at && <button type="button" className="btn ghost small" style={{ marginTop: 8 }} onClick={() => markRead(n.id)}><Icon name="check" size={14} />Mark as read</button>}
+              </>
+            )}
           </div>
-        )}
+        ))}
       </div>
+      {locked && (
+        <button type="button" className="btn green small" style={{ alignSelf: "flex-start" }} onClick={() => onGo("plan")}><Icon name="crown" size={14} />See plans</button>
+      )}
     </section>
   );
 }

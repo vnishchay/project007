@@ -37,7 +37,18 @@ async function getTurnstileToken(): Promise<string | undefined> {
   const siteKey = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_TURNSTILE_SITE_KEY;
   if (!siteKey || typeof window === "undefined") return undefined;
   const w = window as unknown as TurnstileWindow;
-  if (!w.turnstile) return undefined;
+  if (!w.turnstile) {
+    // Loaded only when a site key is set, so apps without CAPTCHA never contact Cloudflare.
+    await new Promise<void>((done) => {
+      const el = document.createElement("script");
+      el.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      el.async = true;
+      el.onload = () => done();
+      el.onerror = () => done();
+      document.head.appendChild(el);
+    });
+    if (!w.turnstile) return undefined;
+  }
   return new Promise((resolve) => {
     try {
       const div = document.createElement("div");

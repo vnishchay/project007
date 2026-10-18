@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Icon, useToast } from "../components/ui";
-import { ScratchCard } from "../components/ScratchCard";
-import { HeadToHeadModal } from "../components/HeadToHeadModal";
 import { generateStoryCard } from "../lib/story";
 import "../styles/place.css";
 import "../styles/review.css";
@@ -64,8 +62,6 @@ export default function Demo() {
   const [activeTags, setActiveTags] = useState<string[]>(["Rich Truffle", "Al Dente"]);
   const [isCompilingAi, setIsCompilingAi] = useState(false);
   const [copiedGoogle, setCopiedGoogle] = useState(false);
-  const [showDuel, setShowDuel] = useState(false);
-  const [eloScore, setEloScore] = useState<number>(9.6);
   const [storySharing, setStorySharing] = useState(false);
   const [simulatedFeedbackSent, setSimulatedFeedbackSent] = useState(false);
 
@@ -118,7 +114,6 @@ export default function Demo() {
         placeName: demoData.name,
         rating: currentRating,
         body: generatedReviewText,
-        eloScore: eloScore,
       });
 
       if (file && navigator.share && navigator.canShare?.({ files: [file] })) {
@@ -141,6 +136,7 @@ export default function Demo() {
 
   return (
     <div className="rvx" style={{ paddingBottom: 60 }}>
+      <p className="tiny muted center" role="note" style={{ margin: "8px 16px 0" }}>Sample shop with made-up dishes and prices, to try the review flow. Nothing here is a real business or is saved.</p>
       {/* Clean Apple-style top navigation bar */}
       <nav className="rvx-bar" style={{ justifyContent: "space-between" }}>
         <Link to="/" className="rvx-back" aria-label="Back to home">
@@ -256,19 +252,6 @@ export default function Demo() {
             </button>
           </div>
 
-          {/* Taste Comparison Launcher */}
-          {selectedVibe === "must_try" && (
-            <div style={{ textAlign: "center", margin: "6px 0 12px" }}>
-              <button
-                type="button"
-                className="btn ghost small"
-                onClick={() => setShowDuel(true)}
-              >
-                <Icon name="star" size={14} />
-                <span>Compare with Signature Dish</span>
-              </button>
-            </div>
-          )}
 
           {/* Flavor Tags */}
           <span className="tiny muted" style={{ display: "block", marginBottom: 6 }}>
@@ -362,7 +345,6 @@ export default function Demo() {
 
       {/* Digital VIP Table Pass */}
       <section className="rvx-sec">
-        <ScratchCard stars={currentRating} placeName={demoData.name} />
       </section>
 
       {/* Instagram Story Share Action */}
@@ -379,17 +361,6 @@ export default function Demo() {
       </section>
 
       {/* Head-to-Head Modal */}
-      {showDuel && (
-        <HeadToHeadModal
-          currentDish={{ name: curDish.name }}
-          compareDish={{ name: demoData.dishes[(selectedDishIndex + 1) % demoData.dishes.length]!.name }}
-          onDecided={(_w, s) => {
-            setEloScore(s);
-            setShowDuel(false);
-          }}
-          onSkip={() => setShowDuel(false)}
-        />
-      )}
     </div>
   );
 }

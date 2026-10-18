@@ -5,7 +5,6 @@ export interface StoryCardParams {
   rating: number;
   body?: string | null;
   photoBlob?: Blob | File | null;
-  eloScore?: number | null;
 }
 
 export async function generateStoryCard({
@@ -14,7 +13,6 @@ export async function generateStoryCard({
   rating,
   body,
   photoBlob,
-  eloScore,
 }: StoryCardParams): Promise<File | null> {
   try {
     await document.fonts?.ready;
@@ -91,13 +89,7 @@ export async function generateStoryCard({
     }
 
     // Score / Vibe Stamp
-    const scoreText = eloScore
-      ? `${eloScore.toFixed(1)} / 10 • ${rating === 5 ? "MUST TRY 🔥" : "SOLID PICK 👍"}`
-      : rating === 5
-      ? "10 / 10 • MUST TRY 🔥"
-      : rating === 4
-      ? "8.5 / 10 • SOLID PICK 👍"
-      : `${rating * 2} / 10`;
+    const scoreText = rating === 5 ? "MUST TRY 🔥" : rating === 4 ? "SOLID PICK 👍" : `${rating} / 5 STARS`;
     g.fillStyle = rating >= 4 ? "rgba(245, 158, 11, 0.2)" : "rgba(239, 68, 68, 0.2)";
     roundRect(g, 120, curY, 460, 64, 20);
     g.fill();

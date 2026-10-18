@@ -5,9 +5,8 @@ import { useAuth } from "../lib/auth";
 import { isUuid, type ReviewRow } from "../lib/types";
 import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
-import { isNegativeTag, tagLabels } from "../lib/reviews";
+import { deviceId } from "../lib/device";
 import { generateStoryCard } from "../lib/story";
-import { ScratchCard } from "../components/ScratchCard";
 import { Icon, Spinner, Stars, useToast } from "../components/ui";
 import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
@@ -114,8 +113,6 @@ export default function Saved() {
     ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Long-press the box, Paste, Post"]]
     : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review"], ["star", `Tap ${stars}, long-press, Paste, Post`]];
 
-  const isNegative = r.rating <= 3 || tagLabels(r).some(isNegativeTag);
-
   async function savePhoto() {
     if (!photo) return;
     try {
@@ -194,42 +191,20 @@ export default function Saved() {
   }
 
   async function sendPrivateFeedback() {
-    if (!privateNote.trim()) { toast("Please enter a note for management"); return; }
+    if (!privateNote.trim()) { toast("Write a quick note for the owner first"); return; }
     setSendingNote(true);
     try {
-      let { error } = await supabase.rpc("send_owner_note", {
+      // Not linked to the review or the account, so the owner never learns who sent it.
+      const { error } = await supabase.rpc("send_owner_note", {
         p_place: r!.place_id,
         p_body: privateNote.trim(),
         p_contact: contactInfo.trim() || null,
-        p_review: r!.id,
-        p_item: r!.item_id || null,
+        p_device: deviceId(),
       });
-      if (error && (error.code === "PGRST202" || error.code === "PGRST205")) {
-        const res2 = await supabase.rpc("submit_private_feedback", {
-          p_place_id: r!.place_id,
-          p_review_id: r!.id,
-          p_message: privateNote.trim(),
-          p_contact: contactInfo.trim() || null,
-          p_rating: r!.rating,
-          p_item_name: r!.items?.name || null,
-        });
-        error = res2.error;
-      }
-      if (error && (error.code === "PGRST202" || error.code === "PGRST205")) {
-        const fallbackBody = `[Private Management Note]: ${privateNote.trim()}${contactInfo.trim() ? ` (Contact: ${contactInfo.trim()})` : ""}`;
-        const res3 = await supabase.rpc("submit_review", {
-          p_place_id: r!.place_id,
-          p_item_name: r!.items?.name || "Private Note",
-          p_rating: r!.rating || 3,
-          p_body: fallbackBody,
-          p_is_public: false,
-        });
-        error = res3.error;
-      }
       if (error) throw error;
       setNoteSent(true);
       setShowPrivateForm(false);
-      toast("Your note was delivered directly to management.");
+      toast("Your private note was sent to the owner.");
     } catch (e) {
       toast(errorText(e));
     } finally {
@@ -267,84 +242,7 @@ export default function Saved() {
         </div>
       </div>
 
-      {/* Instant Micro-Reward (Digital Scratch Card / Table Perk) */}
-      <ScratchCard stars={r.rating} placeName={placeName} />
-
-      {/* FTC-Compliant Reputation Shield (Dual Exit for negative feedback) */}
-      {isNegative ? (
-        <section className="card" style={{ border: "2px solid rgba(220, 38, 38, 0.2)", background: "var(--card)" }} aria-labelledby="shield-h">
-          <div className="row" style={{ alignItems: "center", gap: 10 }}>
-            <span className="icon-chip coral"><Icon name="shield" size={22} /></span>
-            <div className="grow stack tight">
-              <h2 id="shield-h" style={{ fontSize: 17, margin: 0 }}>Experience wasn't 5-star?</h2>
-              <span className="small muted">You have two options for your feedback:</span>
-            </div>
-          </div>
-
-          <div className="stack" style={{ gap: 12, marginTop: 12 }}>
-            {/* Option 1: Direct VIP Resolution Channel (Recommended) */}
-            <div style={{ padding: 14, borderRadius: 16, border: "1.5px solid var(--green)", background: "rgba(30, 122, 70, 0.06)" }}>
-              <div className="row" style={{ alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span className="badge green">Recommended</span>
-                <strong style={{ fontSize: 15 }}>Send Private Note to Owner / Chef</strong>
-              </div>
-              <p className="small muted" style={{ margin: "4px 0 10px", lineHeight: 1.4 }}>
-                Management reads every note directly to resolve issues (e.g. replacement voucher, refund, or fixing kitchen/service issues).
-              </p>
-
-              {noteSent ? (
-                <div className="callout green" style={{ padding: "10px 14px" }}>
-                  <Chip icon="check" tone="green" size="sm" />
-                  <span className="small strong grow">Sent directly to management. Thank you for giving them a chance to make it right!</span>
-                </div>
-              ) : showPrivateForm ? (
-                <div className="stack" style={{ gap: 8 }}>
-                  <textarea
-                    className="textarea"
-                    placeholder="Tell the owner or chef what went wrong and how they can resolve it for you..."
-                    value={privateNote}
-                    onChange={(e) => setPrivateNote(e.target.value)}
-                    rows={3}
-                  />
-                  <input
-                    className="input"
-                    placeholder="Your phone or email (optional, for voucher / follow-up)"
-                    value={contactInfo}
-                    onChange={(e) => setContactInfo(e.target.value)}
-                  />
-                  <div className="row" style={{ gap: 8 }}>
-                    <button type="button" className="btn green small" disabled={sendingNote} onClick={sendPrivateFeedback}>
-                      {sendingNote ? "Sending…" : "Send Note to Owner / Chef"}
-                    </button>
-                    <button type="button" className="btn ghost small" onClick={() => setShowPrivateForm(false)}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" className="btn green small" onClick={() => setShowPrivateForm(true)}>
-                  <Icon name="message" size={16} />Message Management Privately
-                </button>
-              )}
-            </div>
-
-            {/* Option 2: Public Google Review (Always available for FTC compliance) */}
-            <div style={{ padding: 14, borderRadius: 16, border: "1.5px solid var(--line)", background: "var(--surface)" }}>
-              <div className="row" style={{ alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span className="icon-chip sm sky"><Icon name="globe" size={16} /></span>
-                <strong style={{ fontSize: 15 }}>Post Publicly to Google</strong>
-              </div>
-              <p className="small muted" style={{ margin: "4px 0 10px", lineHeight: 1.4 }}>
-                Share your review publicly on Google Maps (1-tap copy & redirect).
-              </p>
-              <button type="button" className="btn ghost small" onClick={openGoogle}>
-                <Icon name="copy" size={16} />{gid ? "Copy & open Google" : "Copy & open Google Maps"}
-              </button>
-            </div>
-          </div>
-        </section>
-      ) : (
-        /* Standard flow for 4-star and 5-star positive reviews */
+      {/* Google is offered at every rating; the private note sits beside it, never instead of it. */}
         <section className="card" aria-labelledby="google-h">
           <SectionTitle icon="globe" tone="sky"><span id="google-h">Post it on Google too</span></SectionTitle>
           <ol className="step-list">
@@ -380,43 +278,40 @@ export default function Saved() {
             <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
               {showPrivateForm ? (
                 <div className="stack" style={{ gap: 8 }}>
-                  <span className="small strong">Send a compliment or private note to the chef:</span>
+                  <span className="small strong">Send a private note to the owner:</span>
                   <textarea
                     className="textarea"
-                    placeholder="e.g. Loved the special sauce! Thank you chef."
+                    placeholder="Tell the owner what went well or what could be better"
                     value={privateNote}
                     onChange={(e) => setPrivateNote(e.target.value)}
                     rows={2}
                   />
                   <div className="row" style={{ gap: 8 }}>
                     <button type="button" className="btn green small" disabled={sendingNote} onClick={sendPrivateFeedback}>
-                      {sendingNote ? "Sending…" : "Send to Chef"}
+                      {sendingNote ? "Sending…" : "Send to the owner"}
                     </button>
                     <button type="button" className="btn ghost small" onClick={() => setShowPrivateForm(false)}>Cancel</button>
                   </div>
                 </div>
               ) : (
                 <button type="button" className="link-btn small" onClick={() => setShowPrivateForm(true)}>
-                  <Icon name="message" size={14} />Want to send a private compliment to the team?
+                  <Icon name="message" size={14} />Send a private note to the owner
                 </button>
               )}
             </div>
           )}
           {noteSent && (
             <span className="tiny green strong row" style={{ gap: 4, marginTop: 4 }}>
-              <Icon name="check" size={13} />Private note delivered to management
+              <Icon name="check" size={13} />Private note sent to the owner
             </span>
           )}
         </section>
-      )}
 
       {/* Main bottom navigation */}
       <div className="stack" style={{ marginTop: "auto" }}>
-        {!isNegative && (
-          <button type="button" className="btn green block" onClick={openGoogle}>
-            <Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}
-          </button>
-        )}
+        <button type="button" className="btn green block" onClick={openGoogle}>
+          <Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}
+        </button>
         <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Done"}</Link>
       </div>
 
