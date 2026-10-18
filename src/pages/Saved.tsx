@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { canGoBack, goBack } from "../lib/nav";
+import { focusShop } from "../lib/focus";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type ReviewRow } from "../lib/types";
@@ -7,7 +9,7 @@ import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
 import { deviceId } from "../lib/device";
 import { generateStoryCard } from "../lib/story";
-import { Icon, Spinner, Stars, useToast } from "../components/ui";
+import { Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
 import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
 import "../styles/home.css";
@@ -37,6 +39,7 @@ function execCopy(text: string): boolean {
 }
 
 export default function Saved() {
+  const nav = useNavigate();
   const { reviewId = "" } = useParams();
   const { session, isGuest } = useAuth();
   const uid = session?.user.id;
@@ -218,6 +221,7 @@ export default function Saved() {
 
   return (
     <div className="page" style={{ gap: 18 }}>
+      <TopBar tone="hero" />
       <header className="hero compact" style={{ alignItems: "center", textAlign: "center" }}>
         <span className="success-burst"><Icon name="checkCircle" size={38} color="#fff" width={2.4} /></span>
         <h1>Saved</h1>
@@ -312,7 +316,9 @@ export default function Saved() {
         <button type="button" className="btn green block" onClick={openGoogle}>
           <Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}
         </button>
-        <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Done"}</Link>
+        {!focusShop() && canGoBack()
+          ? <button type="button" className="btn block quiet" onClick={() => goBack(nav, `/p/${r.place_id}`)}><Icon name="back" size={18} />Back</button>
+          : <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Done"}</Link>}
       </div>
 
       {isGuest && (opened || noteSent) && (
