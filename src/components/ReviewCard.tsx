@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { timeAgo } from "../lib/util";
 import { demoArtUrl, isDemoArt } from "../lib/demoArt";
-import { splitTags, tagLabels } from "../lib/reviews";
+import { isVisitItem, itemLabel, splitTags, tagLabels } from "../lib/reviews";
 import { Avatar, Icon, Stars, useToast, type IconName } from "./ui";
 import { ItemThumb } from "./place/ItemThumb";
 import "../styles/place.css";
@@ -77,13 +77,15 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
       <div className="rc-rating">
         <Stars value={r.rating} size={16} />
         <span className="rc-word">{RATING_WORDS[r.rating] || ""}</span>
-        {r.items?.name && <span className="rc-chip"><ItemThumb path={itemImage} icon={itemIcon} size={26} />{r.items.name}</span>}
+        {r.items?.name && (isVisitItem(r.items.name)
+          ? <span className="rc-chip"><Icon name="store" size={14} />{itemLabel(r.items.name)}</span>
+          : <span className="rc-chip"><ItemThumb path={itemImage} icon={itemIcon} size={26} />{r.items.name}</span>)}
         {showPlace && r.places ? <Link to={`/p/${r.place_id}`} className="rc-chip place"><Icon name="store" size={14} />{r.places.name}</Link> : null}
       </div>
       {good.length > 0 && <div className="rc-tags" aria-label="Liked"><Icon name="thumbs" size={14} color="var(--green)" />{good.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
       {bad.length > 0 && <div className="rc-tags" aria-label="Could be better"><Icon name="thumbsDown" size={14} color="var(--coral)" />{bad.map((t) => <span key={t} className="rc-tag bad">{t}</span>)}</div>}
       {r.body && <p className="rc-body">{r.body}</p>}
-      {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${r.items?.name || "the order"}`} />}
+      {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${isVisitItem(r.items?.name) ? "the visit" : r.items?.name || "the order"}`} />}
       {r.voice_path && <VoiceNote path={r.voice_path} />}
       <div className="rc-foot">
         {r.source && <span className="tiny muted row" style={{ gap: 4 }}><Icon name={r.source === "link" ? "link" : "qr"} size={12} />{r.source === "link" ? "From the shop's review link" : "Scanned at the shop"}</span>}

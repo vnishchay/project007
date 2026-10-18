@@ -11,6 +11,7 @@ import type { Mode } from "../../lib/modes";
 import { Icon, useToast } from "../ui";
 import { ProductSheet, friendlyItemError } from "./ProductSheet";
 import { MenuImport } from "../MenuImport";
+import { isVisitItem } from "../../lib/reviews";
 
 interface Stat { item_id: string; avg_rating: number; review_count: number }
 
@@ -41,7 +42,8 @@ export function Products({ placeId, isAdmin, mode, links = [], onCount }: { plac
     ]).then(([i, s, t]) => {
       if (!alive) return;
       setErr(i.error ? errorText(i.error) : "");
-      setItems(((i.data as Item[]) || []).sort(byOrder));
+      // The hidden item that holds whole-visit reviews is not a product.
+      setItems(((i.data as Item[]) || []).filter((x) => !isVisitItem(x.name)).sort(byOrder));
       setStats(Object.fromEntries(((s.data as Stat[]) || []).map((x) => [x.item_id, x])));
       setTopics((t.data as Topic[]) || []);
     });

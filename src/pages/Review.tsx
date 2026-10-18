@@ -1,7 +1,7 @@
 import { focusShop } from "../lib/focus";
 import { playAppleChime, playHapticTap, playWaxStamp } from "../lib/haptics";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { isNegativeTag } from "../lib/reviews";
+import { VISIT_ITEM, isNegativeTag } from "../lib/reviews";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -67,15 +67,15 @@ function Face({ v, size = 26 }: { v: Verdict; size?: number }) {
   );
 }
 
-/** Quick tags for the whole visit, by verdict. */
+/** Quick tags for the whole visit, by verdict. Each label is a row in the tags table, so it shows up on the shop page. */
 const VISIT_TAGS: Record<"food" | "other", Record<Verdict, { title: string; tags: string[] }>> = {
   food: {
-    meh: { title: "What let it down?", tags: ["Food", "Service", "Long wait", "Noisy", "Pricey", "Cleanliness"] },
+    meh: { title: "What let it down?", tags: ["Poor food", "Poor service", "Long wait", "Noisy", "Too pricey", "Not clean"] },
     good: { title: "What was good?", tags: ["Food", "Service", "Ambience", "Value", "Quick"] },
     love: { title: "What made it great?", tags: ["Amazing food", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
   },
   other: {
-    meh: { title: "What let it down?", tags: ["Service", "Long wait", "Staff", "Pricey", "Cleanliness"] },
+    meh: { title: "What let it down?", tags: ["Poor service", "Long wait", "Unhelpful staff", "Too pricey", "Not clean"] },
     good: { title: "What was good?", tags: ["Service", "Staff", "Value", "Quick", "Clean"] },
     love: { title: "What made it great?", tags: ["Great service", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
   },
@@ -147,13 +147,17 @@ const averageStars = (dishes: Dish[]) => Math.max(1, Math.min(5, Math.round(dish
 /** Can this person write a review here? Only during a visit started by a table QR scan. */
 type Gate = "loading" | "ok" | "scan" | "guest_used" | "owner" | "paused";
 
-async function checkGate(placeId: string, uid: string): Promise<Gate> {
+async function checkGate(placeId: string, uid: string): Promise<{ gate: Gate; visitKey: string | null }> {
   const r = await supabase.rpc("can_review", { p_place: placeId, p_device: deviceId() });
-  if (!r.error) return ((r.data as { allowed: boolean; reason: string }[] | null)?.[0]?.reason as Gate) || "scan";
+  if (!r.error) {
+    const row = (r.data as { allowed: boolean; reason: string; expires_at: string | null }[] | null)?.[0];
+    return { gate: (row?.reason as Gate) || "scan", visitKey: row?.expires_at ?? null };
+  }
   if (r.error.code !== "PGRST202") throw r.error;
   // Database without migration 0014: fall back to "has an open visit".
-  const v = await supabase.from("visits").select("id").eq("user_id", uid).eq("place_id", placeId).gt("expires_at", new Date().toISOString()).limit(1);
-  return v.data?.length ? "ok" : "scan";
+  const v = await supabase.from("visits").select("id, expires_at").eq("user_id", uid).eq("place_id", placeId).gt("expires_at", new Date().toISOString()).limit(1);
+  const open = (v.data as { expires_at: string }[] | null)?.[0];
+  return { gate: open ? "ok" : "scan", visitKey: open?.expires_at ?? null };
 }
 
 function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string; reason: Gate }) {
@@ -188,7 +192,8 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
 }
 
 /** The review in progress, kept for this tab only, without photos or voice notes. */
-interface Draft { visit?: VisitR; dishes: Dish[]; done: Dish[]; isPublic: boolean; finished?: boolean; googleOpened?: boolean }
+/** `visitKey` is when the visit the draft belongs to ends, so a new scan never inherits an old review. */
+interface Draft { visit?: VisitR; dishes: Dish[]; done: Dish[]; isPublic: boolean; finished?: boolean; googleOpened?: boolean; visitKey?: string | null }
 const draftKey = (placeId: string, uid: string) => `tp-review:${uid}:${placeId}`;
 const lite = (d: Dish): Dish => ({ ...d, photo: null, voice: null });
 function readDraft(placeId: string, uid: string): Draft | null {
@@ -224,6 +229,7 @@ function ReviewForm() {
   const [items, setItems] = useState<ItemOpt[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [gate, setGate] = useState<Gate>("loading");
+  const [visitKey, setVisitKey] = useState<string | null>(null);
   const [googleLive, setGoogleLive] = useState<{ rating: number | null } | null>(null);
 
   const [stage, setStage] = useState<Stage>("visit");
@@ -231,6 +237,9 @@ function ReviewForm() {
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [at, setAt] = useState(0);
   const [fromDishes, setFromDishes] = useState(false);
+  const [backToPreview, setBackToPreview] = useState(false);
+  /** Where the picker was opened from, so Back goes there. */
+  const [pickFrom, setPickFrom] = useState<Stage>("visit");
   const [other, setOther] = useState(false);
   const [otherName, setOtherName] = useState("");
   const [pickQ, setPickQ] = useState("");
@@ -290,7 +299,11 @@ function ReviewForm() {
         const counts = new Map(((st.data || []) as { item_id: string; review_count: number }[]).map((x) => [x.item_id, x.review_count]));
         const opts = sortShopItems(it.items.map((i) => ({ ...i, count: counts.get(i.id) ?? 0 })), (i) => i.count);
         setItems(opts);
-        const kept = readDraft(placeId, uid);
+        const keptAny = readDraft(placeId, uid);
+        // A draft belongs to the visit it was started in. After a new scan (or once that visit has ended) it starts fresh.
+        const sameVisit = !keptAny?.visitKey || (g.visitKey ? g.visitKey === keptAny.visitKey : Date.parse(keptAny.visitKey) > Date.now());
+        const kept = sameVisit ? keptAny : null;
+        if (keptAny && !kept) { try { sessionStorage.removeItem(draftKey(placeId, uid)); } catch { /* storage blocked */ } }
         const kv = kept?.visit;
         if (kept && (kv?.rating || kv?.body.trim() || kept.dishes.length || kept.done.length)) {
           // Phones often reload the tab after the camera: bring back what was written (photos and voice can't be kept).
@@ -309,7 +322,8 @@ function ReviewForm() {
         }
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
-        setGate(g);
+        setGate(g.gate);
+        setVisitKey(g.visitKey);
       } catch (e) {
         if (alive) setLoadErr(errorText(e) === "Failed to fetch" ? "You seem to be offline." : errorText(e));
       }
@@ -338,8 +352,8 @@ function ReviewForm() {
   }, [stage, at, dish?.key]);
 
   useEffect(() => {
-    if (uid && place && stage !== "sending") writeDraft(placeId, uid, { visit, dishes: stage === "done" ? [] : dishes, done, isPublic, finished: stage === "done", googleOpened });
-  }, [visit, dishes, done, isPublic, stage, place, placeId, uid, googleOpened]);
+    if (uid && place && stage !== "sending") writeDraft(placeId, uid, { visit, dishes: stage === "done" ? [] : dishes, done, isPublic, finished: stage === "done", googleOpened, visitKey });
+  }, [visit, dishes, done, isPublic, stage, place, placeId, uid, googleOpened, visitKey]);
 
   const isFood = ["food", "other"].includes(modeOf(place?.kind, place?.category).kind);
   const patch = (i: number, p: Partial<Dish>) => setDishes((all) => all.map((d, k) => (k === i ? { ...d, ...p } : d)));
@@ -367,6 +381,25 @@ function ReviewForm() {
       return [...all, d];
     });
     setOtherName("");
+  }
+
+  /** A stale AI text (still exactly what it wrote) goes back to the person's own words when the verdict changes. */
+  function dropStaleAi(key: string) {
+    const a = ai[key];
+    if (a?.out && bodyOf(key) === a.out) { setBody(key, a.prev, false); setAiFor(key, null); }
+  }
+  function rateDish(r: number) {
+    if (!dish) return;
+    const changed = verdictOf(dish.rating) !== verdictOf(r);
+    // "Loved it" has no "could be better" tags, so ones picked under another verdict would contradict it.
+    const bad = new Set(tags.filter((t) => isNegativeTag(t.label)).map((t) => t.id));
+    patch(at, { rating: r, ...(verdictOf(r) === "love" ? { picked: dish.picked.filter((id) => !bad.has(id)) } : {}) });
+    if (changed && dish.rating) dropStaleAi(dish.key);
+  }
+  function rateVisit(r: number) {
+    const changed = verdictOf(visit.rating) !== verdictOf(r);
+    setVisit((v) => ({ ...v, rating: r, tags: verdictOf(v.rating) === verdictOf(r) ? v.tags : [] }));
+    if (changed && visit.rating) dropStaleAi("visit");
   }
 
   function toggleTag(id: number) {
@@ -484,15 +517,18 @@ function ReviewForm() {
   }
 
   /* ---------- moving between screens ---------- */
-  function goDish(i: number) { if (listening) rec.current?.stop(); setErr(""); setAt(i); setStage("dish"); }
+  /** `fromPreview`: the person tapped Edit on the preview, so Done takes them straight back to it. */
+  function goDish(i: number, fromPreview = false) { if (listening) rec.current?.stop(); setErr(""); setBackToPreview(fromPreview); setAt(i); setStage("dish"); }
+  const writing = (key: string) => ai[key]?.stage === "typing";
   function toDishes() {
     setErr("");
     if (listening) rec.current?.stop();
     const open = dishes.findIndex((d) => !d.rating);
-    if (dishes.length) goDish(open >= 0 ? open : 0); else setStage("pick");
+    if (open >= 0) goDish(open); else { setPickFrom(stage); setStage("pick"); }
   }
   function postVisit() {
     if (!visit.rating) { setErr("Pick a face for your visit first."); return; }
+    if (writing("visit")) { setErr("The AI is still writing. One moment."); return; }
     if (listening) rec.current?.stop();
     setErr(""); setFromDishes(false); setStage("preview");
   }
@@ -500,6 +536,9 @@ function ReviewForm() {
     const rest = dishes.filter((_, k) => k !== at);
     setDishes(rest);
     setErr("");
+    const anything = rest.some((d) => d.rating) || (visit.rating > 0 && !visit.reviewId);
+    if (backToPreview && anything) { setBackToPreview(false); setFromDishes(true); setAt(Math.max(0, Math.min(at, rest.length - 1))); setStage("preview"); return; }
+    setBackToPreview(false);
     if (at < rest.length) return;
     if (rest.some((d) => d.rating) || (visit.rating && !visit.reviewId)) { setAt(Math.max(0, rest.length - 1)); setFromDishes(true); setStage("preview"); }
     else { setAt(0); setStage(visit.reviewId ? "pick" : "visit"); }
@@ -508,8 +547,10 @@ function ReviewForm() {
     if (!dish) return;
     if (!dish.rating) { skipDish(); return; }
     if (recording) { setErr("Stop the recording first."); return; }
+    if (writing(dish.key)) { setErr("The AI is still writing. One moment."); return; }
     if (listening) rec.current?.stop();
     setErr("");
+    if (backToPreview) { setBackToPreview(false); setFromDishes(true); setStage("preview"); return; }
     if (at < dishes.length - 1) setAt(at + 1); else { setFromDishes(true); setStage("preview"); }
   }
 
@@ -519,8 +560,14 @@ function ReviewForm() {
     if (stage === "preview") {
       const last = dishes.length - 1;
       if (fromDishes && last >= 0) { setAt(last); setStage("dish"); } else setStage(visit.reviewId ? "pick" : "visit");
-    } else if (stage === "dish") { if (at > 0) setAt(at - 1); else setStage("pick"); }
-    else if (stage === "pick") setStage(visit.reviewId || done.length ? "done" : "visit");
+    } else if (stage === "dish") {
+      if (backToPreview) { setBackToPreview(false); setFromDishes(true); setStage("preview"); }
+      else if (at > 0) setAt(at - 1); else setStage("pick");
+    }
+    else if (stage === "pick") {
+      if (pickFrom === "preview" && (rated.length > 0 || (visit.rating > 0 && !visit.reviewId))) { setFromDishes(false); setStage("preview"); }
+      else setStage(visit.reviewId || done.length ? "done" : "visit");
+    }
   }
 
   // The phone's own Back (Android button, iPhone swipe) steps back through the screens instead of
@@ -572,10 +619,10 @@ function ReviewForm() {
         });
         let id = (data as { id?: string } | null)?.id;
         if (error) {
-          if (error.code === "PGRST202") throw new Error("Visit reviews aren't switched on for this app yet. Rate what you had instead, or try again later");
+          if (error.code === "PGRST202") throw new Error("Rating the whole visit isn't switched on for this app yet. Rate what you had instead, or try again later");
           // Saved on an earlier try whose answer never arrived: use that one.
           if (!/already reviewed this visit/i.test(errorText(error))) throw error;
-          const prior = await supabase.from("visit_reviews").select("id").eq("user_id", uid).eq("place_id", placeId).order("created_at", { ascending: false }).limit(1);
+          const prior = await supabase.from("reviews").select("id, items!inner(name)").eq("user_id", uid).eq("place_id", placeId).eq("items.name", VISIT_ITEM).order("created_at", { ascending: false }).limit(1);
           id = (prior.data as { id: string }[] | null)?.[0]?.id;
           if (!id) throw error;
         }
@@ -653,6 +700,8 @@ function ReviewForm() {
       setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       setSaving(false);
       setCopied(null);
+      // What they tapped on the QR page has been used, so a later visit starts clean.
+      try { localStorage.removeItem(`tp-plan:${placeId}`); sessionStorage.removeItem(`tp_preselected_${placeId}`); } catch { /* storage blocked */ }
       setStage("done");
       playAppleChime();
     } catch (e) {
@@ -746,7 +795,7 @@ function ReviewForm() {
   }
 
   function another() {
-    setDishes([]); setAt(0); setErr(""); setOther(false); setOtherName(""); setCopied(null);
+    setDishes([]); setAt(0); setErr(""); setOther(false); setOtherName(""); setPickQ(""); setCopied(null); setBackToPreview(false);
     setStage("pick");
   }
 
@@ -785,12 +834,12 @@ function ReviewForm() {
   const who = <span className="rvx-who" aria-label={isGuest ? "Anonymous" : "Signed in"}>{isGuest ? <Icon name="eyeOff" size={16} /> : <Icon name="user" size={16} />}</span>;
   const backBtn = <button type="button" className="rvx-back" aria-label="Back" onClick={back}><Icon name="back" size={20} /></button>;
 
-  const faces = (rating: number, pick: (r: number) => void) => (
+  const faces = (rating: number, pick: (r: number) => void, locked = false) => (
     <div className="rvx-faces" role="radiogroup" aria-label="How was it?">
       {VERDICTS.map((v) => {
         const on = verdictOf(rating) === v.key;
         return (
-          <button key={v.key} type="button" role="radio" aria-checked={on} className={`rvx-face-btn ${v.key} ${on ? "on" : ""}`}
+          <button key={v.key} type="button" role="radio" aria-checked={on} disabled={locked} className={`rvx-face-btn ${v.key} ${on ? "on" : ""}`}
             onClick={() => { try { if (v.key === "love") playWaxStamp(); else playHapticTap(700 + v.rating * 60); } catch { /* no audio */ } pick(v.rating); }}>
             {on && <span className="mark" aria-hidden="true"><Icon name="check" size={12} width={3} /></span>}
             <Face v={v.key} />{v.label}
@@ -888,7 +937,7 @@ function ReviewForm() {
         </header>
         <section className="rvx-sec">
           <h2 ref={head} tabIndex={-1}>How was your visit?</h2>
-          {faces(visit.rating, (r) => setVisit((v) => ({ ...v, rating: r, tags: verdictOf(v.rating) === verdictOf(r) ? v.tags : [] })))}
+          {faces(visit.rating, rateVisit, writing("visit"))}
           {vv && (
             <div className="rvx-group" key={vv}>
               <span className="rvx-gtitle"><Icon name={vv === "meh" ? "thumbsDown" : "thumbs"} size={16} />{set[vv].title}</span>
@@ -1035,7 +1084,7 @@ function ReviewForm() {
         </div>
         <section className="rvx-sec" key={dish.key}>
           <h2 ref={head} tabIndex={-1} className="sr-only">How was the {dish.name}?</h2>
-          {faces(dish.rating, (r) => patch(at, { rating: r }))}
+          {faces(dish.rating, rateDish, writing(dish.key))}
           {groups.map((g, gi) => g.list.length > 0 || g.own ? (
             <div className="rvx-group" key={`${dv}-${gi}`}>
               <span className="rvx-gtitle"><Icon name={g.bad ? "thumbsDown" : "thumbs"} size={16} />{g.title}{g.opt && <span className="opt">Optional</span>}</span>
@@ -1063,7 +1112,7 @@ function ReviewForm() {
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot">
           <button type="button" className={`rvx-cta ${dish.rating ? "" : "idle"}`} disabled={recording} onClick={next}>
-            {!dish.rating ? `Skip this ${mode.item}` : last ? "Continue" : <>Next: {dishes[at + 1]!.name}</>}
+            {!dish.rating ? `Skip this ${mode.item}` : backToPreview ? "Done" : last ? "Continue" : <>Next: {dishes[at + 1]!.name}</>}
           </button>
         </div>
       </div>
@@ -1102,7 +1151,7 @@ function ReviewForm() {
                     <div className="rvx-rhead"><b>{d.name}</b>{badge(d.rating)}</div>
                     <p className={d.body.trim() || labels.length ? "" : "none"}>{d.body.trim() ? quote(d.body.trim()) : labels.length ? labels.join(" · ") : "No words added"}</p>
                     {d.reviewId ? <span className="rvx-edit done"><Icon name="check" size={13} />Posted</span>
-                      : !sending && <button type="button" className="rvx-edit" onClick={() => goDish(dishes.indexOf(d))}><Icon name="edit" size={14} />Edit</button>}
+                      : !sending && <button type="button" className="rvx-edit" onClick={() => goDish(dishes.indexOf(d), true)}><Icon name="edit" size={14} />Edit</button>}
                   </div>
                 </article>
               );

@@ -20,7 +20,7 @@ import { OnGoogle } from "../components/place/OnGoogle";
 import { parsePlaceAbout, PlatformRatingsCard, AmenitiesCard } from "../components/place/PlatformRatings";
 import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
-import { olderThan, sortReviews, summarize, type ReviewSort } from "../lib/reviews";
+import { isVisitItem, itemLabel, olderThan, sortReviews, summarize, type ReviewSort } from "../lib/reviews";
 import "../styles/place.css";
 import "../styles/night.css";
 
@@ -197,7 +197,7 @@ export default function PlacePage() {
   const sum = useMemo(() => summarize(reviews), [reviews]);
   const reviewedItems = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const r of reviews) if (r.items?.name && !seen.has(r.item_id)) seen.set(r.item_id, r.items.name);
+    for (const r of reviews) if (r.items?.name && !seen.has(r.item_id)) seen.set(r.item_id, itemLabel(r.items.name));
     return [...seen].map(([itemId, name]) => ({ id: itemId, name, count: stats.get(itemId)?.count ?? 0 })).sort((a, b) => b.count - a.count);
   }, [reviews, stats]);
   const shown = sorted.filter((r) =>
@@ -265,7 +265,7 @@ export default function PlacePage() {
   const signature = products.filter((p) => { const st = stats.get(p.id); return st && st.avg >= 3.5; })
     .sort((a, b) => { const x = stats.get(a.id)!, y = stats.get(b.id)!; return y.avg - x.avg || y.count - x.count; }).slice(0, 5);
   const ticker = reviews.filter((r) => r.author_name && r.is_public && r.rating >= 4).slice(0, 6)
-    .map((r) => `${r.author_name!.split(" ")[0]} rated ${r.items?.name || "it"} ${r.rating}★`);
+    .map((r) => `${r.author_name!.split(" ")[0]} rated ${isVisitItem(r.items?.name) ? "the visit" : r.items?.name || "it"} ${r.rating}★`);
   const photos = reviews.filter((r) => r.photo_path);
   const tabs: { id: typeof tab; label: string; n?: number }[] = [
     { id: "reviews", label: "Reviews", n: reviewCount || undefined },
@@ -339,7 +339,7 @@ export default function PlacePage() {
                     <span className="grow"><b>{r.author_name!.split(" ")[0]}</b><span className="pn-lime tiny">Your friend</span></span>
                     <Stars value={r.rating} size={12} />
                   </span>
-                  <span className="pn-quote">{r.body?.trim() ? `“${r.body.trim().slice(0, 90)}${r.body.trim().length > 90 ? "…" : ""}”` : `Loved ${r.items?.name || "it here"}`}</span>
+                  <span className="pn-quote">{r.body?.trim() ? `“${r.body.trim().slice(0, 90)}${r.body.trim().length > 90 ? "…" : ""}”` : `Loved ${isVisitItem(r.items?.name) ? "it here" : r.items?.name || "it here"}`}</span>
                 </button>
               ))}
             </div>
@@ -521,7 +521,7 @@ export default function PlacePage() {
         {tab === "photos" && (
           photos.length === 0
             ? <div className="pn-empty"><Icon name="camera" size={28} /><b>No photos yet</b><span className="small">Photos from verified visitors show up here</span></div>
-            : <div className="pn-photos">{photos.map((r, i) => <PhotoTile key={r.id} path={r.photo_path!} name={r.items?.name} delay={i * 0.06} />)}</div>
+            : <div className="pn-photos">{photos.map((r, i) => <PhotoTile key={r.id} path={r.photo_path!} name={itemLabel(r.items?.name)} delay={i * 0.06} />)}</div>
         )}
         {tab === "about" && (
           <>
