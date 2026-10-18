@@ -26,17 +26,29 @@ create index if not exists owner_notes_visit_idx on public.owner_notes (visit_id
 create index if not exists owner_notes_device_idx on public.owner_notes (device_hash, created_at) where device_hash is not null;
 
 -- 2. Fold in notes from the older table, without who sent them, then drop it.
-drop function if exists public.submit_private_feedback(uuid, uuid, text, text, smallint, text);
-drop function if exists public.get_place_feedback(uuid);
+-- Clear out every overload of the old feedback functions, whatever their arguments (a database patched by hand may have others).
+do $$ declare r record; begin
+  for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname in ('submit_private_feedback', 'get_place_feedback') loop
+    execute 'drop function ' || r.sig;
+  end loop;
+  -- A stray my_reviews(limit, offset) made by hand makes my_reviews(p_limit => n) ambiguous for the app.
+  drop function if exists public.my_reviews(integer, integer);
+end $$;
 do $$ begin
   if to_regclass('public.place_feedback') is not null then
-    insert into public.owner_notes (place_id, body, contact, created_at, read_at)
-    select f.place_id, left(btrim(f.message), 2000), f.contact_info, f.created_at,
-           case when f.status = 'unread' then null else f.created_at end
-    from public.place_feedback f
-    where length(btrim(f.message)) > 0
-      and not exists (select 1 from public.owner_notes n where n.place_id = f.place_id and n.created_at = f.created_at and n.body = left(btrim(f.message), 2000));
-    drop table public.place_feedback;
+    if (select relkind from pg_class where oid = 'public.place_feedback'::regclass) = 'r' then
+      insert into public.owner_notes (place_id, body, contact, created_at, read_at)
+      select f.place_id, left(btrim(f.message), 2000), f.contact_info, f.created_at,
+             case when f.status = 'unread' then null else f.created_at end
+      from public.place_feedback f
+      where length(btrim(f.message)) > 0
+        and not exists (select 1 from public.owner_notes n where n.place_id = f.place_id and n.created_at = f.created_at and n.body = left(btrim(f.message), 2000));
+      drop table public.place_feedback;
+    else
+      -- Only a compatibility view over owner_notes (made by hand): nothing to copy, just remove it.
+      drop view public.place_feedback cascade;
+    end if;
   end if;
 end $$;
 
