@@ -559,6 +559,10 @@ export default function PlacePage() {
 
       {!shopMode && <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>}
 
+      {shopMode && (
+        <a href="/" target="_blank" rel="noopener" className="pl-claim tiny muted row"><Icon name="search" size={14} />Explore more places on Trusted Picks</a>
+      )}
+
       {canRate ? (
         <div className="pn-foot">
           <Link to={rateUrl} className="pn-foot-btn"><span className="pn-pulse"><Icon name="star" size={22} fill="currentColor" /></span><span className="grow"><b>Rate what you had</b><br />Takes under a minute</span><Icon name="chev" /></Link>

@@ -1,3 +1,4 @@
+import { focusShop } from "../lib/focus";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { isNegativeTag } from "../lib/reviews";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -652,7 +653,7 @@ function ReviewForm() {
         <span className="ico"><Icon name="search" size={28} /></span>
         <h2>This place isn't listed</h2>
         <p>It may have been removed, or the link is wrong.</p>
-        <button type="button" className="rvx-cta" onClick={() => nav("/")}><span>Search places</span><Icon name="chev" size={20} /></button>
+        {!focusShop() && <button type="button" className="rvx-cta" onClick={() => nav("/")}><span>Search places</span><Icon name="chev" size={20} /></button>}
       </div>
     </div>
   );
