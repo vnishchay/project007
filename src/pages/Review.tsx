@@ -233,6 +233,7 @@ function ReviewForm() {
   const [fromDishes, setFromDishes] = useState(false);
   const [other, setOther] = useState(false);
   const [otherName, setOtherName] = useState("");
+  const [pickQ, setPickQ] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [tagDraft, setTagDraft] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
@@ -914,7 +915,6 @@ function ReviewForm() {
 
   /* ---------- which ones did you have? ---------- */
   if (stage === "pick") {
-    const extras = dishes.filter((d) => !d.itemId);
     const first = dishes.findIndex((d) => !d.rating);
     return (
       <div className="rvx" data-stage="pick">
@@ -922,35 +922,85 @@ function ReviewForm() {
         <section className="rvx-sec">
           <h2 ref={head} tabIndex={-1}>{mode.ratePrompt}</h2>
           <p className="rvx-hint">Pick up to {MAX_DISHES}. You'll rate each one next, and can skip any.</p>
-          <div className="rvx-tiles">
-            {items.map((i, n) => {
-              const k = dishes.findIndex((d) => d.itemId === i.id);
-              const on = k >= 0;
-              const wasRated = postedKeys.has(newDish(i.name, i.id).key);
-              return (
-                <button key={i.id} type="button" className={`rvx-tile ${on ? "on" : ""}`} style={{ animationDelay: `${Math.min(n, 10) * 50}ms` }} aria-pressed={on} disabled={wasRated} onClick={() => toggleItem(i)}>
-                  <span className="rvx-img"><ItemThumb path={i.image_path} icon={look.icon} />
-                    <span className="rvx-tick">{on ? k + 1 : ""}</span>
-                    {wasRated && <span className="rvx-rated">Rated</span>}
-                  </span>
-                  <span className="rvx-nm">{i.name}</span>
-                  {priceLabel(i.price_inr) && <span className="rvx-pr">{priceLabel(i.price_inr)}</span>}
-                </button>
-              );
-            })}
-            <button type="button" className={`rvx-tile rvx-other ${other ? "on" : ""}`} aria-pressed={other} onClick={() => setOther(!other)}>
-              <span className="rvx-img"><Icon name="plus" size={26} /></span>
-              <span className="rvx-nm">Something else</span>
-            </button>
-          </div>
-          {extras.length > 0 && <div className="rvx-extras">{extras.map((d) => <button key={d.key} type="button" className="rvx-chip on" onClick={() => setDishes((all) => all.filter((x) => x.key !== d.key))}>{d.name}<Icon name="close" size={12} /></button>)}</div>}
-          {(other || items.length === 0) && (
-            <form className="rvx-add" onSubmit={(e) => { e.preventDefault(); addOther(); }}>
-              <input className="input" value={otherName} onChange={(e) => setOtherName(e.target.value)} placeholder={`Type it, e.g. ${mode.itemExample}`} aria-label="What you had" maxLength={80} autoComplete="off" />
-              <button type="submit" className="btn small ghost" disabled={!otherName.trim()}><Icon name="plus" size={16} />Add</button>
-            </form>
+          {dishes.length > 0 && (
+            <div className="rvx-tray" aria-label="Picked">
+              {dishes.map((d) => {
+                const it = d.itemId ? items.find((i) => i.id === d.itemId) : undefined;
+                return (
+                  <button key={d.key} type="button" className={`rvx-tok ${it ? "" : "plain"}`} aria-label={`Remove ${d.name}`} onClick={() => { setErr(""); setDishes((all) => all.filter((x) => x.key !== d.key)); }}>
+                    {it && <ItemThumb path={it.image_path} icon={look.icon} size={28} />}{d.name}<Icon name="close" size={13} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {items.length > 8 && (
+            <label className="rvx-msearch">
+              <Icon name="search" size={18} />
+              <input type="search" value={pickQ} onChange={(e) => setPickQ(e.target.value)} placeholder={`Search ${items.length} ${mode.itemPlural}`} aria-label={`Search ${mode.itemPlural}`} autoComplete="off" />
+            </label>
           )}
         </section>
+        {(() => {
+          const q = pickQ.trim().toLowerCase();
+          const state = (i: ItemOpt) => {
+            const k = dishes.findIndex((d) => d.itemId === i.id);
+            return { on: k >= 0, wasRated: postedKeys.has(newDish(i.name, i.id).key) };
+          };
+          // The shop's picks and what people rate most get photos in one sideways row; the rest is a short list.
+          const popular = q || items.length <= 6 ? [] : items.filter((i) => i.is_listed || i.count > 0).slice(0, 8);
+          const pop = new Set(popular.map((i) => i.id));
+          const rest = (q ? items.filter((i) => `${i.name} ${i.description || ""}`.toLowerCase().includes(q)) : items.filter((i) => !pop.has(i.id)))
+            .slice().sort((x, y) => x.name.localeCompare(y.name));
+          return (
+            <>
+              {popular.length > 1 && (
+                <section className="rvx-sec" aria-label="Popular here">
+                  <div className="rvx-row"><h3>Popular here</h3><span>Swipe for more</span></div>
+                  <div className="rvx-scroll">
+                    {popular.map((i) => {
+                      const { on, wasRated } = state(i);
+                      return (
+                        <button key={i.id} type="button" className={`rvx-pcard ${on ? "on" : ""}`} aria-pressed={on} disabled={wasRated} onClick={() => toggleItem(i)}>
+                          <span className="ph"><ItemThumb path={i.image_path} icon={look.icon} />
+                            {wasRated ? <span className="rvx-rated">Rated</span> : <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>}
+                          </span>
+                          <span className="tx"><b>{i.name}</b>{priceLabel(i.price_inr) && <small>{priceLabel(i.price_inr)}</small>}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+              <section className="rvx-sec" aria-label={popular.length > 1 ? "Everything else" : "Menu"}>
+                {(popular.length > 1 || q) && <div className="rvx-row"><h3>{q ? "Results" : "Everything else"}</h3><span>A to Z</span></div>}
+                <div className="rvx-menu">
+                  {rest.map((i) => {
+                    const { on, wasRated } = state(i);
+                    return (
+                      <button key={i.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} aria-pressed={on} disabled={wasRated} onClick={() => toggleItem(i)}>
+                        <span className="th"><ItemThumb path={i.image_path} icon={look.icon} size={48} /></span>
+                        <span className="tx"><b>{i.name}</b>{(wasRated || priceLabel(i.price_inr)) && <small>{wasRated ? "Rated" : priceLabel(i.price_inr)}</small>}</span>
+                        {!wasRated && <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>}
+                      </button>
+                    );
+                  })}
+                  {q && !rest.length && <p className="rvx-mrow" style={{ cursor: "default", color: "var(--muted)" }}>No match for "{pickQ.trim()}".</p>}
+                  <button type="button" className={`rvx-mrow ${other ? "on" : ""}`} aria-pressed={other} onClick={() => { setOther(!other); if (q && !other) setOtherName(pickQ.trim()); }}>
+                    <span className="th rvx-other-th"><Icon name="plus" size={20} /></span>
+                    <span className="tx"><b>Something else</b><small>Not on the list? Type it in.</small></span>
+                  </button>
+                </div>
+                {(other || items.length === 0) && (
+                  <form className="rvx-add" onSubmit={(e) => { e.preventDefault(); addOther(); }}>
+                    <input className="input" value={otherName} onChange={(e) => setOtherName(e.target.value)} placeholder={`Type it, e.g. ${mode.itemExample}`} aria-label="What you had" maxLength={80} autoComplete="off" autoFocus={other} />
+                    <button type="submit" className="btn small ghost" disabled={!otherName.trim()}><Icon name="plus" size={16} />Add</button>
+                  </form>
+                )}
+              </section>
+            </>
+          );
+        })()}
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot">
           <button type="button" className={`rvx-cta ${dishes.length ? "" : "idle"}`} onClick={() => { if (dishes.length) goDish(first >= 0 ? first : 0); }}>

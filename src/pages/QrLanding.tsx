@@ -1,5 +1,5 @@
 import { clearFocusShop, setFocusShop } from "../lib/focus";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { deviceId } from "../lib/device";
 import { supabase, errorText } from "../lib/supabase";
@@ -161,25 +161,14 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     } catch {}
   };
 
-  const renderCard = (item: ShopItem, badge?: ReactNode) => {
+  const renderCard = (item: ShopItem) => {
     const isSelected = selectedIds.includes(item.id);
     return (
-      <button
-        key={item.id}
-        type="button"
-        className={`premeal-card ${isSelected ? "selected" : ""}`}
-        onClick={() => toggleSelected(item)}
-        aria-pressed={isSelected}
-      >
-        {badge}
-        <div className="premeal-thumb-wrap"><ItemThumb path={item.image_path} /></div>
-        <div className="premeal-info">
-          <span className="premeal-name"><DietDot diet={item.diet} />{item.name}</span>
-          {item.price_inr != null && <span className="tiny">₹{item.price_inr}</span>}
-          <span className="premeal-cta-pill">
-            <Icon name={isSelected ? "checkCircle" : "plus"} size={15} />{isSelected ? "Having this" : "I'm having this"}
-          </span>
-        </div>
+      <button key={item.id} type="button" className={`rvx-pcard ${isSelected ? "on" : ""}`} onClick={() => toggleSelected(item)} aria-pressed={isSelected} aria-label={`${item.name}${isSelected ? ", picked" : ""}`}>
+        <span className="ph"><ItemThumb path={item.image_path} />
+          <span className="rvx-add-btn" aria-hidden="true"><Icon name={isSelected ? "check" : "plus"} size={16} width={2.4} /></span>
+        </span>
+        <span className="tx"><b><DietDot diet={item.diet} />{item.name}</b>{item.price_inr != null && <small>₹{item.price_inr}</small>}</span>
       </button>
     );
   };
@@ -280,17 +269,18 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       {specials.length > 0 && (
         <section className="rvx-sec" aria-label="Special picks">
           <div className="rvx-row"><h3>Special picks</h3><span>Chosen by the shop</span></div>
-          <div className="premeal-grid">{specials.map((it) => renderCard(it))}</div>
+          <div className="rvx-scroll">{specials.map((it) => renderCard(it))}</div>
         </section>
       )}
 
       {topItems.length > 0 && (
         <section className="rvx-sec" aria-label="Loved here">
           <div className="rvx-row"><h3>Loved here</h3><span>Top rated by visitors</span></div>
-          <div className="rvx-loved">
+          <div className="rvx-scroll rvx-loved">
             {topItems.map((it) => (
               <button key={it.id} type="button" className={selectedIds.includes(it.id) ? "on" : ""} aria-pressed={selectedIds.includes(it.id)} onClick={() => toggleSelected(it)}>
-                {selectedIds.includes(it.id) ? <Icon name="check" size={14} width={2.6} /> : <Icon name="heart" size={14} />}{it.name}<span>{it.lovedPct != null ? `${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`}</span>
+                <span className="face"><ItemThumb path={it.image_path} size={32} />{selectedIds.includes(it.id) && <span className="ok"><Icon name="check" size={16} width={2.6} /></span>}</span>
+                {it.name}<span className="pct">{it.lovedPct != null ? `${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`}</span>
               </button>
             ))}
           </div>

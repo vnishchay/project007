@@ -111,21 +111,11 @@
 .rvx-media { display: flex; flex-direction: column; gap: 10px; }
 
 /* Which ones did you have? */
-.rvx-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.rvx-tile { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; }
-.rvx-tile:disabled { opacity: 0.5; cursor: default; }
-.rvx-img { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); transition: box-shadow 0.2s var(--rv-ease); }
-.rvx-tile.on .rvx-img { box-shadow: inset 0 0 0 3px var(--green); }
-.rvx-tick { position: absolute; right: 8px; top: 8px; width: 26px; height: 26px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 700; transform: scale(0); transition: transform 0.2s var(--rv-ease); }
-.rvx-tile.on .rvx-tick { transform: scale(1); }
-.rvx-rated { position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--good-soft); color: var(--good-dark); }
-.rvx-nm { font-size: 15px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
-.rvx-pr { font-size: 13px; color: var(--muted); margin-top: -4px; }
-.rvx-other .rvx-img { background: none; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--muted); }
-.rvx-other.on .rvx-img { box-shadow: inset 0 0 0 3px var(--green); color: var(--green); }
+.rvx-mrow:disabled { cursor: default; opacity: 0.55; }
+.rvx-other-th { display: grid; place-items: center; background: var(--fill); color: var(--muted); }
+.rvx-mrow.on .rvx-other-th { background: var(--green-soft); color: var(--green); }
 .rvx-add { display: flex; gap: 10px; }
 .rvx-add .input { flex: 1; min-width: 0; }
-.rvx-extras { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* Check your review: plain white cards. */
 .rvx-cards { display: flex; flex-direction: column; gap: 10px; }
@@ -206,6 +196,7 @@
 .rvx-nudge small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 
 /* QR landing: special picks, loved here, the menu as an inset grouped list. */
+/* Pre-meal cards, still used by the demo page. */
 .premeal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 button.premeal-card { position: relative; display: flex; flex-direction: column; width: 100%; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); color: var(--ink); text-align: left; cursor: pointer; transition: box-shadow 0.2s var(--rv-ease), transform 0.2s var(--rv-ease); }
 button.premeal-card:active { transform: scale(0.98); }
@@ -218,12 +209,36 @@ button.premeal-card.selected { box-shadow: inset 0 0 0 2px var(--green), var(--s
 .premeal-card.selected .premeal-cta-pill { color: var(--green-dark); }
 .premeal-rank { position: absolute; top: 8px; left: 8px; z-index: 2; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, 0.92); color: var(--ink); }
 
-.rvx-loved { display: flex; flex-wrap: wrap; gap: 8px; }
-.rvx-loved button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); font-size: 15px; font-weight: 500; cursor: pointer; }
-.rvx-loved button svg { color: var(--coral); }
-.rvx-loved button span { color: var(--muted); font-size: 13px; }
+/* Sideways rows of small cards: they keep photos without a tall grid. */
+.rvx-scroll { display: flex; gap: 10px; margin: 0 -20px; padding: 2px 20px 10px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding: 0 20px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.rvx-scroll::-webkit-scrollbar { display: none; }
+.rvx-pcard { position: relative; flex: none; width: 136px; display: flex; flex-direction: column; padding: 0; border: 0; border-radius: 16px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); color: var(--ink); text-align: left; cursor: pointer; scroll-snap-align: start; transition: box-shadow 0.2s var(--rv-ease), transform 0.2s var(--rv-ease); }
+.rvx-pcard:active { transform: scale(0.97); }
+.rvx-pcard:disabled { opacity: 0.55; cursor: default; }
+.rvx-pcard.on { box-shadow: inset 0 0 0 2px var(--green), var(--shadow); }
+.rvx-pcard .ph { position: relative; height: 84px; background: var(--fill); }
+.rvx-pcard .ph .item-thumb { width: 100%; height: 100%; border-radius: 0; }
+.rvx-pcard .rvx-add-btn { position: absolute; right: 8px; bottom: 8px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); color: var(--ink); }
+.rvx-pcard.on .rvx-add-btn { background: var(--green); color: #fff; }
+.rvx-pcard .rvx-rated { position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--good-soft); color: var(--good-dark); }
+.rvx-pcard .tx { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px 10px; }
+.rvx-pcard .tx b { display: flex; align-items: center; gap: 5px; font-size: 15px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvx-pcard .tx small { font-size: 13px; color: var(--muted); }
+
+/* What you picked, removable in one tap. */
+.rvx-tray { display: flex; flex-wrap: wrap; gap: 8px; }
+.rvx-tok { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 4px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: 15px; font-weight: 500; cursor: pointer; }
+.rvx-tok .item-thumb { width: 28px; height: 28px; border-radius: 50%; flex: none; }
+.rvx-tok.plain { padding-left: 14px; }
+
+.rvx-loved { display: flex; gap: 8px; flex-wrap: nowrap; }
+.rvx-loved button { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px 0 4px; border: 0; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); font-size: 15px; font-weight: 500; cursor: pointer; scroll-snap-align: start; white-space: nowrap; }
+.rvx-loved .face { position: relative; width: 32px; height: 32px; flex: none; }
+.rvx-loved .face .item-thumb { width: 32px; height: 32px; border-radius: 50%; }
+.rvx-loved .face .ok { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #fff; }
+.rvx-loved button span.pct { color: var(--muted); font-size: 13px; }
 .rvx-loved button.on { background: var(--ink); color: #fff; box-shadow: none; }
-.rvx-loved button.on svg, .rvx-loved button.on span { color: #fff; }
+.rvx-loved button.on span.pct { color: rgba(255, 255, 255, 0.75); }
 
 .rvx-menu { display: flex; flex-direction: column; border-radius: 20px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .rvx-mrow { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; }
