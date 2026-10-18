@@ -8,6 +8,7 @@ import { getLocation } from "../lib/util";
 import { Icon, Spinner } from "../components/ui";
 import { DietDot, loadShopItems, type ShopItem } from "../components/place/shop";
 import { ItemThumb } from "../components/place/ItemThumb";
+import { playHapticTap } from "../lib/haptics";
 import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
@@ -78,10 +79,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       ? selectedIds.filter((id) => id !== item.id)
       : [...selectedIds, item.id].slice(0, 5);
     setSelectedIds(next);
+    playHapticTap(850);
     try {
       localStorage.setItem(`tp-plan:${peek.place_id}`, JSON.stringify({ ids: next, expiresAt: Date.now() + 6 * 3600 * 1000 }));
       sessionStorage.setItem(`tp_preselected_${peek.place_id}`, next[0] || "");
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15);
     } catch {}
   };
   // One visit per code per signed-in user per page view (StrictMode runs effects twice).
@@ -369,9 +370,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           {session && visit && refused ? (
             refused === "guest_used" && <Link to={`/signin?next=${encodeURIComponent(`/review/${peek.place_id}`)}`} className="rvx-cta"><span>Sign in to rate more</span><Icon name="chev" size={20} /></Link>
           ) : session ? (
-            <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning || starting || !visit} onClick={(e) => { if (scanning || starting || !visit) e.preventDefault(); }}><span>Rate what you had</span><Icon name="chev" size={20} /></Link>
+            <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning || starting || !visit} onClick={(e) => { if (scanning || starting || !visit) e.preventDefault(); }}><span>{selectedIds.length > 0 ? `Rate your ${selectedIds.length === 1 ? "dish" : `${selectedIds.length} dishes`}` : "Rate what you had"}</span><Icon name="chev" size={20} /></Link>
           ) : (
-            <button type="button" className="rvx-cta" disabled={starting} onClick={rateAsGuest}><span>{starting ? "Opening…" : "Rate what you had"}</span><Icon name="chev" size={20} /></button>
+            <button type="button" className="rvx-cta" disabled={starting} onClick={rateAsGuest}><span>{starting ? "Opening…" : selectedIds.length > 0 ? `Rate your ${selectedIds.length === 1 ? "dish" : `${selectedIds.length} dishes`}` : "Rate what you had"}</span><Icon name="chev" size={20} /></button>
           )}
         </div>
       )}
