@@ -20,8 +20,10 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   const [items, setItems] = useState<ItemStat[]>([]);
   const [err, setErr] = useState("");
   const [old, setOld] = useState(false);
-  const [menuCount, setMenuCount] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [hasInsights, setHasInsights] = useState<boolean | null>(null);
+  const [hasAi, setHasAi] = useState<boolean | null>(null);
+  const [planCode, setPlanCode] = useState<string>("trial");
 
   useEffect(() => {
     let alive = true;
@@ -29,22 +31,22 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
     Promise.all([
       supabase.rpc("shop_stats", { p_place: place.id }),
       supabase.rpc("shop_item_stats", { p_place: place.id }),
-    ]).then(([s, i]) => {
+      supabase.rpc("place_has_feature", { p_place: place.id, p_feature: "insights" }),
+      supabase.rpc("place_has_feature", { p_place: place.id, p_feature: "ai_insights" }),
+      supabase.rpc("my_plan", { p_place: place.id }),
+    ]).then(([s, i, fi, fa, mp]) => {
       if (!alive) return;
       if (s.error?.code === "PGRST202") { setOld(true); setStats(null); return; }
       if (s.error) { setErr(errorText(s.error)); setStats(null); return; }
       setStats(((s.data as ShopStats[]) || [])[0] ?? null);
       setItems((i.data as ItemStat[]) || []);
+      if (!fi.error && typeof fi.data === "boolean") setHasInsights(fi.data);
+      if (!fa.error && typeof fa.data === "boolean") setHasAi(fa.data);
+      const plan = (mp.data as { plan?: string }[] | null)?.[0]?.plan;
+      if (plan) setPlanCode(plan);
     });
     return () => { alive = false; };
   }, [place.id, attempt]);
-
-  useEffect(() => {
-    let alive = true;
-    supabase.from("items").select("id", { count: "exact", head: true }).eq("place_id", place.id).eq("is_hidden", false)
-      .then(({ count }) => { if (alive) setMenuCount(count ?? 0); }, () => {});
-    return () => { alive = false; };
-  }, [place.id]);
 
   if (stats === undefined) return (
     <div className="stack"><div className="skeleton" style={{ height: 132, borderRadius: 24 }} /><div className="grid2"><div className="skeleton" style={{ height: 96 }} /><div className="skeleton" style={{ height: 96 }} /></div></div>
@@ -53,6 +55,8 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   if (err) return <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={() => setAttempt((x) => x + 1)}><Icon name="refresh" size={15} />Retry</button></div>;
 
   const s = stats ?? { reviews: 0, avg_rating: null, reviews_30d: 0, verified: 0, google_handoffs: 0, google_handoffs_30d: 0, scans_30d: 0, saves: 0, items_rated: 0 };
+  const isStandardOrPro = hasInsights ?? (planCode !== "trial" && planCode !== "starter");
+  const isPro = hasAi ?? (planCode === "pro" || planCode === "growth_pro" || planCode === "autopilot_vip");
   const best = items.filter((i) => i.reviews > 0 && Number(i.avg_rating) >= 3.5).slice(0, 3);
   const attention = items.filter((i) => i.low_ratings > 0).sort((a, b) => b.low_ratings - a.low_ratings || Number(a.avg_rating) - Number(b.avg_rating)).slice(0, 3);
   const nudgeGoogle = googleConfigured && !place.google_place_id;
@@ -84,13 +88,51 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
       )}
 
       {s.reviews === 0 ? (
-        <Finish place={place} menuCount={menuCount} onGo={onGo} />
+        <div className="mg-empty">
+          <div className="mg-empty-art" aria-hidden="true">
+            <span className="icon-chip lg violet a"><Icon name="scan" size={24} /></span>
+            <span className="icon-chip lg amber b" style={{ width: 60, height: 60 }}><Icon name="star" size={28} /></span>
+            <span className="icon-chip lg c"><Icon name="chart" size={24} /></span>
+          </div>
+          <h2>Your first reviews start here</h2>
+          <p className="small muted" style={{ maxWidth: 270 }}>Put a QR on each table. Customers scan, rate what they had, and these numbers grow.</p>
+          <button className="btn green" onClick={() => onGo("qr")}><Icon name="print" size={18} />Print table QRs</button>
+        </div>
       ) : (
         <>
-          {best.length > 0 && <ItemBlock title="Most loved" icon="trophy" cls="amber" rows={best} />}
-          {attention.length > 0 && <ItemBlock title="Needs attention" icon="alert" cls="coral" rows={attention} low />}
-          {best.length === 0 && attention.length === 0 && <p className="small muted center">Product ratings show here once customers rate them.</p>}
-          {s.reviews >= 3 && <AiTips placeId={place.id} />}
+          {isStandardOrPro ? (
+            <>
+              {best.length > 0 && <ItemBlock title="Most loved" icon="trophy" cls="amber" rows={best} />}
+              {attention.length > 0 && <ItemBlock title="Needs attention" icon="alert" cls="coral" rows={attention} low />}
+              {best.length === 0 && attention.length === 0 && <p className="small muted center">Product ratings show here once customers rate them.</p>}
+            </>
+          ) : (
+            <div style={{ position: "relative" }}>
+              <div style={{ filter: "blur(4.5px)", pointerEvents: "none", userSelect: "none", opacity: 0.6 }}>
+                <ItemBlock
+                  title="Most loved (Sample)"
+                  icon="trophy"
+                  cls="amber"
+                  rows={[
+                    { item_id: "sample-1", name: "Truffle Pasta", image_path: null, reviews: 24, avg_rating: 4.8, low_ratings: 0 },
+                    { item_id: "sample-2", name: "Artisan Burrata", image_path: null, reviews: 18, avg_rating: 4.6, low_ratings: 1 },
+                  ]}
+                />
+              </div>
+              <div className="callout violet" style={{ margin: "10px 0", alignItems: "flex-start" }}>
+                <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
+                <div className="grow stack tight">
+                  <strong>Dish-Level Ratings & Insights</strong>
+                  <span className="tiny">Standard and Growth Pro plans unlock detailed ratings for every dish, low-rating warnings, and sentiment ranking.</span>
+                  <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
+                    <Icon name="crown" size={14} />See plans
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <PrivateNotes placeId={place.id} onGo={onGo} isPro={isPro} />
+          {s.reviews >= 3 && <AiTips placeId={place.id} isPro={isPro} onGo={onGo} />}
         </>
       )}
       <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Counts only. Customers stay private.</p>
@@ -98,27 +140,166 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   );
 }
 
-/** The free way to finish a shop: menu, then links, then (optionally, with a plan) table QRs. */
-function Finish({ place, menuCount, onGo }: { place: Place; menuCount: number | null; onGo: (t: ManageTab) => void }) {
-  const links = ((place as Place & { links?: { kind: string }[] }).links ?? []).filter((l) => l.kind !== "maps").length;
-  const steps: { id: ManageTab; icon: IconName; tint: string; title: string; sub: string; done: boolean; cta: string; tag?: string }[] = [
-    { id: "products", icon: "box", tint: "violet", title: "Add your menu", sub: "Snap a photo and we add the items", done: (menuCount ?? 0) > 0, cta: "Start", tag: "Free" },
-    { id: "links", icon: "link", tint: "sky", title: "Add your links", sub: "Swiggy, Zomato, Instagram, WhatsApp", done: links > 0, cta: "Add", tag: "Free" },
-    { id: "qr", icon: "qr", tint: "amber", title: "Print your table QRs", sub: "Optional. Pick a plan when you are ready", done: false, cta: "Unlock" },
-  ];
-  const done = steps.filter((x) => x.done).length;
-  const first = steps.findIndex((x) => !x.done);
+interface FeedbackRow {
+  id: string;
+  item_name: string | null;
+  rating: number | null;
+  message: string;
+  contact_info: string | null;
+  status: "unread" | "resolved" | "archived";
+  created_at: string;
+}
+
+function PrivateNotes({ placeId, onGo, isPro: isProProp }: { placeId: string; onGo: (t: ManageTab) => void; isPro?: boolean }) {
+  const [feedback, setFeedback] = useState<FeedbackRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [planCode, setPlanCode] = useState<string>("trial");
+
+  useEffect(() => {
+    let alive = true;
+    supabase.rpc("my_plan", { p_place: placeId }).then(({ data }) => {
+      if (alive) {
+        const p = (data as { plan?: string }[] | null)?.[0]?.plan;
+        if (p) setPlanCode(p);
+      }
+    });
+
+    supabase.from("owner_notes").select("id, item_id, body, contact, read_at, created_at").eq("place_id", placeId).order("created_at", { ascending: false }).then(({ data: notes, error: notesErr }) => {
+      if (!alive) return;
+      if (!notesErr && notes && notes.length > 0) {
+        setLoading(false);
+        setFeedback(notes.map((n) => ({
+          id: n.id,
+          item_name: null,
+          rating: null,
+          message: n.body,
+          contact_info: n.contact,
+          status: n.read_at ? "resolved" : "unread",
+          created_at: n.created_at,
+        })));
+        return;
+      }
+      supabase.rpc("get_place_feedback", { p_place: placeId }).then(({ data, error }) => {
+        if (!alive) return;
+        setLoading(false);
+        if (!error && data) {
+          setFeedback(data as FeedbackRow[]);
+        } else {
+          supabase.from("place_feedback").select("*").eq("place_id", placeId).order("created_at", { ascending: false }).then(({ data: d }) => {
+            if (alive) setFeedback((d as FeedbackRow[]) || []);
+          });
+        }
+      });
+    });
+    return () => { alive = false; };
+  }, [placeId, isProProp]);
+
+  async function resolve(id: string) {
+    const { error } = await supabase.from("place_feedback").update({ status: "resolved" }).eq("id", id);
+    if (!error) {
+      setFeedback((prev) => (prev || []).map((f) => (f.id === id ? { ...f, status: "resolved" } : f)));
+    }
+  }
+
+  if (loading || !feedback || feedback.length === 0) return null;
+
+  const isPro = isProProp ?? (planCode === "growth_pro" || planCode === "autopilot_vip" || planCode === "pro");
+  const unreadCount = feedback.filter((f) => f.status === "unread").length;
+
   return (
-    <section className="fn" aria-label="Finish your shop">
-      <div className="fn-head"><span className="grow">Finish your shop</span><span className="fn-count">{done} of {steps.length} done</span></div>
-      <p className="small muted">Your page works fully for free. Add the rest in any order.</p>
-      {steps.map((x, i) => (
-        <button key={x.id} type="button" className={`fn-step ${x.done ? "done" : ""} ${i === first ? "now" : ""}`} onClick={() => onGo(x.id)}>
-          <span className={`icon-chip ${x.tint}`}><Icon name={x.done ? "check" : x.icon} size={20} width={x.done ? 3 : 2} /></span>
-          <span className="grow"><b>{x.title}{x.tag && <span className="fn-tag">{x.tag}</span>}</b><span className="small muted">{x.sub}</span></span>
-          {x.done ? null : i === first ? <span className="fn-go">{x.cta}</span> : <Icon name="chev" size={18} color="var(--muted)" />}
-        </button>
-      ))}
+    <section className="mg-section" style={{ gap: 10, border: "1.5px solid rgba(220, 38, 38, 0.2)", background: "var(--card)", borderRadius: 20, padding: 16 }}>
+      <div className="mg-section-head">
+        <span className="icon-chip sm coral"><Icon name="shield" size={16} /></span>
+        <span className="grow strong">Reputation Shield: Intercepted Notes</span>
+        {unreadCount > 0 && <span className="badge coral">{unreadCount} new</span>}
+      </div>
+      <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>
+        Unhappy guests who used your VIP direct channel instead of posting publicly on Google:
+      </p>
+
+      <div className="stack" style={{ gap: 8 }}>
+        {feedback.slice(0, 5).map((f) => {
+          const isResolved = f.status === "resolved";
+          return (
+            <div key={f.id} className="card" style={{ padding: 12, background: isResolved ? "var(--surface)" : "rgba(220, 38, 38, 0.04)", border: isResolved ? "1px solid var(--line)" : "1px solid rgba(220, 38, 38, 0.2)" }}>
+              <div className="row" style={{ alignItems: "center", gap: 6, marginBottom: 4 }}>
+                {f.rating && (
+                  <span className="badge coral" style={{ padding: "2px 6px", fontSize: 11 }}>
+                    <Icon name="star" size={10} fill="currentColor" /> {f.rating}★
+                  </span>
+                )}
+                {f.item_name && <strong className="small grow ellipsis">{f.item_name}</strong>}
+                <span className="tiny muted" style={{ marginLeft: "auto" }}>
+                  {new Date(f.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                </span>
+              </div>
+
+              {/* Blurred paywall for free tier vs unblurred for Growth Pro */}
+              <div style={{ position: "relative", margin: "4px 0" }}>
+                <p className="small" style={{
+                  margin: 0,
+                  color: "var(--ink-2)",
+                  whiteSpace: "pre-wrap",
+                  filter: !isPro ? "blur(4.5px)" : "none",
+                  userSelect: !isPro ? "none" : "auto",
+                  pointerEvents: !isPro ? "none" : "auto",
+                }}>
+                  {!isPro
+                    ? "The portion size was much smaller than advertised and when we asked the waiter they were dismissive of our feedback."
+                    : `"${f.message}"`}
+                </p>
+              </div>
+
+              <div className="row" style={{ alignItems: "center", gap: 8, marginTop: 8 }}>
+                {isPro ? (
+                  <>
+                    {f.contact_info ? (
+                      <span className="tiny muted row" style={{ gap: 4 }}>
+                        <Icon name="phone" size={12} /> Contact: <strong style={{ color: "var(--ink)" }}>{f.contact_info}</strong>
+                      </span>
+                    ) : (
+                      <span className="tiny muted">Sent anonymously</span>
+                    )}
+                    {!isResolved ? (
+                      <button type="button" className="btn small green" style={{ marginLeft: "auto", padding: "3px 10px", fontSize: 12 }} onClick={() => resolve(f.id)}>
+                        <Icon name="check" size={13} /> Mark Resolved
+                      </button>
+                    ) : (
+                      <span className="tiny green strong row" style={{ marginLeft: "auto", gap: 4 }}>
+                        <Icon name="checkCircle" size={13} /> Resolved
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="tiny muted row" style={{ gap: 4, filter: "blur(3.5px)", userSelect: "none" }}>
+                    <Icon name="phone" size={12} /> Contact: diner@example.com (555) 019-2834
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {!isPro && (
+          <div className="callout violet" style={{ padding: "12px 14px", marginTop: 4, alignItems: "flex-start" }}>
+            <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
+            <div className="grow stack tight">
+              <strong style={{ fontSize: 14 }}>Unlock Guest Details & VIP Return Vouchers</strong>
+              <span className="tiny" style={{ opacity: 0.9 }}>
+                Growth Pro lets you read full intercepted complaints, see diner contact info, and resolve issues before they become 1-star Google reviews.
+              </span>
+              <button
+                type="button"
+                className="btn green small"
+                style={{ alignSelf: "flex-start", marginTop: 6 }}
+                onClick={() => onGo("plan")}
+              >
+                <Icon name="crown" size={14} /> Upgrade to Growth Pro ($59/mo)
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -126,7 +307,7 @@ function Finish({ place, menuCount, onGo }: { place: Place; menuCount: number | 
 interface Tips { summary: string; loved: string[]; fix: string[] }
 
 /** On demand only, so it costs an AI call just when the owner asks. */
-function AiTips({ placeId }: { placeId: string }) {
+function AiTips({ placeId, isPro, onGo }: { placeId: string; isPro: boolean; onGo: (t: ManageTab) => void }) {
   const [tips, setTips] = useState<Tips | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -138,7 +319,18 @@ function AiTips({ placeId }: { placeId: string }) {
   return (
     <section className="mg-section ai-tips">
       <div className="mg-section-head"><span className="icon-chip sm violet"><Icon name="spark" size={16} /></span><span className="grow">What your reviews say</span></div>
-      {!tips ? (
+      {!isPro ? (
+        <div className="callout violet" style={{ margin: "4px 0", alignItems: "flex-start" }}>
+          <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
+          <div className="grow stack tight">
+            <strong style={{ fontSize: 14 }}>AI Review Analysis & Recipe Tips</strong>
+            <span className="tiny">AI reads your customer reviews to highlight what diners love and what to fix first on Pro and Growth Pro plans.</span>
+            <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
+              <Icon name="crown" size={14} />See plans
+            </button>
+          </div>
+        </div>
+      ) : !tips ? (
         <>
           <p className="small muted">AI reads your recent reviews and tells you what customers love and what to fix first.</p>
           <button type="button" className="btn ghost block" disabled={busy} onClick={run}><Icon name="spark" size={18} />{busy ? "Reading your reviews…" : "Read my reviews"}</button>

@@ -127,7 +127,7 @@ export default function SignIn() {
           <div className="si-or">or use your email</div>
           <form className="si-actions" onSubmit={sendLink}>
             <input id="email" className="input" type="email" required autoComplete="email" aria-label="Email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <button className="btn green block" disabled={busy}><Icon name="send" size={18} />{busy ? "Sending…" : "Email me a sign-in link"}</button>
+            <button className="btn block" disabled={busy}><Icon name="send" size={18} />{busy ? "Sending…" : "Email me a sign-in link"}</button>
           </form>
           {err && <div className="notice err">{err}</div>}
         </div>

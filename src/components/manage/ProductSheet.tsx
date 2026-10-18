@@ -4,6 +4,7 @@ import { placeMediaUrl, removePlaceMedia, uploadPlaceMedia } from "../../lib/med
 import type { Item, Topic } from "../../lib/types";
 import type { Mode } from "../../lib/modes";
 import { Icon, useToast } from "../ui";
+import { DIET_OPTIONS } from "../place/shop";
 
 export function friendlyItemError(e: unknown): string {
   const t = errorText(e);
@@ -35,6 +36,7 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
   const [topic, setTopic] = useState<number | null>(item ? item.topic_id : defaultTopic);
   const [desc, setDesc] = useState(item?.description ?? "");
   const [section, setSection] = useState(item?.section ?? "");
+  const [diet, setDiet] = useState<string[]>(item?.diet ?? []);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(placeMediaUrl(item?.image_path));
   const [previewBad, setPreviewBad] = useState(false);
@@ -59,6 +61,45 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
     setFile(f); setDropPhoto(false); setPreviewBad(false); setPreview(URL.createObjectURL(f));
   }
 
+  const [dinerPhotos, setDinerPhotos] = useState<{ path: string; url: string }[]>([]);
+
+  useEffect(() => {
+    if (!item?.id) return;
+    supabase
+      .from("reviews")
+      .select("photo_path")
+      .eq("item_id", item.id)
+      .not("photo_path", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(6)
+      .then(({ data }) => {
+        if (data && data.length) {
+          const list = (data as { photo_path: string | null }[])
+            .filter((r): r is { photo_path: string } => Boolean(r.photo_path))
+            .map((r) => ({
+              path: r.photo_path,
+              url: supabase.storage.from("review-photos").getPublicUrl(r.photo_path).data.publicUrl,
+            }));
+          setDinerPhotos(list);
+        }
+      });
+  }, [item?.id]);
+
+  async function useDinerPhoto(dp: { path: string; url: string }) {
+    setBusy(true);
+    try {
+      const res = await fetch(dp.url);
+      const blob = await res.blob();
+      const dinerFile = new File([blob], "diner-dish-photo.jpg", { type: "image/jpeg" });
+      pick(dinerFile);
+      toast("Diner photo selected for this dish!");
+    } catch {
+      toast("Could not use diner photo");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const n = name.trim().replace(/\s+/g, " ");
@@ -77,10 +118,17 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
       }
     }
     const row = { name: n, price_inr: p, topic_id: topic, description: desc.trim() || null, image_path, is_listed: true,
+      diet: diet.length ? diet : null,
       ...(section.trim() || item?.section ? { section: section.trim().slice(0, 40) || null } : {}), ...(item && !item.is_listed ? { sort_order: nextSort } : {}) };
-    const res = item
+    let res = item
       ? await supabase.from("items").update(nameLocked ? { ...row, name: item.name } : row).eq("id", item.id).select("*").single()
       : await supabase.from("items").insert({ ...row, place_id: placeId, sort_order: nextSort, is_hidden: false }).select("*").single();
+    if (res.error && (res.error.code === "42703" || /column "diet"/i.test(res.error.message))) {
+      const { diet: _d, ...noDiet } = row;
+      res = item
+        ? await supabase.from("items").update(nameLocked ? { ...noDiet, name: item.name } : noDiet).eq("id", item.id).select("*").single()
+        : await supabase.from("items").insert({ ...noDiet, place_id: placeId, sort_order: nextSort, is_hidden: false }).select("*").single();
+    }
     setBusy(false);
     if (res.error) {
       if (file && image_path) removePlaceMedia(image_path).catch(() => {});
@@ -143,6 +191,38 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
         </button>
         <input ref={fileIn} type="file" accept="image/*" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
 
+        {dinerPhotos.length > 0 && (
+          <div className="stack tight" style={{ marginTop: 4, marginBottom: 6 }}>
+            <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 10 }}>
+              <Icon name="camera" size={11} color="var(--ink-2)" /> Photos shared by diners
+            </span>
+            <div className="row" style={{ gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+              {dinerPhotos.map((dp) => (
+                <button
+                  key={dp.path}
+                  type="button"
+                  title="Use as dish picture"
+                  aria-label="Use diner photo as dish picture"
+                  onClick={() => useDinerPhoto(dp)}
+                  style={{
+                    border: "1.5px solid var(--line)",
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    width: 52,
+                    height: 52,
+                    padding: 0,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    position: "relative",
+                  }}
+                >
+                  <img src={dp.url} alt="Diner dish" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="field">
           <label className="mg-label" htmlFor="pn"><Icon name="tag" size={15} />Name</label>
           <input id="pn" className="input" required maxLength={80} value={name} disabled={nameLocked} onChange={(e) => setName(e.target.value)} placeholder={mode.itemExample} />
@@ -178,6 +258,27 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
               ))}
             </div>
           )}
+        </div>
+
+        <div className="field">
+          <span className="mg-label"><Icon name="tag" size={15} />Dietary tags <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></span>
+          <div className="chips scroll" role="group" aria-label="Dietary tags">
+            {DIET_OPTIONS.map((d) => {
+              const active = diet.includes(d.id);
+              return (
+                <button
+                  type="button"
+                  key={d.id}
+                  className={`chip ${active ? "on" : ""}`}
+                  onClick={() => setDiet(active ? diet.filter((x) => x !== d.id) : [...diet, d.id])}
+                  style={active ? { borderColor: d.color, color: d.color } : {}}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: d.color, display: "inline-block", marginRight: 5 }} />
+                  {d.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="field">
