@@ -140,6 +140,13 @@ const lite = (d: Dish): Dish => ({ ...d, photo: null, voice: null });
 function readDraft(placeId: string, uid: string): Draft | null {
   try { const raw = sessionStorage.getItem(draftKey(placeId, uid)); return raw ? (JSON.parse(raw) as Draft) : null; } catch { return null; }
 }
+/** Unexpired dish ids the diner picked on the QR landing (saved there as `tp-plan:<placeId>`). */
+function readPlan(placeId: string): string[] {
+  try {
+    const p = JSON.parse(localStorage.getItem(`tp-plan:${placeId}`) || "null") as { ids?: unknown; expiresAt?: number } | null;
+    return p && Array.isArray(p.ids) && (p.expiresAt ?? 0) > Date.now() ? p.ids.filter((x): x is string => typeof x === "string") : [];
+  } catch { return []; }
+}
 function writeDraft(placeId: string, uid: string, d: Draft) {
   try { sessionStorage.setItem(draftKey(placeId, uid), JSON.stringify({ ...d, dishes: d.dishes.map(lite), done: d.done.map(lite) })); } catch { /* storage blocked or full */ }
 }
@@ -294,7 +301,12 @@ function ReviewForm() {
           // Back from Google after the tab was reloaded: show the thank-you screen again, not the menu.
           if (kept.finished && kept.done.length) { setStage("done"); setGoogleOpened(Boolean(kept.googleOpened)); }
           else if (open >= 0) { setAt(open); setStage("dish"); } else if (kept.dishes.length) setStage("preview");
-        } else if (!opts.length) setOther(true);
+        } else if (opts.length) {
+          // Dishes the diner tapped "Having this" on at the QR landing (never ticked for them).
+          const planned = readPlan(placeId);
+          const list = opts.filter((i) => planned.includes(i.id)).slice(0, 5).map((i) => newDish(i.name, i.id));
+          if (list.length) setDishes(list);
+        } else setOther(true);
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
         setGate(g);
