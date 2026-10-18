@@ -903,7 +903,7 @@ function ReviewForm() {
 
         {!isGuest && !isPublic && dishes.some((d) => d.voice && !d.reviewId) && <p className="rvx-anon"><Icon name="mic" size={16} />Voice notes play only on reviews that show your name, so anonymous ones stay anonymous.</p>}
         {err && <div className="notice err" role="alert">{err}</div>}
-        <div className="rvx-foot">
+        <div className="rvx-foot inline">
           {sending ? (
             <div className="rvx-pipe" role="status" aria-live="polite">
               <span className="spin" aria-hidden="true" />
@@ -911,11 +911,9 @@ function ReviewForm() {
               <small>Copying your review and opening Google…</small>
             </div>
           ) : <>
-            <div className="rvx-flow"><span><Icon name="check" size={12} width={3} />Saved here</span><i /><span><Icon name="copy" size={12} />Copied</span><i /><span><Icon name="external" size={12} />Google</span></div>
-            <button type="button" className="rvx-cta big" onClick={() => post(true)}>
-              <span className="rvx-g"><Icon name="star" size={18} fill="#fff" color="#fff" /></span>
+            <button type="button" className="rvx-cta" onClick={() => post(true)}>
               <span className="grow"><b>Post and share on Google</b><small>Saves, copies and opens {place.google_place_id ? "Google reviews" : "Google Maps"}</small></span>
-              <Icon name="chev" size={20} />
+              <Icon name="external" size={20} />
             </button>
             <button type="button" className="rvx-skip" onClick={() => post(false)}>Post here only</button>
           </>}
