@@ -3,7 +3,7 @@
 // never talks to the AI directly. One file so it can be pasted into the dashboard editor.
 //
 // Tasks (POST JSON {task, ...}):
-//   draft     anyone signed in (guests too): short review from item, stars, tags, notes
+//   draft     anyone signed in (guests too): review of a visit or an item from the verdict, tags, answers, notes
 //   menu      shop owner: menu / price-list photos, or pasted menu text -> products to check
 //   photos    shop owner: finds a stock picture for each product that has none (Pexels) and saves it
 //   update    shop owner: a few words -> a shop update
@@ -149,30 +149,40 @@ const asLines = (rs: ReviewLite[]) => rs.map((r) => `- ${r.rating}/5 · ${clean(
 
 const TASKS: Record<string, (c: Ctx, b: Record<string, unknown>) => Promise<unknown>> = {
   async draft(c, b) {
+    // scope "visit": the whole visit; anything else: one item.
+    const visit = b.scope === "visit";
     const item = clean(b.item, 80);
     const rating = Math.max(1, Math.min(5, Math.round(Number(b.rating) || 0)));
-    if (!item || !Number(b.rating)) throw new Fail(400, "Pick what you had and give it stars first.");
+    if ((!visit && !item) || !Number(b.rating)) throw new Fail(400, visit ? "Pick how your visit went first." : "Pick what you had and rate it first.");
     // A guest only gets drafts while at a shop (an open visit), so new guest accounts can't farm AI calls.
     if (c.guest) {
       const { count } = await c.admin.from("visits").select("id", { count: "exact", head: true }).eq("user_id", c.userId!).gt("expires_at", new Date().toISOString());
       if (!count) throw new Fail(403, "Scan the QR at the shop to get help writing.");
     }
     await take(c);
-    const tags = strList(b.tags, 8, 30);
+    const tags = strList(b.tags, 12, 30);
+    const downs = strList(b.downs, 12, 30);
+    const answers = strList(b.answers, 4, 80);
+    const tone = b.tone === "polite" ? "polite and measured" : "casual and friendly, like texting a friend";
+    const length = b.length === "short" ? "1 short sentence, under 20 words" : b.length === "long" ? "3 to 4 sentences, under 90 words" : "2 to 3 sentences, under 60 words";
     const facts = [
       `Place: ${clean(b.place, 80) || "a local place"}${b.category ? ` (${clean(b.category, 40)})` : ""}`,
-      `Item: ${item}`, `Stars: ${rating} of 5`,
-      tags.length ? `Tags: ${tags.join(", ")}` : "",
-      clean(b.notes, 1200) ? `Customer's own words (may be rough speech-to-text): ${clean(b.notes, 1200)}` : "",
+      visit ? "Reviewing: the whole visit" : `Item: ${item}`,
+      `Verdict: ${rating} of 5 (${rating >= 5 ? "loved it" : rating >= 4 ? "good" : rating === 3 ? "okay" : "not for them"})`,
+      tags.length ? `What they liked: ${tags.join(", ")}` : "",
+      downs.length ? `What let them down or could be better: ${downs.join(", ")}` : "",
+      ...answers.map((a) => `They said: ${a}`),
+      clean(b.notes, 1200) ? `Customer's own words (may be rough speech-to-text, keep their meaning and any phrases they clearly like): ${clean(b.notes, 1200)}` : "",
     ].filter(Boolean).join("\n");
     const text = await aiFor(c, {
-      system: `You write short, honest customer reviews for a local-recommendations app in India.
-Write in the first person as the customer, in plain everyday English, 2 to 3 sentences, under 60 words.
-Mention the item name naturally in the first sentence for local discovery.
-Use only what the customer told you: the item, the star rating, the tags and their notes. Never invent details,
-prices, staff names or dishes they didn't mention. Match the tone to the stars: 1-2 stars is a fair complaint,
-3 is mixed, 4-5 is warm. No hashtags, no emojis, no quotation marks. Reply with the review text only.`,
-      user: `Write the review.\n\n${facts}`, maxTokens: 200,
+      system: `You help a customer put their own experience into words for a local-recommendations app in India.
+Write in the first person as the customer, ${tone}, ${length}.
+${visit ? "It is about the whole visit; name the place once." : "Mention the item name naturally in the first sentence for local discovery."}
+Use only what the customer told you: the verdict, the tags, their answers and their own words. Never invent details,
+dishes, prices, staff names or feelings they didn't express. If they wrote their own words, keep their meaning and voice,
+just tidy it. Write in the language they wrote in (Hinglish stays Hinglish). Match the tone to the verdict: low is a fair,
+calm complaint, high is warm. No hashtags, no emojis, no quotation marks. Reply with the review text only.`,
+      user: `Write the review.\n\n${facts}`, maxTokens: 240,
     });
     return { text: unquote(text) };
   },

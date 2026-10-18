@@ -28,6 +28,11 @@ interface TopItem extends ShopItem {
   lovedPct?: number;
 }
 
+/** The review rates up to this many things in one go. */
+const MAX_TAGGED = 5;
+/** Menu rows shown before "Show all". */
+const MENU_FIRST = 24;
+
 function friendly(e: unknown): string {
   const m = errorText(e);
   if (m === "Failed to fetch" || /network/i.test(m)) return "You seem to be offline.";
@@ -56,6 +61,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   // The shop's own special picks (products it chose to list), shown like a mini shop page.
   const [specials, setSpecials] = useState<ShopItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // The whole menu, so diners can tag anything they're having, not just the shop's picks.
+  const [menu, setMenu] = useState<ShopItem[]>([]);
+  const [menuQ, setMenuQ] = useState("");
+  const [menuAll, setMenuAll] = useState(false);
   // One visit per code per signed-in user per page view (StrictMode runs effects twice).
   const scannedFor = useRef<string | null>(null);
   const unlockFn = link ? "redeem_review_link" : "scan_qr";
@@ -102,7 +111,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         } catch {}
         loadShopItems(pk.place_id).then(async ({ items }) => {
           if (!alive || !items.length) return;
-          setSpecials(items.filter((it) => it.is_listed).sort((x, y) => x.sort_order - y.sort_order).slice(0, 6));
+          const ordered = [...items].sort((x, y) => x.sort_order - y.sort_order || x.name.localeCompare(y.name));
+          setSpecials(ordered.filter((it) => it.is_listed).slice(0, 6));
+          setMenu(ordered);
           try {
             const { data: revs } = await supabase.from("review_feed").select("item_id, rating").eq("place_id", pk.place_id).order("created_at", { ascending: false }).limit(500);
             const counts: Record<string, { sum: number; count: number; fourPlus: number }> = {};
@@ -138,9 +149,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
 
   const toggleSelected = (item: ShopItem) => {
     if (!peek?.place_id) return;
+    if (!selectedIds.includes(item.id) && selectedIds.length >= MAX_TAGGED) return;
     const next = selectedIds.includes(item.id)
       ? selectedIds.filter((id) => id !== item.id)
-      : [...selectedIds, item.id].slice(0, 5);
+      : [...selectedIds, item.id];
     setSelectedIds(next);
     playHapticTap(850);
     try {
@@ -163,7 +175,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         <div className="premeal-thumb-wrap"><ItemThumb path={item.image_path} /></div>
         <div className="premeal-info">
           <span className="premeal-name"><DietDot diet={item.diet} />{item.name}</span>
-          {item.price_inr != null && <span className="tiny muted">₹{item.price_inr}</span>}
+          {item.price_inr != null && <span className="tiny">₹{item.price_inr}</span>}
           <span className="premeal-cta-pill">
             {isSelected ? "✓ Having this" : "+ Having this"}
           </span>
@@ -257,45 +269,65 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     <div className="rvx" data-stage="landing">
       {bar}
       <header className="rvx-hero">
-        {visit && <span className="rvx-verified"><Icon name="verified" size={14} />Verified visit</span>}
-        <div className="rvx-kicker">{link ? "Review link from the shop" : peek.table_label || "Welcome"}</div>
+        {visit && <span className="rvx-verified"><Icon name="verified" size={14} />{peek.table_label ? `${peek.table_label} · verified visit` : "Verified visit"}</span>}
         <h1>{peek.place_name}</h1>
-        <div className="rvx-meta">
-          {peek.table_label && <span className="rvx-pill"><Icon name="qr" size={13} />{peek.table_label}</span>}
-          {peek.area && <span className="rvx-pill"><Icon name="pin" size={13} />{peek.area}</span>}
-        </div>
+        <div className="rvx-kicker">{[link ? "Review link from the shop" : !visit ? peek.table_label : null, peek.area].filter(Boolean).join(" · ") || "Welcome"}</div>
       </header>
 
       {specials.length > 0 && (
         <section className="rvx-sec" aria-label="Special picks">
-          <h2>Special <i>picks</i></h2>
-          <p className="rvx-hint">What {peek.place_name} recommends.</p>
+          <div className="rvx-row"><h3>Special picks</h3><span>Tap what you're having</span></div>
           <div className="premeal-grid">{specials.map((it) => renderCard(it))}</div>
         </section>
       )}
 
       {topItems.length > 0 && (
-        <section className="rvx-sec" aria-label="Top rated here">
-          <h2>Loved <i>here</i></h2>
-          <p className="rvx-hint">Rated best by people who ate here.</p>
-          <div className="premeal-grid">
-            {topItems.map((it, idx) => renderCard(it, (
-              <span className={`premeal-rank ${idx === 0 ? "gold" : ""}`}>
-                {it.lovedPct != null ? `🔥 ${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`} · {it.reviewCount}
-              </span>
-            )))}
+        <section className="rvx-sec" aria-label="Loved here">
+          <div className="rvx-row"><h3>Loved here</h3><span>By people who ate here</span></div>
+          <div className="rvx-loved">
+            {topItems.map((it) => (
+              <button key={it.id} type="button" className={selectedIds.includes(it.id) ? "on" : ""} aria-pressed={selectedIds.includes(it.id)} onClick={() => toggleSelected(it)}>
+                {it.name} · {it.lovedPct != null ? `${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`}
+              </button>
+            ))}
           </div>
-          {selectedIds.length > 0 && (
-            <span className="tiny strong row" style={{ gap: 5, justifyContent: "center", marginTop: 8, color: "var(--champ, #e5c78f)" }}>
-              <Icon name="check" size={13} color="currentColor" />
-              {selectedIds.length} {selectedIds.length === 1 ? "dish" : "dishes"} selected for your tasting flight!
-            </span>
-          )}
         </section>
       )}
 
-      <section className="rvx-sec">
-        <h2>Rate what you <i>had</i></h2>
+      {menu.length > 0 && (() => {
+        const q = menuQ.trim().toLowerCase();
+        const found = q ? menu.filter((it) => `${it.name} ${it.description || ""}`.toLowerCase().includes(q)) : menu;
+        const shown = q || menuAll ? found : found.slice(0, MENU_FIRST);
+        return (
+          <section className="rvx-sec" aria-label="Menu">
+            <div className="rvx-row"><h3>Menu</h3><span aria-live="polite">{selectedIds.length ? `${selectedIds.length} tagged${selectedIds.length >= MAX_TAGGED ? " (most you can rate at once)" : ""}` : "Tap anything you're having"}</span></div>
+            {menu.length > 8 && (
+              <label className="rvx-msearch">
+                <Icon name="search" size={16} />
+                <input className="input" type="search" value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder="Find on the menu" aria-label="Find on the menu" autoComplete="off" />
+              </label>
+            )}
+            <div className="rvx-menu">
+              {shown.map((it, i) => {
+                const on = selectedIds.includes(it.id);
+                return (
+                  <button key={it.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }} aria-pressed={on} onClick={() => toggleSelected(it)}>
+                    <span className="th"><ItemThumb path={it.image_path} size={56} /></span>
+                    <span className="tx"><b><DietDot diet={it.diet} />{it.name}</b>{(it.price_inr != null || it.description) && <small>{[it.price_inr != null ? `₹${it.price_inr}` : "", it.description || ""].filter(Boolean).join(" · ")}</small>}</span>
+                    <span className="rvx-mpill">{on ? "✓ Having" : "+ Having"}</span>
+                  </button>
+                );
+              })}
+              {q && !found.length && <p className="rvx-hint">Nothing called "{menuQ.trim()}". You can add it on the next screen.</p>}
+            </div>
+            {!q && !menuAll && found.length > MENU_FIRST && (
+              <button type="button" className="rvx-more" onClick={() => setMenuAll(true)}><Icon name="down" size={16} />Show all {found.length}</button>
+            )}
+          </section>
+        );
+      })()}
+
+      <section className="rvx-sec" aria-label="Your review">
         <div aria-live="polite">
           {loading ? <Spinner /> : session ? (
             visit && refused ? (
@@ -343,8 +375,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 playHapticTap(950);
               }}
             >
-              <span>{selectedIds.length > 0 ? `Start Tasting Flight (${selectedIds.length} ${selectedIds.length === 1 ? "dish" : "dishes"})` : "Rate what you had"}</span>
-              <Icon name="chev" size={20} />
+              <span>{selectedIds.length > 0 ? `Rate your visit · ${selectedIds.length} tagged` : "Rate your visit"}</span>
             </Link>
           ) : (
             <button
@@ -356,8 +387,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 rateAsGuest();
               }}
             >
-              <span>{starting ? "Opening…" : selectedIds.length > 0 ? `Start Tasting Flight (${selectedIds.length} ${selectedIds.length === 1 ? "dish" : "dishes"})` : "Rate what you had"}</span>
-              <Icon name="chev" size={20} />
+              <span>{starting ? "Opening…" : selectedIds.length > 0 ? `Rate your visit · ${selectedIds.length} tagged` : "Rate your visit"}</span>
             </button>
           )}
         </div>

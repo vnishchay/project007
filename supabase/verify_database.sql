@@ -50,6 +50,7 @@ with needed(fn, params) as (values
   ('shop_item_stats', array['p_place']::text[]),
   ('shop_stats', array['p_place']::text[]),
   ('submit_review', array[]::text[]),
+  ('submit_visit_review', array['p_ai_drafted', 'p_body', 'p_device', 'p_is_public', 'p_place_id', 'p_rating', 'p_tags']::text[]),
   ('verify_place', array['p_lat', 'p_lng', 'p_note', 'p_ok', 'p_place']::text[])
 )
 select n.fn as missing_function, n.params as with_arguments
