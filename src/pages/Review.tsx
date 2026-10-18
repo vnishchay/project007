@@ -1,8 +1,8 @@
 import { focusShop } from "../lib/focus";
 import { playAppleChime, playHapticTap, playWaxStamp } from "../lib/haptics";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isNegativeTag } from "../lib/reviews";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type Place, type Tag } from "../lib/types";
@@ -46,9 +46,52 @@ function withCustomTags(body: string, custom: string[]): string {
   return (b ? `${b}\n\n${line}` : line).slice(0, MAX_BODY);
 }
 
-const FACES = ["", "😣", "🙁", "😐", "😋", "🤩"];
-const FACE_WORDS = ["Tap a star", "Not for me", "Could be better", "It was okay", "Really good", "Loved it!"];
-const STAR_PATH = "M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z";
+/** Three faces instead of five stars. They map onto the same 1-5 scale everything else ranks by. */
+type Verdict = "meh" | "good" | "love";
+const VERDICTS: { key: Verdict; label: string; rating: number }[] = [
+  { key: "meh", label: "Not for me", rating: 2 },
+  { key: "good", label: "Good", rating: 4 },
+  { key: "love", label: "Loved it", rating: 5 },
+];
+const verdictOf = (r: number): Verdict | undefined => (!r ? undefined : r >= 5 ? "love" : r >= 4 ? "good" : "meh");
+const labelOf = (r: number) => VERDICTS.find((v) => v.key === verdictOf(r))?.label ?? "";
+
+function Face({ v }: { v: Verdict }) {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+      {v === "love" ? <path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z" /> : <>
+        <circle cx="12" cy="12" r="9" />
+        <path d={v === "meh" ? "M8.5 16c1-1.2 2.2-1.8 3.5-1.8s2.5.6 3.5 1.8M9 10h.01M15 10h.01" : "M8.5 14.5c1 .9 2.2 1.3 3.5 1.3s2.5-.4 3.5-1.3M9 10h.01M15 10h.01"} />
+      </>}
+    </svg>
+  );
+}
+
+/** Quick tags for the whole visit, by verdict. */
+const VISIT_TAGS: Record<"food" | "other", Record<Verdict, { title: string; tags: string[] }>> = {
+  food: {
+    meh: { title: "What let it down?", tags: ["Food", "Service", "Long wait", "Noisy", "Pricey", "Cleanliness"] },
+    good: { title: "What was good?", tags: ["Food", "Service", "Ambience", "Value", "Quick"] },
+    love: { title: "What made it great?", tags: ["Amazing food", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
+  },
+  other: {
+    meh: { title: "What let it down?", tags: ["Service", "Long wait", "Staff", "Pricey", "Cleanliness"] },
+    good: { title: "What was good?", tags: ["Service", "Staff", "Value", "Quick", "Clean"] },
+    love: { title: "What made it great?", tags: ["Great service", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
+  },
+};
+
+/** Two taps the AI writer asks before writing about a visit, so it sounds like the person. */
+const AI_QUESTIONS: Record<"food" | "other", { q: string; opts: string[]; say: (a: string) => string }[]> = {
+  food: [
+    { q: "Who were you with?", opts: ["Solo", "Partner", "Friends", "Family"], say: (a) => (a === "Solo" ? "Came on my own" : `Came with ${a.toLowerCase()}`) },
+    { q: "Would you come back?", opts: ["Definitely", "Maybe", "Probably not"], say: (a) => `Would come back: ${a.toLowerCase()}` },
+  ],
+  other: [
+    { q: "Would you recommend it?", opts: ["Definitely", "Maybe", "Probably not"], say: (a) => `Would recommend it: ${a.toLowerCase()}` },
+    { q: "Would you come back?", opts: ["Definitely", "Maybe", "Probably not"], say: (a) => `Would come back: ${a.toLowerCase()}` },
+  ],
+};
 
 /** One thing the person had, and everything they say about it. */
 interface Dish {
@@ -68,7 +111,16 @@ interface Dish {
 
 const newDish = (name: string, itemId: string | null): Dish => ({ key: `${itemId || "x"}:${name.toLowerCase()}`, name, itemId, rating: 0, picked: [], custom: [], body: "", aiDrafted: false, photo: null, voice: null });
 
-type Stage = "pick" | "dish" | "preview" | "sending" | "done";
+/** The review of the whole visit. Dishes are optional on top of it. */
+interface VisitR { rating: number; tags: string[]; body: string; aiDrafted: boolean; reviewId?: string }
+const NO_VISIT: VisitR = { rating: 0, tags: [], body: "", aiDrafted: false };
+
+/** The AI writer's state for one text box ("visit" or a dish key). */
+type Len = "short" | "normal" | "long";
+interface AiState { stage: "idle" | "ask" | "typing" | "done"; own: string; prev: string; out: string; len: Len; tone: "casual" | "polite"; answers: (string | null)[] }
+const AI0: AiState = { stage: "idle", own: "", prev: "", out: "", len: "normal", tone: "casual", answers: [] };
+
+type Stage = "visit" | "pick" | "dish" | "preview" | "sending" | "done";
 
 /** The database answered and said no (a PostgREST error with a code), as opposed to a reply that never arrived. */
 function refusedByServer(e: unknown): boolean {
@@ -76,16 +128,18 @@ function refusedByServer(e: unknown): boolean {
   return typeof code === "string" && code !== "" && !/failed to fetch|network|load failed|timed? ?out|abort/i.test(errorText(e));
 }
 
-/** What goes on Google: the person's own words per dish, or their picks when they wrote none. */
-function googleText(dishes: Dish[], tags: Tag[]): string {
+/** What goes on Google: the person's own words, or their picks when they wrote none. */
+function googleText(visit: VisitR, dishes: Dish[], tags: Tag[]): string {
+  const sentence = (lead: string, xs: string[]) => (xs.length ? `${lead}. ${xs.join(", ")}.` : `${lead}.`).replace(/^./, (c) => c.toUpperCase());
   const say = (d: Dish) => {
     const t = d.body.trim();
     if (t) return t;
-    const good = [...tags.filter((x) => d.picked.includes(x.id) && !isNegativeTag(x.label)).map((x) => x.label.toLowerCase()), ...d.custom.map((x) => x.toLowerCase())];
-    return good.length ? `${FACE_WORDS[d.rating]}. ${good.join(", ")}.`.replace(/^./, (c) => c.toUpperCase()) : FACE_WORDS[d.rating];
+    return sentence(labelOf(d.rating), [...tags.filter((x) => d.picked.includes(x.id)).map((x) => x.label.toLowerCase()), ...d.custom.map((x) => x.toLowerCase())]);
   };
-  if (dishes.length === 1) return say(dishes[0]!).slice(0, MAX_BODY);
-  return dishes.map((d) => `${d.name} (${d.rating}/5): ${say(d)}`).join("\n\n").slice(0, 3000);
+  const parts: string[] = [];
+  if (visit.rating) parts.push(visit.body.trim() || sentence(labelOf(visit.rating), visit.tags.map((t) => t.toLowerCase())));
+  for (const d of dishes) parts.push(dishes.length === 1 && !visit.rating ? say(d) : `${d.name}: ${say(d)}`);
+  return parts.join("\n\n").slice(0, 3000);
 }
 
 const averageStars = (dishes: Dish[]) => Math.max(1, Math.min(5, Math.round(dishes.reduce((n, d) => n + d.rating, 0) / Math.max(1, dishes.length))));
@@ -134,13 +188,13 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
 }
 
 /** The review in progress, kept for this tab only, without photos or voice notes. */
-interface Draft { dishes: Dish[]; done: Dish[]; isPublic: boolean; finished?: boolean; googleOpened?: boolean }
+interface Draft { visit?: VisitR; dishes: Dish[]; done: Dish[]; isPublic: boolean; finished?: boolean; googleOpened?: boolean }
 const draftKey = (placeId: string, uid: string) => `tp-review:${uid}:${placeId}`;
 const lite = (d: Dish): Dish => ({ ...d, photo: null, voice: null });
 function readDraft(placeId: string, uid: string): Draft | null {
   try { const raw = sessionStorage.getItem(draftKey(placeId, uid)); return raw ? (JSON.parse(raw) as Draft) : null; } catch { return null; }
 }
-/** Unexpired dish ids the diner picked on the QR landing (saved there as `tp-plan:<placeId>`). */
+/** Unexpired dish ids the diner tagged on the QR landing (saved there as `tp-plan:<placeId>`). */
 function readPlan(placeId: string): string[] {
   try {
     const p = JSON.parse(localStorage.getItem(`tp-plan:${placeId}`) || "null") as { ids?: unknown; expiresAt?: number } | null;
@@ -151,24 +205,6 @@ function writeDraft(placeId: string, uid: string, d: Draft) {
   try { sessionStorage.setItem(draftKey(placeId, uid), JSON.stringify({ ...d, dishes: d.dishes.map(lite), done: d.done.map(lite) })); } catch { /* storage blocked or full */ }
 }
 
-/** Ring that fills as each dish in the visit gets rated. */
-function TasteRing({ done, total }: { done: number; total: number }) {
-  const r = 9, c = 2 * Math.PI * r, pct = total ? done / total : 0;
-  return (
-    <span className="taste-ring" role="img" aria-label={`${done} of ${total} rated`}>
-      <svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r={r} className="track" /><circle cx="12" cy="12" r={r} className="fill" strokeDasharray={c} strokeDashoffset={c - pct * c} /></svg>
-      {done}/{total}
-    </span>
-  );
-}
-
-/** Stamp naming the verdict the diner gave (from their own stars). */
-function WaxStamp({ rating }: { rating: number }) {
-  if (!rating) return null;
-  const [label, cls] = rating >= 5 ? ["Must try", ""] : rating === 4 ? ["Solid", "ok"] : ["Skip", "bad"];
-  return <span className={`wax-stamp ${cls}`}>{label}</span>;
-}
-
 export default function Review() {
   const { session, loading, profile } = useAuth();
   const { placeId = "" } = useParams();
@@ -177,51 +213,8 @@ export default function Review() {
   return <ReviewForm />;
 }
 
-function Stars({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  // Rates when the finger lifts or drags sideways, so a vertical scroll that starts on the stars never sets one.
-  const press = useRef<{ x: number; drag: boolean } | null>(null);
-  const at = (x: number) => {
-    const r = box.current?.getBoundingClientRect();
-    return r && r.width ? Math.max(1, Math.min(5, Math.ceil(((x - r.left) / r.width) * 5))) : value;
-  };
-  const triggerHaptic = (n: number) => {
-    try {
-      playHapticTap(700 + n * 60);
-    } catch {
-      /* ignore */
-    }
-    onChange(n);
-  };
-  return (
-    <div
-      ref={box}
-      className="rvx-stars"
-      role="radiogroup"
-      aria-label="Rating"
-      onPointerDown={(e) => { if (e.pointerType === "mouse" && e.button !== 0) return; press.current = { x: e.clientX, drag: false }; }}
-      onPointerMove={(e) => {
-        const p = press.current;
-        if (!p) return;
-        if (!p.drag && Math.abs(e.clientX - p.x) > 8) p.drag = true;
-        if (p.drag) onChange(at(e.clientX));
-      }}
-      onPointerUp={(e) => { if (press.current) onChange(at(e.clientX)); press.current = null; }}
-      onPointerCancel={() => { press.current = null; }}
-      onPointerLeave={() => { if (press.current?.drag) press.current = null; }}
-    >
-      {[1, 2, 3, 4, 5].map((i) => (
-        <button key={i} type="button" role="radio" aria-checked={value === i} aria-label={`${i} star${i > 1 ? "s" : ""}`} className={i <= value ? "on" : ""} onClick={() => triggerHaptic(i)}>
-          <svg viewBox="0 0 24 24" width="46" height="46" aria-hidden="true"><path d={STAR_PATH} /></svg>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ReviewForm() {
   const { placeId = "" } = useParams();
-  const [params] = useSearchParams();
   const { session, isGuest } = useAuth();
   const uid = session?.user.id;
   const nav = useNavigate();
@@ -233,22 +226,25 @@ function ReviewForm() {
   const [gate, setGate] = useState<Gate>("loading");
   const [googleLive, setGoogleLive] = useState<{ rating: number | null } | null>(null);
 
-  const [stage, setStage] = useState<Stage>("pick");
+  const [stage, setStage] = useState<Stage>("visit");
+  const [visit, setVisit] = useState<VisitR>(NO_VISIT);
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [at, setAt] = useState(0);
+  const [fromDishes, setFromDishes] = useState(false);
   const [other, setOther] = useState(false);
   const [otherName, setOtherName] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [tagDraft, setTagDraft] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [drafting, setDrafting] = useState(false);
+  const [ai, setAi] = useState<Record<string, AiState>>({});
   const [saving, setSaving] = useState<string | false>(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<Dish[]>([]);
   const [copied, setCopied] = useState<boolean | null>(null);
   const [googleOpened, setGoogleOpened] = useState(false);
   const rec = useRef<Recognition | null>(null);
+  const typer = useRef<number | null>(null);
   const [canDictate] = useState(() => Boolean(recognitionCtor()));
   const [canRecord] = useState(() => canRecordVoice());
 
@@ -294,19 +290,22 @@ function ReviewForm() {
         const opts = sortShopItems(it.items.map((i) => ({ ...i, count: counts.get(i.id) ?? 0 })), (i) => i.count);
         setItems(opts);
         const kept = readDraft(placeId, uid);
-        if (kept && (kept.dishes.length || kept.done.length)) {
+        const kv = kept?.visit;
+        if (kept && (kv?.rating || kv?.body.trim() || kept.dishes.length || kept.done.length)) {
           // Phones often reload the tab after the camera: bring back what was written (photos and voice can't be kept).
-          setDishes(kept.dishes); setDone(kept.done); setIsPublic(kept.isPublic);
+          setVisit(kv ?? NO_VISIT); setDishes(kept.dishes); setDone(kept.done); setIsPublic(kept.isPublic);
           const open = kept.dishes.findIndex((d) => !d.rating);
-          // Back from Google after the tab was reloaded: show the thank-you screen again, not the menu.
-          if (kept.finished && kept.done.length) { setStage("done"); setGoogleOpened(Boolean(kept.googleOpened)); }
-          else if (open >= 0) { setAt(open); setStage("dish"); } else if (kept.dishes.length) setStage("preview");
-        } else if (opts.length) {
-          // Dishes the diner tapped "Having this" on at the QR landing (never ticked for them).
+          // Back from Google after the tab was reloaded: show the thank-you screen again.
+          if (kept.finished && (kept.done.length || kv?.reviewId)) { setStage("done"); setGoogleOpened(Boolean(kept.googleOpened)); }
+          else if (!kv?.reviewId) setStage("visit");
+          else if (open >= 0) { setAt(open); setStage("dish"); } else setStage(kept.dishes.length ? "preview" : "pick");
+        } else {
+          // Things the diner tapped "Having this" on at the QR landing (never ticked for them).
           const planned = readPlan(placeId);
-          const list = opts.filter((i) => planned.includes(i.id)).slice(0, 5).map((i) => newDish(i.name, i.id));
+          const list = opts.filter((i) => planned.includes(i.id)).slice(0, MAX_DISHES).map((i) => newDish(i.name, i.id));
           if (list.length) setDishes(list);
-        } else setOther(true);
+          if (!opts.length) setOther(true);
+        }
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
         setGate(g);
@@ -315,8 +314,6 @@ function ReviewForm() {
       }
     })();
     return () => { alive = false; };
-    // params are read once per load on purpose
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeId, uid, reload]);
 
   // The live Google rating is only shown, never stored. Failing to get it hides the badge.
@@ -327,31 +324,33 @@ function ReviewForm() {
     return () => { alive = false; };
   }, [place?.google_place_id]);
 
-  // Stop listening if the page goes away.
-  useEffect(() => () => rec.current?.stop(), []);
+  // Stop listening and typing if the page goes away.
+  useEffect(() => () => { rec.current?.stop(); if (typer.current) clearInterval(typer.current); }, []);
   const head = useRef<HTMLHeadingElement>(null);
   const moved = useRef(false);
+  const dish = dishes[at];
   useEffect(() => {
     window.scrollTo({ top: 0 });
     // Screen readers hear the new step; skipped on first load so the page opens normally.
     if (moved.current) head.current?.focus({ preventScroll: true });
     moved.current = true;
-  }, [stage, at]);
+  }, [stage, at, dish?.key]);
 
   useEffect(() => {
-    if (uid && place && stage !== "sending") writeDraft(placeId, uid, { dishes: stage === "done" ? [] : dishes, done, isPublic, finished: stage === "done", googleOpened });
-  }, [dishes, done, isPublic, stage, place, placeId, uid, googleOpened]);
+    if (uid && place && stage !== "sending") writeDraft(placeId, uid, { visit, dishes: stage === "done" ? [] : dishes, done, isPublic, finished: stage === "done", googleOpened });
+  }, [visit, dishes, done, isPublic, stage, place, placeId, uid, googleOpened]);
 
-  const dish = dishes[at];
+  const isFood = ["food", "other"].includes(modeOf(place?.kind, place?.category).kind);
   const patch = (i: number, p: Partial<Dish>) => setDishes((all) => all.map((d, k) => (k === i ? { ...d, ...p } : d)));
   const postedKeys = new Set(done.map((d) => d.key));
+  const rated = dishes.filter((d) => d.rating > 0);
 
   function toggleItem(i: ShopItem) {
     setErr("");
     setDishes((all) => {
       const key = newDish(i.name, i.id).key;
       if (all.some((d) => d.key === key)) return all.filter((d) => d.key !== key);
-      if (all.length >= MAX_DISHES) { setErr(`Up to ${MAX_DISHES} dishes in one go.`); return all; }
+      if (all.length >= MAX_DISHES) { setErr(`Up to ${MAX_DISHES} in one go.`); return all; }
       return [...all, newDish(i.name, i.id)];
     });
   }
@@ -363,7 +362,7 @@ function ReviewForm() {
     setDishes((all) => {
       const d = newDish(known?.name || name, known?.id ?? null);
       if (all.some((x) => x.key === d.key)) return all;
-      if (all.length >= MAX_DISHES) { setErr(`Up to ${MAX_DISHES} dishes in one go.`); return all; }
+      if (all.length >= MAX_DISHES) { setErr(`Up to ${MAX_DISHES} in one go.`); return all; }
       return [...all, d];
     });
     setOtherName("");
@@ -388,62 +387,146 @@ function ReviewForm() {
     setTagDraft(null);
   }
 
-  const dictate = useCallback(() => {
+  /* ---------- the text boxes: typed, spoken or written with AI ---------- */
+  const bodyOf = (key: string) => (key === "visit" ? visit.body : dishes.find((d) => d.key === key)?.body ?? "");
+  function setBody(key: string, body: string, aiDrafted?: boolean) {
+    const extra = aiDrafted === undefined ? {} : { aiDrafted };
+    if (key === "visit") setVisit((v) => ({ ...v, body, ...extra }));
+    else setDishes((all) => all.map((d) => (d.key === key ? { ...d, body, ...extra } : d)));
+  }
+  const setAiFor = (key: string, p: Partial<AiState> | null) =>
+    setAi((all) => {
+      const n = { ...all };
+      if (p === null) delete n[key]; else n[key] = { ...AI0, ...all[key], ...p };
+      return n;
+    });
+
+  function dictate(key: string) {
     if (listening) { rec.current?.stop(); return; }
     const r = makeRecognition();
-    if (!r || !dish) return;
-    const i = at;
+    if (!r) return;
     rec.current = r;
     r.lang = "en-IN"; r.interimResults = false; r.continuous = true;
-    const start = dish.body ? dish.body.trimEnd() + " " : "";
+    const now = bodyOf(key);
+    const start = now ? now.trimEnd() + " " : "";
     r.onresult = (e) => {
       const heard = Array.from(e.results).map((x) => x[0]?.transcript ?? "").join(" ");
-      patch(i, { body: (start + heard).slice(0, MAX_BODY) });
+      setBody(key, (start + heard).slice(0, MAX_BODY));
     };
     r.onend = () => setListening(false);
     r.onerror = () => { setListening(false); setErr("Couldn't hear you. Check the microphone permission, or type instead."); };
     try { r.start(); setListening(true); } catch { setListening(false); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listening, dish, at]);
+  }
 
-  async function draft() {
-    if (!dish || !dish.rating) { setErr("Give it stars first."); return; }
-    setDrafting(true); setErr("");
-    const i = at;
+  /** Types the AI's text into the box a few letters at a time, so it reads as being written. */
+  function typeOut(key: string, full: string) {
+    if (typer.current) clearInterval(typer.current);
+    const finish = () => { typer.current = null; setBody(key, full, true); setAiFor(key, { stage: "done", out: full }); };
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { finish(); return; }
+    const step = Math.max(3, Math.ceil(full.length / 90));
+    let i = 0;
+    typer.current = window.setInterval(() => {
+      i = Math.min(full.length, i + step);
+      if (i >= full.length) { clearInterval(typer.current!); finish(); } else setBody(key, full.slice(0, i), true);
+    }, 18);
+  }
+
+  async function generate(key: string, p: Partial<AiState> = {}) {
+    const was = ai[key];
+    const s: AiState = { ...AI0, ...was, ...p };
+    const isVisit = key === "visit";
+    const d = isVisit ? undefined : dishes.find((x) => x.key === key);
+    const rating = isVisit ? visit.rating : d?.rating ?? 0;
+    if (!rating) { setErr("Pick a face first."); return; }
+    if (listening) rec.current?.stop();
+    setErr("");
+    setAiFor(key, { ...s, stage: "typing" });
+    const liked: string[] = [];
+    const downs: string[] = [];
+    if (isVisit) (verdictOf(rating) === "meh" ? downs : liked).push(...visit.tags);
+    else if (d) {
+      for (const t of tags) if (d.picked.includes(t.id)) (isNegativeTag(t.label) ? downs : liked).push(t.label);
+      liked.push(...d.custom);
+    }
+    const qs = AI_QUESTIONS[isFood ? "food" : "other"];
+    const answers = isVisit ? s.answers.map((a, i) => (a && qs[i] ? qs[i]!.say(a) : "")).filter(Boolean) : [];
     try {
       const j = await callAi<{ text?: string }>("draft", {
-        place: place?.name, category: place?.category, item: dish.name, rating: dish.rating,
-        tags: [...tags.filter((t) => dish.picked.includes(t.id)).map((t) => t.label), ...dish.custom], notes: dish.body,
+        scope: isVisit ? "visit" : "item", place: place?.name, category: place?.category, item: d?.name, rating,
+        tags: liked, downs, answers, notes: s.own, tone: s.tone, length: s.len,
       });
-      if (!j.text) throw new Error("The AI draft isn't available right now. You can write it yourself.");
-      patch(i, { body: j.text.slice(0, MAX_BODY), aiDrafted: true });
+      if (!j.text) throw new Error("The AI writer isn't available right now");
+      typeOut(key, j.text.slice(0, MAX_BODY));
     } catch (e) {
+      setAiFor(key, was ? { ...was, stage: was.stage === "typing" ? "done" : was.stage } : null);
       setErr(`${errorText(e)}. You can write it yourself.`.replace(/\.\. /, ". "));
-    } finally {
-      setDrafting(false);
     }
   }
 
+  function startAi(key: string) {
+    const cur = ai[key];
+    if (cur?.stage === "typing") return;
+    if (cur?.stage === "ask") { setAiFor(key, { stage: "idle" }); return; }
+    const text = bodyOf(key);
+    // AI works from the person's own words. If they changed the text after AI wrote it, their version wins.
+    const own = cur?.out && text === cur.out ? cur.own : text;
+    const prev = cur?.out && text === cur.out ? cur.prev : text;
+    if (key === "visit" && (!cur || cur.stage === "idle")) { setAiFor(key, { stage: "ask", own, prev }); return; }
+    void generate(key, { own, prev });
+  }
+
+  function refine(key: string, kind: "short" | "long" | "casual" | "polite" | "undo") {
+    const a = ai[key];
+    if (!a || a.stage === "typing") return;
+    if (kind === "undo") { setBody(key, a.prev, false); setAiFor(key, { stage: "idle", out: "" }); return; }
+    void generate(key, kind === "short" || kind === "long" ? { len: a.len === kind ? "normal" : kind } : { tone: kind });
+  }
+
+  /* ---------- moving between screens ---------- */
   function goDish(i: number) { if (listening) rec.current?.stop(); setErr(""); setAt(i); setStage("dish"); }
-  function next() {
+  function toDishes() {
     setErr("");
-    if (!dish?.rating) { setErr("Tap a star to rate it."); return; }
+    if (listening) rec.current?.stop();
+    const open = dishes.findIndex((d) => !d.rating);
+    if (dishes.length) goDish(open >= 0 ? open : 0); else setStage("pick");
+  }
+  function postVisit() {
+    if (!visit.rating) { setErr("Pick a face for your visit first."); return; }
+    if (listening) rec.current?.stop();
+    setErr(""); setFromDishes(false); setStage("preview");
+  }
+  function skipDish() {
+    const rest = dishes.filter((_, k) => k !== at);
+    setDishes(rest);
+    setErr("");
+    if (at < rest.length) return;
+    if (rest.some((d) => d.rating) || (visit.rating && !visit.reviewId)) { setAt(Math.max(0, rest.length - 1)); setFromDishes(true); setStage("preview"); }
+    else { setAt(0); setStage(visit.reviewId ? "pick" : "visit"); }
+  }
+  function next() {
+    if (!dish) return;
+    if (!dish.rating) { skipDish(); return; }
     if (recording) { setErr("Stop the recording first."); return; }
     if (listening) rec.current?.stop();
-    if (at < dishes.length - 1) setAt(at + 1); else setStage("preview");
+    setErr("");
+    if (at < dishes.length - 1) setAt(at + 1); else { setFromDishes(true); setStage("preview"); }
   }
 
   function back() {
     setErr("");
-    if (stage === "preview") { setAt(dishes.length - 1); setStage("dish"); }
-    else if (stage === "dish") { if (at > 0) setAt(at - 1); else setStage("pick"); }
+    if (listening) rec.current?.stop();
+    if (stage === "preview") {
+      const last = dishes.length - 1;
+      if (fromDishes && last >= 0) { setAt(last); setStage("dish"); } else setStage(visit.reviewId ? "pick" : "visit");
+    } else if (stage === "dish") { if (at > 0) setAt(at - 1); else setStage("pick"); }
+    else if (stage === "pick") setStage(visit.reviewId || done.length ? "done" : "visit");
   }
 
-  // The phone's own Back (Android button, iPhone swipe) steps back through the questions instead of
+  // The phone's own Back (Android button, iPhone swipe) steps back through the screens instead of
   // leaving the review. One extra history entry is held while answering and dropped when we leave the steps.
   const backRef = useRef(back);
   backRef.current = back;
-  const answering = stage === "dish" || stage === "preview";
+  const answering = stage === "pick" || stage === "dish" || stage === "preview";
   const held = useRef(false);
   useEffect(() => {
     if (!answering) return;
@@ -462,37 +545,42 @@ function ReviewForm() {
     ? googleReviewUrl(place.google_place_id)
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([place?.name, place?.area, place?.city].filter(Boolean).join(" "))}`;
 
-  /** Copy on the tap itself (browsers refuse it later), then keep the tab to point at Google. */
+  /** Copy on the tap itself (browsers refuse it later). */
   function copyNow(text: string): Promise<boolean> {
     if (navigator.clipboard?.writeText && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => copyText(text).catch(() => false));
     return copyText(text).catch(() => false);
   }
 
-  async function post(withGoogle: boolean) {
+  async function post() {
     if (saving || !uid || !place) return;
-    if (dishes.some((d) => !d.rating)) { setErr("Every dish needs its stars."); return; }
+    const toPost = dishes.filter((d) => d.rating > 0);
+    const visitDue = visit.rating > 0 && !visit.reviewId;
+    if (!visitDue && !toPost.length) { setErr("Pick a face for your visit or for something you had."); return; }
     if (recording) { setErr("Stop the recording first."); return; }
     if (listening) rec.current?.stop();
     setErr("");
-    const text = googleText(dishes, tags);
-    let win: Window | null = null;
-    let copying: Promise<boolean> = Promise.resolve(false);
-    if (withGoogle) {
-      copying = copyNow(text);
-      try { win = window.open("", "_blank"); } catch { win = null; }
-      // Something to look at while the review saves; Google replaces it.
-      try {
-        win?.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saving your review…</title></head>`
-          + `<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#14110f;color:#f3ece2;font:16px/1.5 system-ui,sans-serif;text-align:center">`
-          + `<p style="padding:24px">Saving your review…<br><small style="opacity:.65">Google opens here in a moment.</small></p></body></html>`);
-        win?.document.close();
-      } catch { /* cross-origin or blocked */ }
-    }
     setStage("sending");
     setSaving("Saving…");
     const saved: Dish[] = [];
     try {
-      for (const d of dishes) {
+      if (visitDue) {
+        setSaving("Saving your visit…");
+        const { data, error } = await supabase.rpc("submit_visit_review", {
+          p_place_id: placeId, p_rating: visit.rating, p_body: visit.body.trim(), p_tags: visit.tags,
+          p_ai_drafted: visit.aiDrafted, p_is_public: isPublic, p_device: deviceId(),
+        });
+        let id = (data as { id?: string } | null)?.id;
+        if (error) {
+          if (error.code === "PGRST202") throw new Error("Visit reviews aren't switched on for this app yet. Rate what you had instead, or try again later");
+          // Saved on an earlier try whose answer never arrived: use that one.
+          if (!/already reviewed this visit/i.test(errorText(error))) throw error;
+          const prior = await supabase.from("visit_reviews").select("id").eq("user_id", uid).eq("place_id", placeId).order("created_at", { ascending: false }).limit(1);
+          id = (prior.data as { id: string }[] | null)?.[0]?.id;
+          if (!id) throw error;
+        }
+        setVisit((v) => ({ ...v, reviewId: id || "saved" }));
+      }
+      for (const d of toPost) {
         if (d.reviewId) { saved.push(d); continue; }
         const uploaded: { bucket: string; path: string }[] = [];
         // Once submit_review is called, a lost reply may still mean it saved: then the uploads must stay.
@@ -517,7 +605,7 @@ function ReviewForm() {
             uploaded.push({ bucket: "voice", path });
             voicePath = path;
           }
-          setSaving(dishes.length > 1 ? `Saving ${d.name}…` : "Saving…");
+          setSaving(`Saving ${d.name}…`);
           const existing = items.find((i) => i.name.toLowerCase() === d.name.toLowerCase());
           const args = {
             p_place_id: placeId,
@@ -559,19 +647,14 @@ function ReviewForm() {
           throw e;
         }
       }
-      const ok = await copying;
-      setCopied(withGoogle ? ok : null);
-      if (withGoogle) {
-        if (win && !win.closed) { win.location.href = gUrl; setGoogleOpened(true); }
-        const first = saved[0]?.reviewId;
-        if (first) void supabase.from("google_shares").insert({ review_id: first, user_id: uid }).then(({ error }) => { if (error) console.warn(errorText(error)); });
-      }
+      // Dishes they tagged but chose not to rate are simply left out.
+      setDishes((all) => all.filter((d) => d.rating > 0));
       setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       setSaving(false);
+      setCopied(null);
       setStage("done");
       playAppleChime();
     } catch (e) {
-      try { win?.close(); } catch { /* already gone */ }
       if (saved.length) setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       const m = errorText(e);
       setErr(m === "Failed to fetch" ? "You seem to be offline. Your review is still here; try again." : m);
@@ -582,11 +665,13 @@ function ReviewForm() {
 
   /** From the "done" screen: copy and open Google in one tap. */
   function openGoogle() {
-    const text = googleText(done, tags);
+    const text = googleText(visit.reviewId ? visit : NO_VISIT, done, tags);
     const copying = copyNow(text);
     let win: Window | null = null;
     try { win = window.open(gUrl, "_blank"); } catch { win = null; }
     if (win) win.opener = null;
+    const first = done.find((d) => d.reviewId)?.reviewId;
+    if (first && !googleOpened) void supabase.from("google_shares").insert({ review_id: first, user_id: uid }).then(({ error }) => { if (error) console.warn(errorText(error)); });
     setGoogleOpened(true);
     void copying.then((ok) => {
       setCopied(ok);
@@ -594,7 +679,7 @@ function ReviewForm() {
     });
   }
 
-  async function copyAgain() { setCopied(await copyNow(googleText(done, tags))); }
+  async function copyAgain() { setCopied(await copyNow(googleText(visit.reviewId ? visit : NO_VISIT, done, tags))); }
 
   async function sendPrivateFeedback() {
     if (!privateNote.trim()) { toast("Write a quick note for the owner first"); return; }
@@ -618,20 +703,20 @@ function ReviewForm() {
     }
   }
 
+  const overall = visit.reviewId && visit.rating ? visit.rating : averageStars(done);
+
   async function share() {
     setSharingStory(true);
     try {
       const url = await shareLink(`/p/${placeId}`, "review");
-      const primary = done[0];
       const cardFile = await generateStoryCard({
-        itemName: done.map((d) => d.name).join(", "),
+        itemName: done.length ? done.map((d) => d.name).join(", ") : "My visit",
         placeName: place?.name || "",
-        rating: averageStars(done),
-        body: done.find((d) => d.body)?.body || "",
-        photoBlob: primary?.photo,
+        rating: overall,
+        body: (visit.reviewId && visit.body.trim()) || done.find((d) => d.body)?.body || "",
+        photoBlob: done.find((d) => d.photo)?.photo,
       });
-
-      const lines = done.map((d) => `${d.name} ${"★".repeat(d.rating)}`).join(", ");
+      const lines = [visit.reviewId ? labelOf(visit.rating) : "", ...done.map((d) => `${d.name}: ${labelOf(d.rating).toLowerCase()}`)].filter(Boolean).join(", ");
       const msg = `${lines} at ${place?.name}\n${url}`;
 
       if (navigator.share) {
@@ -687,64 +772,163 @@ function ReviewForm() {
       </div>
     </div>
   );
-  // After the first dish is saved a guest's gate flips, but the visit is still open: keep the flow going.
-  if (gate !== "ok" && stage !== "done" && stage !== "sending") return <ReviewGate placeId={placeId} name={place.name} reason={gate} />;
+  // After the first review is saved a guest's gate flips, but the visit is still open: keep the flow going.
+  if (gate !== "ok" && stage !== "done" && stage !== "sending" && !visit.reviewId && !done.length) return <ReviewGate placeId={placeId} name={place.name} reason={gate} />;
 
   const look = shopLook(place.category, place.kind);
   const mode = modeOf(place.kind, place.category);
-  const stars = averageStars(stage === "done" ? done : dishes);
   const goodTags = tags.filter((t) => !isNegativeTag(t.label));
   const badTags = tags.filter((t) => isNegativeTag(t.label));
   const busy = Boolean(saving);
-  const steps = dishes.length + 2;
-  const stepNo = stage === "pick" ? 0 : stage === "dish" ? 1 + at : stage === "preview" ? steps - 1 : steps - 1;
-  const isFood = mode.kind === "food" || mode.kind === "other";
-  const promptWords = mode.ratePrompt.split(" ");
-  const ratePromptTail = promptWords.pop() || "";
-  const ratePromptHead = promptWords.join(" ");
+  const things = (n: number) => `${n} ${n === 1 ? mode.item : mode.itemPlural}`;
+  const who = <span className="rvx-who" aria-label={isGuest ? "Anonymous" : "Signed in"}>{isGuest ? <Icon name="eyeOff" size={16} /> : <Icon name="user" size={16} />}</span>;
+  const backBtn = <button type="button" className="rvx-back" aria-label="Back" onClick={back}><Icon name="back" size={20} /></button>;
 
-  const hero = (
-    <header className="rvx-hero">
-      <span className="rvx-verified"><Icon name="verified" size={14} />Verified visit</span>
-      <div className="rvx-kicker">{[place.category, place.area].filter(Boolean).join(" · ")}</div>
-      <h1>{place.name}</h1>
-      <div className="rvx-meta">
-        <span className="rvx-pill"><Icon name={look.icon} size={13} />{look.menu}</span>
-        {googleLive?.rating != null && <span className="rvx-pill"><Icon name="star" size={13} fill="#d9a441" color="#d9a441" />{googleLive.rating.toFixed(1)} on Google</span>}
-      </div>
-    </header>
-  );
-
-  const bar = (
-    <div className="rvx-bar">
-      {stage === "pick" ? <><RvxBack fallback={`/p/${placeId}`} /><span className="rvx-brand">Trusted Picks</span></> : <button type="button" className="rvx-back" aria-label="Back" onClick={back}><Icon name="back" size={20} /></button>}
-      <div className="rvx-dots" role="img" aria-label={`Step ${stepNo + 1} of ${steps}`}>
-        {Array.from({ length: steps }, (_, i) => <i key={i} className={i < stepNo ? "done" : i === stepNo ? "now" : ""} />)}
-      </div>
-      <span className="rvx-who">{isGuest ? <Icon name="eyeOff" size={16} /> : <Icon name="user" size={16} />}</span>
+  const faces = (rating: number, pick: (r: number) => void) => (
+    <div className="rvx-faces" role="radiogroup" aria-label="How was it?">
+      {VERDICTS.map((v) => {
+        const on = verdictOf(rating) === v.key;
+        return (
+          <button key={v.key} type="button" role="radio" aria-checked={on} className={`rvx-face-btn ${v.key} ${on ? "on" : ""}`}
+            onClick={() => { try { if (v.key === "love") playWaxStamp(); else playHapticTap(700 + v.rating * 60); } catch { /* no audio */ } pick(v.rating); }}>
+            <Face v={v.key} />{v.label}
+          </button>
+        );
+      })}
     </div>
   );
 
-  /* ---------- pick ---------- */
+  const writeBox = (key: string, label: string, placeholder: string, small = false) => {
+    const typing = ai[key]?.stage === "typing";
+    return (
+      <div className="rvx-write">
+        <b id={`w-${key}`}>{label}</b>
+        <span className="box">
+          <textarea className={`textarea rvx-text ${small ? "sm" : ""} ${typing ? "typing" : ""}`} aria-labelledby={`w-${key}`} placeholder={placeholder}
+            value={bodyOf(key)} readOnly={typing} maxLength={MAX_BODY}
+            onChange={(e) => setBody(key, e.target.value, e.target.value.trim() ? undefined : false)} />
+          {canDictate && (
+            <button type="button" className={`rvx-mic ${listening ? "hot" : ""}`} aria-pressed={listening} aria-label={listening ? "Stop listening" : "Speak instead of typing"} disabled={typing || recording || busy} onClick={() => dictate(key)}>
+              <Icon name="mic" size={16} />
+            </button>
+          )}
+        </span>
+        {listening && <span className="rvx-count" role="status">Listening… tap the mic to stop</span>}
+      </div>
+    );
+  };
+
+  const aiPanel = (key: string, enabled: boolean) => {
+    const a = ai[key];
+    const st = a?.stage ?? "idle";
+    const hasText = bodyOf(key).trim().length > 0;
+    const qs = AI_QUESTIONS[isFood ? "food" : "other"];
+    const label = !enabled ? "Pick a face, then AI can help" : st === "typing" ? "Writing…" : st === "ask" ? "Close" : st === "done" ? "Rewrite with AI" : hasText ? "Polish my words with AI" : "Write it with AI";
+    const refines: { k: "short" | "long" | "casual" | "polite" | "undo"; label: string; on: boolean }[] = [
+      { k: "short", label: "Shorter", on: a?.len === "short" }, { k: "long", label: "More detail", on: a?.len === "long" },
+      { k: "casual", label: "Casual", on: a?.tone !== "polite" }, { k: "polite", label: "Polite", on: a?.tone === "polite" },
+      { k: "undo", label: "Undo", on: false },
+    ];
+    return (
+      <div className="rvx-aiwrap">
+        <button type="button" className="rvx-aibtn" disabled={!enabled || st === "typing" || busy} onClick={() => startAi(key)}>
+          {st === "ask" ? <Icon name="close" size={16} /> : <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z" /><path d="M18.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" /></svg>}
+          {label}
+        </button>
+        {st === "ask" && a && (
+          <div className="rvx-aiask">
+            <b>Two quick taps so it sounds like you</b>
+            {qs.map((q, qi) => (
+              <div key={q.q} className="rvx-q" role="group" aria-label={q.q}>
+                <span>{q.q}</span>
+                <div className="rvx-opts">
+                  {q.opts.map((o) => {
+                    const on = a.answers[qi] === o;
+                    return <button key={o} type="button" className={`rvx-opt ${on ? "on" : ""}`} aria-pressed={on}
+                      onClick={() => { const ans = [...a.answers]; ans[qi] = on ? null : o; setAiFor(key, { answers: ans }); }}>{o}</button>;
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="rvx-aigo">
+              <button type="button" className="go" onClick={() => void generate(key)}>Write it</button>
+              <button type="button" className="skip" onClick={() => void generate(key, { answers: [] })}>Skip questions</button>
+            </div>
+          </div>
+        )}
+        {st === "done" && a && (
+          <div className="rvx-refine">
+            <div className="rvx-opts">
+              {refines.map((r) => <button key={r.k} type="button" className={`rvx-opt ${r.on ? "on" : ""}`} aria-pressed={r.k === "undo" ? undefined : r.on} onClick={() => refine(key, r.k)}>{r.label}</button>)}
+            </div>
+            <span className="rvx-aifine">Written only from what you told us. Edit anything before posting.</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* ---------- the visit: how did it go? ---------- */
+  if (stage === "visit") {
+    const vv = verdictOf(visit.rating);
+    const set = VISIT_TAGS[isFood ? "food" : "other"];
+    const tagged = dishes.length;
+    return (
+      <div className="rvx" data-stage="visit" data-verdict={vv}>
+        <div className="rvx-bar"><RvxBack fallback={`/p/${placeId}`} /><span className="rvx-brand">Trusted Picks</span><span className="grow" />{who}</div>
+        <header className={`rvx-hero ${vv ? "compact" : ""}`}>
+          <span className="rvx-verified"><Icon name="verified" size={14} />Verified visit</span>
+          <h1>{place.name}</h1>
+          <div className="rvx-kicker">{[place.category, place.area].filter(Boolean).join(" · ")}</div>
+          {googleLive?.rating != null && <div className="rvx-meta"><span className="rvx-pill"><Icon name="star" size={13} fill="#FFD23F" color="#FFD23F" />{googleLive.rating.toFixed(1)} on Google</span></div>}
+        </header>
+        <section className="rvx-sec">
+          <h2 ref={head} tabIndex={-1}>How was your <i>visit?</i></h2>
+          {faces(visit.rating, (r) => setVisit((v) => ({ ...v, rating: r, tags: verdictOf(v.rating) === verdictOf(r) ? v.tags : [] })))}
+          {vv && (
+            <div className="rvx-group" key={vv}>
+              <span className="rvx-gtitle">{set[vv].title}</span>
+              <div className="rvx-chips">
+                {set[vv].tags.map((t) => {
+                  const on = visit.tags.includes(t);
+                  return <button key={t} type="button" className={`rvx-chip ${on ? "on" : ""}`} aria-pressed={on}
+                    onClick={() => setVisit((v) => ({ ...v, tags: on ? v.tags.filter((x) => x !== t) : [...v.tags, t] }))}>{t}</button>;
+                })}
+              </div>
+            </div>
+          )}
+          {writeBox("visit", "Your review", "Tell others what it was like. Or jot a few words and let AI write it…")}
+          {aiPanel("visit", Boolean(visit.rating))}
+        </section>
+        {err && <div className="notice err" role="alert">{err}</div>}
+        <div className="rvx-foot">
+          <button type="button" className={`rvx-cta ${visit.rating ? "" : "idle"}`} onClick={postVisit}>{visit.rating ? "Post review" : "Pick a face to post"}</button>
+          <button type="button" className="rvx-link" onClick={toDishes}><Icon name="plus" size={16} width={2.6} />{tagged ? `Also rate your ${things(tagged)}` : `Rate a ${mode.item} too (optional)`}</button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- which ones did you have? ---------- */
   if (stage === "pick") {
-    const isOn = (i: ItemOpt) => dishes.some((d) => d.itemId === i.id);
     const extras = dishes.filter((d) => !d.itemId);
+    const first = dishes.findIndex((d) => !d.rating);
     return (
       <div className="rvx" data-stage="pick">
-        {bar}
-        {hero}
+        <div className="rvx-bar">{backBtn}<span className="rvx-where">{place.name}</span>{who}</div>
         <section className="rvx-sec">
-          <h2 ref={head} tabIndex={-1}>{ratePromptHead} <i>{ratePromptTail}</i></h2>
-          <p className="rvx-hint">Tap everything you tried. You can rate more than one.</p>
+          <h2 ref={head} tabIndex={-1}>Which <i>{mode.itemPlural}?</i></h2>
+          <p className="rvx-hint">{mode.ratePrompt} Tap everything you tried, up to {MAX_DISHES}.</p>
           <div className="rvx-tiles">
-            {items.map((i) => {
-              const on = isOn(i);
-              const rated = postedKeys.has(newDish(i.name, i.id).key);
+            {items.map((i, n) => {
+              const k = dishes.findIndex((d) => d.itemId === i.id);
+              const on = k >= 0;
+              const wasRated = postedKeys.has(newDish(i.name, i.id).key);
               return (
-                <button key={i.id} type="button" className={`rvx-tile ${on ? "on" : ""}`} aria-pressed={on} disabled={rated} onClick={() => toggleItem(i)}>
+                <button key={i.id} type="button" className={`rvx-tile ${on ? "on" : ""}`} style={{ animationDelay: `${Math.min(n, 10) * 50}ms` }} aria-pressed={on} disabled={wasRated} onClick={() => toggleItem(i)}>
                   <span className="rvx-img"><ItemThumb path={i.image_path} icon={look.icon} />
-                    <span className="rvx-tick"><Icon name="check" size={14} width={3} /></span>
-                    {rated && <span className="rvx-rated">Rated</span>}
+                    <span className="rvx-tick">{on ? k + 1 : ""}</span>
+                    {wasRated && <span className="rvx-rated">Rated</span>}
                   </span>
                   <span className="rvx-nm">{i.name}</span>
                   {priceLabel(i.price_inr) && <span className="rvx-pr">{priceLabel(i.price_inr)}</span>}
@@ -759,16 +943,15 @@ function ReviewForm() {
           {extras.length > 0 && <div className="rvx-extras">{extras.map((d) => <button key={d.key} type="button" className="rvx-chip on" onClick={() => setDishes((all) => all.filter((x) => x.key !== d.key))}>{d.name}<Icon name="close" size={12} /></button>)}</div>}
           {(other || items.length === 0) && (
             <form className="rvx-add" onSubmit={(e) => { e.preventDefault(); addOther(); }}>
-              <input className="input" value={otherName} onChange={(e) => setOtherName(e.target.value)} placeholder="Type it, e.g. Cold coffee" aria-label="What you had" maxLength={80} autoComplete="off" />
+              <input className="input" value={otherName} onChange={(e) => setOtherName(e.target.value)} placeholder={`Type it, e.g. ${mode.itemExample}`} aria-label="What you had" maxLength={80} autoComplete="off" />
               <button type="submit" className="btn small ghost" disabled={!otherName.trim()}><Icon name="plus" size={16} />Add</button>
             </form>
           )}
         </section>
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot">
-          <button type="button" className="rvx-cta" disabled={dishes.length === 0} onClick={() => { setAt(0); setStage("dish"); }}>
-            <span>{dishes.length === 0 ? (isFood ? "Pick what you had" : "Pick what you got") : dishes.length === 1 ? <>Rate the <b>{dishes[0]!.name}</b></> : <>Rate <b>{dishes.length}</b> things</>}</span>
-            <Icon name="chev" size={20} />
+          <button type="button" className={`rvx-cta ${dishes.length ? "" : "idle"}`} onClick={() => { if (dishes.length) goDish(first >= 0 ? first : 0); }}>
+            {dishes.length ? `Rate ${things(dishes.length)}` : `Tap the ${mode.itemPlural} you had`}
           </button>
         </div>
       </div>
@@ -778,91 +961,56 @@ function ReviewForm() {
   /* ---------- one dish ---------- */
   if (stage === "dish" && dish) {
     const last = at === dishes.length - 1;
+    const dv = verdictOf(dish.rating);
+    const item = items.find((i) => i.id === dish.itemId);
+    const groups: { title: string; list: Tag[]; bad?: boolean; opt?: boolean; own?: boolean }[] =
+      dv === "love" ? [{ title: "What made it great?", list: goodTags, own: true }]
+        : dv === "good" ? [{ title: "What stood out?", list: goodTags, own: true }, { title: "Anything that could be better?", list: badTags, bad: true, opt: true }]
+          : dv === "meh" ? [{ title: "What went wrong?", list: badTags, bad: true, own: true }, { title: "Anything good?", list: goodTags, opt: true }] : [];
     return (
-      <div className="rvx" data-stage="dish">
-        {bar}
-        <div className="rvx-ctx">
-          <Icon name="store" size={14} />{place.name}{dishes.length > 1 && <span> · {at + 1} of {dishes.length}</span>}
-          {dishes.length > 1 && <TasteRing done={dishes.filter((d) => d.rating > 0).length} total={dishes.length} />}
+      <div className="rvx" data-stage="dish" data-verdict={dv}>
+        <div className="rvx-bar">
+          {backBtn}
+          <div className="rvx-dots" role="img" aria-label={`${at + 1} of ${dishes.length}`}>
+            {dishes.map((d, i) => <i key={d.key} className={i < at ? "done" : i === at ? "now" : ""} />)}
+          </div>
+          {who}
+        </div>
+        <div className={`rvx-dhero ${dv ? "compact" : ""}`}>
+          <ItemThumb path={item?.image_path} icon={look.icon} />
+          <div className="cap"><small>{place.name} · {at + 1} of {dishes.length}</small><b>{dish.name}</b></div>
         </div>
         <section className="rvx-sec" key={dish.key}>
-          <h2 ref={head} tabIndex={-1}><i>{dish.name}</i></h2>
-          <div className="rvx-face" aria-live="polite">
-            <span key={dish.rating} className="rvx-emoji">{FACES[dish.rating] || "🍽️"}</span>
-            <span className="rvx-word">{FACE_WORDS[dish.rating]}</span>
-          </div>
-
-          {/* 3-Tier Vibe Reactions */}
-          <div className="rvx-vibes">
-            {[
-              { label: "Must Try", emoji: "🔥", rating: 5, cls: "must-try" },
-              { label: "Solid", emoji: "👍", rating: 4, cls: "solid" },
-              { label: "Skip It", emoji: "👎", rating: 2, cls: "skip" },
-            ].map((v) => {
-              const active = dish.rating === v.rating || (v.rating === 2 && dish.rating > 0 && dish.rating <= 3);
-              return (
-                <button
-                  key={v.label}
-                  type="button"
-                  className={`rvx-vibe-pill ${v.cls} ${active ? "on" : ""}`}
-                  aria-pressed={active}
-                  onClick={() => {
-                    playWaxStamp();
-                    patch(at, { rating: v.rating });
-                  }}
-                >
-                  <span style={{ fontSize: 18 }}>{v.emoji}</span>
-                  <span>{v.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <Stars value={dish.rating} onChange={(v) => patch(at, { rating: v })} />
-          <p className="rvx-hint c">Drag across the stars or tap one</p>
-
-          {dish.rating > 0 && (
-            <div className="rvx-reveal">
-              <h3><Icon name="thumbs" size={15} />What stood out?</h3>
-              <div className="rvx-chips" role="group" aria-label="What was good">
-                {goodTags.map((t) => <button key={t.id} type="button" aria-pressed={dish.picked.includes(t.id)} className={`rvx-chip ${dish.picked.includes(t.id) ? "on" : ""}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
-                {dish.custom.map((t) => <button key={`c-${t}`} type="button" className="rvx-chip on" aria-label={`Remove tag ${t}`} onClick={() => patch(at, { custom: dish.custom.filter((x) => x !== t) })}>{t} <Icon name="close" size={12} /></button>)}
-                {tagDraft === null ? (
+          <h2 ref={head} tabIndex={-1} className="sr-only">How was the {dish.name}?</h2>
+          {faces(dish.rating, (r) => patch(at, { rating: r }))}
+          {groups.map((g, gi) => g.list.length > 0 || g.own ? (
+            <div className="rvx-group" key={`${dv}-${gi}`}>
+              <span className="rvx-gtitle">{g.title}{g.opt && <span className="opt">optional</span>}</span>
+              <div className="rvx-chips" role="group" aria-label={g.title}>
+                {g.list.map((t) => <button key={t.id} type="button" aria-pressed={dish.picked.includes(t.id)} className={`rvx-chip ${g.bad ? "bad" : ""} ${dish.picked.includes(t.id) ? "on" : ""}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
+                {g.own && dish.custom.map((t) => <button key={`c-${t}`} type="button" className="rvx-chip on" aria-label={`Remove tag ${t}`} onClick={() => patch(at, { custom: dish.custom.filter((x) => x !== t) })}>{t} <Icon name="close" size={12} /></button>)}
+                {g.own && (tagDraft === null ? (
                   dish.custom.length < MAX_CUSTOM_TAGS && <button type="button" className="rvx-chip dash" aria-label="Add your own tag" onClick={() => setTagDraft("")}><Icon name="plus" size={13} />tag</button>
                 ) : (
                   <input className="input rvx-tagin" value={tagDraft} maxLength={30} autoFocus aria-label="Your own tag" placeholder="e.g. Crispy"
                     onChange={(e) => setTagDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } if (e.key === "Escape") setTagDraft(null); }}
                     onBlur={addCustomTag} />
-                )}
-              </div>
-              {badTags.length > 0 && <>
-                <h3 className="bad"><Icon name="thumbsDown" size={15} />Anything that could be better?</h3>
-                <div className="rvx-chips" role="group" aria-label="What could be better">
-                  {badTags.map((t) => <button key={t.id} type="button" aria-pressed={dish.picked.includes(t.id)} className={`rvx-chip bad ${dish.picked.includes(t.id) ? "on" : ""}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
-                </div>
-              </>}
-
-              <h3><Icon name="edit" size={15} />Say it your way <span className="opt">optional</span></h3>
-              <textarea className="textarea rvx-text" aria-label="Your words" placeholder={canDictate ? "What made it good or not? Or tap Talk and speak." : "What made it good or not?"}
-                value={dish.body} onChange={(e) => patch(at, { body: e.target.value })} maxLength={MAX_BODY} />
-              <div className="rvx-tools">
-                {canDictate && <button type="button" aria-pressed={listening} className={`rvx-tool ${listening ? "hot" : ""}`} onClick={dictate} disabled={recording || busy}><Icon name="mic" size={16} />{listening ? "Listening… tap to stop" : "Talk"}</button>}
-                <button type="button" className="rvx-tool" onClick={draft} disabled={drafting || busy}><Icon name="spark" size={16} />{drafting ? "Writing…" : dish.body ? "Polish with AI" : "Write it for me"}</button>
-                {dish.aiDrafted && <span className="rvx-ai"><Icon name="spark" size={12} />AI draft</span>}
-              </div>
-              <div className="rvx-media">
-                <ReviewPhotoPicker value={dish.photo} onChange={(b) => patch(at, { photo: b })} disabled={busy} />
-                {canRecord && !isGuest && <ReviewVoiceRecorder value={dish.voice} onChange={(c) => patch(at, { voice: c })} disabled={busy || listening} onRecordingChange={setRecording} />}
+                ))}
               </div>
             </div>
-          )}
+          ) : null)}
+          {writeBox(dish.key, "Say it your way", isFood ? "Taste, portion, how it arrived…" : "What was it like?", true)}
+          {aiPanel(dish.key, Boolean(dish.rating))}
+          <div className="rvx-media">
+            <ReviewPhotoPicker value={dish.photo} onChange={(b) => patch(at, { photo: b })} disabled={busy} />
+            {canRecord && !isGuest && <ReviewVoiceRecorder value={dish.voice} onChange={(c) => patch(at, { voice: c })} disabled={busy || listening} onRecordingChange={setRecording} />}
+          </div>
         </section>
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot">
-          <button type="button" className="rvx-cta" disabled={!dish.rating || recording} onClick={next}>
-            <span>{last ? "Preview my review" : <>Next, <b>{dishes[at + 1]!.name}</b></>}</span>
-            <Icon name="chev" size={20} />
+          <button type="button" className={`rvx-cta ${dish.rating ? "" : "idle"}`} disabled={recording} onClick={next}>
+            {!dish.rating ? `Skip this ${mode.item}` : last ? "Review it all" : <>Next · {dishes[at + 1]!.name}</>}
           </button>
         </div>
       </div>
@@ -872,31 +1020,42 @@ function ReviewForm() {
   /* ---------- preview + sending ---------- */
   if (stage === "preview" || stage === "sending") {
     const sending = stage === "sending";
+    const quote = (t: string) => `“${t.length > 90 ? `${t.slice(0, 90)}…` : t}”`;
     return (
       <div className="rvx" data-stage={stage}>
-        {bar}
+        <div className="rvx-bar">{!sending && backBtn}<span className="rvx-where">{place.name}</span>{who}</div>
         <section className="rvx-sec">
           <h2 ref={head} tabIndex={-1}>Looks <i>good?</i></h2>
           <div className="rvx-cards">
-            {dishes.map((d, i) => {
+            {visit.rating > 0 && (
+              <article className="rvx-rcard">
+                <span className="rvx-rthumb"><Icon name={look.icon} size={26} /></span>
+                <div className="rvx-rbody">
+                  <div className="rvx-rhead"><b>Your visit</b><span className={`rvx-badge ${verdictOf(visit.rating)}`}>{labelOf(visit.rating)}</span></div>
+                  <p>{visit.body.trim() ? quote(visit.body.trim()) : visit.tags.length ? visit.tags.join(" · ") : "No words added"}</p>
+                  {visit.reviewId ? <span className="rvx-edit done"><Icon name="check" size={13} />Posted</span>
+                    : !sending && <button type="button" className="rvx-edit" onClick={() => { setErr(""); setStage("visit"); }}>Edit</button>}
+                </div>
+              </article>
+            )}
+            {rated.map((d) => {
               const labels = [...tags.filter((t) => d.picked.includes(t.id)).map((t) => t.label), ...d.custom];
+              const item = items.find((i) => i.id === d.itemId);
               return (
                 <article key={d.key} className="rvx-rcard">
-                  <div className="rvx-rhead">
-                    <div className="grow"><b>{d.name}</b><div className="rvx-sm">{place.name}</div></div>
-                    <WaxStamp rating={d.rating} />
-                    <span className="rvx-rstars" aria-label={`${d.rating} stars`}>{FACES[d.rating]} {d.rating}<Icon name="star" size={13} fill="#d9a441" color="#d9a441" /></span>
+                  <span className="rvx-rthumb"><ItemThumb path={item?.image_path} icon={look.icon} /></span>
+                  <div className="rvx-rbody">
+                    <div className="rvx-rhead"><b>{d.name}</b><span className={`rvx-badge ${verdictOf(d.rating)}`}>{labelOf(d.rating)}</span></div>
+                    <p>{d.body.trim() ? quote(d.body.trim()) : labels.length ? labels.join(" · ") : "No tags added"}</p>
+                    {d.reviewId ? <span className="rvx-edit done"><Icon name="check" size={13} />Posted</span>
+                      : !sending && <button type="button" className="rvx-edit" onClick={() => goDish(dishes.indexOf(d))}>Edit</button>}
                   </div>
-                  {labels.length > 0 && <div className="rvx-chips sm">{labels.map((l) => <span key={l} className={`rvx-chip static ${isNegativeTag(l) ? "bad" : ""}`}>{l}</span>)}</div>}
-                  {d.body.trim() && <p>{d.body.trim()}</p>}
-                  {d.reviewId ? <span className="rvx-edit"><Icon name="check" size={13} />Posted</span>
-                    : !sending && <button type="button" className="rvx-edit" onClick={() => goDish(i)}><Icon name="edit" size={13} />Edit</button>}
                 </article>
               );
             })}
           </div>
-          {!sending && dishes.length < MAX_DISHES && (
-            <button type="button" className="rvx-more" onClick={() => { setStage("pick"); }}><Icon name="plus" size={16} />Add another dish</button>
+          {!sending && rated.length < MAX_DISHES && (
+            <button type="button" className="rvx-more" onClick={toDishes}><Icon name="plus" size={16} />{dishes.some((d) => !d.rating) ? `Rate your other ${things(dishes.filter((d) => !d.rating).length)}` : rated.length ? `Add another ${mode.item}` : `Rate a ${mode.item} too`}</button>
           )}
         </section>
 
@@ -904,27 +1063,26 @@ function ReviewForm() {
           <p className="rvx-anon"><Icon name="eyeOff" size={16} />Posted anonymously. No one can see it was you.</p>
         ) : (
           <fieldset className="rvx-whoseg" disabled={sending}>
-            <legend>Who sees it's you</legend>
-            <label className={!isPublic ? "on" : ""}><input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} /><Icon name="eyeOff" size={20} /><b>Anonymous</b><i>Counts, but no one sees it was you</i></label>
-            <label className={isPublic ? "on" : ""}><input type="radio" name="visibility" checked={isPublic} onChange={() => setIsPublic(true)} /><Icon name="user" size={20} /><b>Show my name</b><i>Friends see you were here</i></label>
+            <legend>Post it as</legend>
+            <div className={`track ${isPublic ? "named" : ""}`}>
+              <span className="thumb" aria-hidden="true" />
+              <label className={!isPublic ? "on" : ""}><input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} /><b>Anonymous</b><i>No name shown</i></label>
+              <label className={isPublic ? "on" : ""}><input type="radio" name="visibility" checked={isPublic} onChange={() => setIsPublic(true)} /><b>Show my name</b><i>Friends see it</i></label>
+            </div>
           </fieldset>
         )}
 
-        {!isGuest && !isPublic && dishes.some((d) => d.voice && !d.reviewId) && <p className="rvx-anon"><Icon name="mic" size={16} />Voice notes play only on reviews that show your name, so anonymous ones stay anonymous.</p>}
+        {!isGuest && !isPublic && rated.some((d) => d.voice && !d.reviewId) && <p className="rvx-anon"><Icon name="mic" size={16} />Voice notes play only on reviews that show your name, so anonymous ones stay anonymous.</p>}
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot inline">
           {sending ? (
             <div className="rvx-pipe" role="status" aria-live="polite">
               <span className="spin" aria-hidden="true" />
               <b>{saving || "Almost there…"}</b>
-              <small>Copying your review and opening Google…</small>
             </div>
           ) : <>
-            <button type="button" className="rvx-cta" onClick={() => post(true)}>
-              <span className="grow"><b>Post and share on Google</b><small>Saves, copies and opens {place.google_place_id ? "Google reviews" : "Google Maps"}</small></span>
-              <Icon name="external" size={20} />
-            </button>
-            <button type="button" className="rvx-skip" onClick={() => post(false)}>Post here only</button>
+            <button type="button" className="rvx-cta" onClick={() => void post()}>Post review</button>
+            <span className="rvx-hint c">Next, you can paste it on Google too.</span>
           </>}
         </div>
       </div>
@@ -932,108 +1090,79 @@ function ReviewForm() {
   }
 
   /* ---------- done ---------- */
-  const names = done.map((d) => d.name);
+  const n = done.length;
+  const count = visit.reviewId ? (n ? `Visit + ${things(n)}` : "Visit rated") : `${things(n)} rated`;
 
   return (
     <div className="rvx" data-stage="done">
       <section className="rvx-sec center">
-        <span className="rvx-big"><Icon name="check" size={40} width={3} /></span>
-        <h2 ref={head} tabIndex={-1}>Posted. <i>Thank you!</i></h2>
-        <p className="rvx-hint c">{names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]} {names.length > 1 ? "are" : "is"} on {place.name}'s page{isGuest ? ", anonymously" : isPublic ? ", with your name" : ", anonymously"}.</p>
+        <div className="rvx-stampwrap" aria-hidden="true">
+          <span className="ring" />
+          <span className="stamp"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>
+          <span className="land">{count}</span>
+        </div>
+        <h2 ref={head} tabIndex={-1}>Thank you!</h2>
+        <p className="rvx-hint c">Your review helps the next {isFood ? "table order well" : "person choose well"} at {place.name}. {isGuest || !isPublic ? "It's posted anonymously." : "It shows your name."}</p>
       </section>
 
       <section className="rvx-google">
-          <div className="rvx-ghead"><span className="rvx-g"><Icon name="star" size={16} fill="#fff" color="#fff" /></span><div className="grow"><b>{place.name}</b><small>{googleOpened ? "Google opened in a new tab. Finish it there in 3 taps." : "Add it on Google too, in 3 taps"}</small></div></div>
-          <ol className="rvx-coach">
-            <li><b>1</b>Tap <span className="rvx-gs">{"★".repeat(stars)}</span></li>
-            <li><b>2</b>Press and hold the box, tap <u>Paste</u></li>
-            <li><b>3</b>Tap <span className="rvx-post">Post</span></li>
-          </ol>
-          {copied === false && <p className="rvx-warn">Couldn't copy by itself. Press Copy, then open Google.</p>}
-          <div className="rvx-two">
-            <button type="button" className="rvx-tool" onClick={openGoogle}><Icon name="external" size={16} />{googleOpened ? "Open Google again" : "Copy and open Google"}</button>
-            <button type="button" className="rvx-tool" onClick={copyAgain}><Icon name="copy" size={16} />{copied ? "Copied" : "Copy again"}</button>
-          </div>
-          <p className="rvx-fine">Google only lets you post yourself, so the last tap is yours.</p>
-        </section>
+        <div className="rvx-ghead"><span className="rvx-g"><Icon name="star" size={16} fill="#fff" color="#fff" /></span><div className="grow"><b>Share it on Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish it there." : "Takes three taps"}</small></div></div>
+        <ol className="rvx-coach">
+          <li><b>1</b>We copy your review text</li>
+          <li><b>2</b>Google opens. Tap <span className="rvx-gs">{"★".repeat(overall)}</span></li>
+          <li><b>3</b>Paste, then tap <span className="rvx-post">Post</span></li>
+        </ol>
+        {copied === false && <p className="rvx-warn">Couldn't copy by itself. Press Copy, then open Google.</p>}
+        <div className="rvx-two">
+          <button type="button" className="rvx-tool" onClick={openGoogle}><Icon name="external" size={16} />{googleOpened ? "Open again" : "Copy, open Google"}</button>
+          <button type="button" className="rvx-tool" onClick={copyAgain}><Icon name="copy" size={16} />{copied ? "Copied" : "Copy"}</button>
+        </div>
+        <p className="rvx-fine">Google only lets you post yourself, so the last tap is yours.</p>
+      </section>
 
       {/* A private note is offered at every rating, next to Google, never instead of it. */}
-        <section className="rvx-shield-card" aria-labelledby="shield-h">
-          <div className="row" style={{ alignItems: "center", gap: 10 }}>
-            <span className="icon-chip sm coral"><Icon name="shield" size={18} /></span>
-            <div className="grow stack tight">
-              <div className="row" style={{ alignItems: "center", gap: 8 }}>
-                <strong id="shield-h" style={{ fontSize: 16 }}>Tell the owner privately</strong>
-                              </div>
-              <span className="tiny muted">Only the shop owner reads this. Your name is never shown</span>
-            </div>
+      <section className="rvx-shield-card" aria-labelledby="shield-h">
+        <div className="row" style={{ alignItems: "center", gap: 10 }}>
+          <span className="icon-chip sm coral"><Icon name="shield" size={18} /></span>
+          <div className="grow stack tight">
+            <strong id="shield-h" style={{ fontSize: 16 }}>Tell the owner privately</strong>
+            <span className="tiny muted">Only the shop owner reads this. Your name is never shown</span>
           </div>
-                    {!noteSent ? (
-            !showPrivateForm ? (
-              <button
-                type="button"
-                className="btn small ghost block"
-                onClick={() => {
-                  setShowPrivateForm(true);
-                  if (!privateNote) setPrivateNote(done.find((d) => d.body)?.body || "");
-                }}
-              >
-                <Icon name="message" size={16} />Send a private note to the owner
-              </button>
-            ) : (
-              <form
-                className="stack tight"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  sendPrivateFeedback();
-                }}
-                style={{ marginTop: 8 }}
-              >
-                <label className="field">
-                  <span className="tiny strong">What can we improve?</span>
-                  <textarea
-                    className="textarea"
-                    rows={3}
-                    placeholder="Tell the owner what went wrong..."
-                    value={privateNote}
-                    onChange={(e) => setPrivateNote(e.target.value)}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span className="tiny strong">Phone or email, only if you want a reply (optional)</span>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="e.g. name@email.com"
-                    value={contactInfo}
-                    onChange={(e) => setContactInfo(e.target.value)}
-                  />
-                </label>
-                <div className="row" style={{ gap: 8, marginTop: 4 }}>
-                  <button type="submit" className="btn green small grow" disabled={sendingNote}>
-                    <Icon name="send" size={14} />{sendingNote ? "Sending…" : "Send Private Note"}
-                  </button>
-                  <button type="button" className="btn quiet small" onClick={() => setShowPrivateForm(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )
+        </div>
+        {!noteSent ? (
+          !showPrivateForm ? (
+            <button type="button" className="rvx-more" onClick={() => { setShowPrivateForm(true); if (!privateNote) setPrivateNote((visit.reviewId && visit.body.trim()) || done.find((d) => d.body)?.body || ""); }}>
+              <Icon name="message" size={16} />Send a private note
+            </button>
           ) : (
-            <span className="tiny green strong row" style={{ gap: 6, marginTop: 4, background: "rgba(34, 197, 94, 0.15)", padding: "8px 12px", borderRadius: 10 }}>
-              <Icon name="check" size={14} color="#4ade80" />Private note sent to the owner
-            </span>
-          )}
-
-        </section>
+            <form className="stack tight" onSubmit={(e) => { e.preventDefault(); void sendPrivateFeedback(); }} style={{ marginTop: 4 }}>
+              <label className="field">
+                <span className="tiny strong">What can they improve?</span>
+                <textarea className="textarea" rows={3} placeholder="Tell the owner what went wrong…" value={privateNote} onChange={(e) => setPrivateNote(e.target.value)} required />
+              </label>
+              <label className="field">
+                <span className="tiny strong">Phone or email, only if you want a reply (optional)</span>
+                <input className="input" type="text" placeholder="e.g. name@email.com" value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} />
+              </label>
+              <div className="row" style={{ gap: 8, marginTop: 4 }}>
+                <button type="submit" className="rvx-cta grow" disabled={sendingNote}><Icon name="send" size={14} />{sendingNote ? "Sending…" : "Send note"}</button>
+                <button type="button" className="rvx-skip" onClick={() => setShowPrivateForm(false)}>Cancel</button>
+              </div>
+            </form>
+          )
+        ) : (
+          <span className="tiny strong row" style={{ gap: 6, background: "rgba(159, 216, 197, 0.18)", padding: "8px 12px", borderRadius: 10 }}>
+            <Icon name="check" size={14} color="#9FD8C5" />Private note sent to the owner
+          </span>
+        )}
+      </section>
 
       <div className="rvx-after">
-        <button type="button" className="rvx-cta" onClick={share} disabled={sharingStory}>
-          <Icon name="share" size={16} />{sharingStory ? "Generating story card…" : "Share Story Card"}
-        </button>
-        <button type="button" className="rvx-more" onClick={another}><Icon name="plus" size={16} />Rate another dish</button>
-        <Link to={`/p/${placeId}`} className="rvx-more"><Icon name="eye" size={16} />See what people loved</Link>
+        <button type="button" className="rvx-more" onClick={() => void share()} disabled={sharingStory}><Icon name="share" size={16} />{sharingStory ? "Making your story card…" : "Share a story card"}</button>
+        <div className="row" style={{ gap: 10 }}>
+          <button type="button" className="rvx-more grow" onClick={another}>Rate another {mode.item}</button>
+          <Link to={`/p/${placeId}`} className="rvx-more grow" style={{ background: "rgba(255,255,255,0.12)", borderColor: "transparent" }}>Back to shop</Link>
+        </div>
       </div>
       {isGuest && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${placeId}`)}`} className="rvx-nudge">
