@@ -7,7 +7,7 @@ import { useSettings, type AppSettings } from "../lib/settings";
 import type { Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
 import { syncPinFromGoogle } from "../lib/pin";
-import { Icon, useToast, type IconName } from "../components/ui";
+import { Icon, TopBar, useToast, type IconName } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { CoordsField } from "../components/CoordsField";
 import { GoogleFind, areaCityFromAddress, matchCategory } from "../components/manage/Google";
@@ -30,6 +30,7 @@ export default function Admin() {
 
   return (
     <div className="page">
+      <TopBar title="Admin" />
       <div className="ad-head">
         <span className="icon-chip lg violet"><Icon name="shield" size={26} /></span>
         <h1 className="grow">Admin</h1>

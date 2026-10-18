@@ -120,6 +120,13 @@ export function TopBar({ title, sub, right }: { title?: ReactNode; sub?: ReactNo
   );
 }
 
+/** Back button for the dark review-style screens. Hidden in shop mode, where customers stay with the shop they scanned. */
+export function RvxBack({ fallback = "/" }: { fallback?: string }) {
+  const nav = useNavigate();
+  if (focusShop()) return null;
+  return <button type="button" className="rvx-back" aria-label="Back" onClick={() => goBack(nav, fallback)}><Icon name="back" size={20} /></button>;
+}
+
 export function Spinner() { return <div className="spinner" role="status" aria-label="Loading" />; }
 
 /**

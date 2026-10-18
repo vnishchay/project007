@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type Place, type Tag } from "../lib/types";
-import { Icon, Spinner, useToast, type IconName } from "../components/ui";
+import { Icon, RvxBack, Spinner, useToast, type IconName } from "../components/ui";
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ItemThumb } from "../components/place/ItemThumb";
@@ -107,7 +107,7 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
   );
   const shell = (icon: IconName, title: string, text: string, actions: ReactNode) => (
     <div className="rvx" data-stage="gate">
-      <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
+      <div className="rvx-bar"><RvxBack fallback={`/p/${placeId}`} /><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
       <div className="rvx-ctx"><Icon name="store" size={14} />{name || "This shop"}</div>
       <div className="rvx-gate">
         <span className="ico"><Icon name={icon} size={28} /></span>
@@ -635,7 +635,7 @@ function ReviewForm() {
 
   if (loadErr) return (
     <div className="rvx">
-      <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
+      <div className="rvx-bar"><RvxBack fallback={`/p/${placeId}`} /><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
       <div className="rvx-gate">
         <span className="ico"><Icon name="alert" size={28} /></span>
         <h2>Couldn't load this place</h2>
@@ -647,7 +647,7 @@ function ReviewForm() {
   if (place === undefined || (place && gate === "loading")) return <div className="rvx"><div className="rvx-center"><Spinner /></div></div>;
   if (!place) return (
     <div className="rvx">
-      <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
+      <div className="rvx-bar"><RvxBack /><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
       <div className="rvx-gate">
         <span className="ico"><Icon name="search" size={28} /></span>
         <h2>This place isn't listed</h2>
@@ -686,7 +686,7 @@ function ReviewForm() {
 
   const bar = (
     <div className="rvx-bar">
-      {stage === "pick" ? <span className="rvx-brand">Trusted Picks</span> : <button type="button" className="rvx-back" aria-label="Back" onClick={back}><Icon name="back" size={20} /></button>}
+      {stage === "pick" ? <><RvxBack fallback={`/p/${placeId}`} /><span className="rvx-brand">Trusted Picks</span></> : <button type="button" className="rvx-back" aria-label="Back" onClick={back}><Icon name="back" size={20} /></button>}
       <div className="rvx-dots" role="img" aria-label={`Step ${stepNo + 1} of ${steps}`}>
         {Array.from({ length: steps }, (_, i) => <i key={i} className={i < stepNo ? "done" : i === stepNo ? "now" : ""} />)}
       </div>

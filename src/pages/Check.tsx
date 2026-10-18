@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase, configured, errorText } from "../lib/supabase";
 import { deviceId } from "../lib/device";
-import { Icon } from "../components/ui";
+import { Icon, RvxBack } from "../components/ui";
 import "../styles/review.css";
 
 type Line = { ok: boolean; label: string; detail: string };
@@ -56,7 +56,7 @@ export default function Check() {
   const text = lines.map((l) => `${l.ok ? "OK  " : "FAIL"} ${l.label}${l.detail ? `: ${l.detail}` : ""}`).join("\n");
   return (
     <div className="rvx" data-stage="check">
-      <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
+      <div className="rvx-bar"><RvxBack /><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>
       <section className="rvx-sec">
         <h2>Review <i>check</i></h2>
         <p className="rvx-hint">Runs the same steps a guest goes through, and shows exactly which one fails.</p>
