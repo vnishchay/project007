@@ -70,7 +70,7 @@ export function DietDot({ diet }: { diet?: string[] | null }) {
 
 /** The database hasn't been updated with the shop columns yet. */
 export function missingColumn(e: { code?: string; message?: string } | null | undefined): boolean {
-  return Boolean(e && (e.code === "42703" || e.code === "PGRST204" || /column .* does not exist/i.test(e.message || "")));
+  return Boolean(e && (e.code === "42703" || e.code === "42501" || e.code === "PGRST204" || /column .* does not exist/i.test(e.message || "") || /permission denied/i.test(e.message || "")));
 }
 
 /** Products a place shows (not hidden), shop-listed ones first. */

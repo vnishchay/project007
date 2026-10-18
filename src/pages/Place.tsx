@@ -32,8 +32,7 @@ type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}
 /** Newest columns first; older databases lack kind, then links, then cover/logo. */
 async function loadPlace(id: string) {
   if (!isUuid(id)) return { data: null, error: null };
-  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification, contact_phone`).eq("id", id).maybeSingle();
-  if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification`).eq("id", id).maybeSingle();
+  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path`).eq("id", id).maybeSingle();
@@ -258,7 +257,7 @@ export default function PlacePage() {
   type DockItem = { icon: "navigate" | "phone" | "message" | "globe"; label: string; href: string; hot?: boolean };
   const dock: DockItem[] = [];
   if (directions) dock.push({ icon: "navigate", label: "Directions", href: directions, hot: true });
-  const phoneUrl = place.contact_phone ? `tel:${place.contact_phone.replace(/\s+/g, "")}` : find("phone");
+  const phoneUrl = find("phone");
   if (phoneUrl) dock.push({ icon: "phone", label: "Call", href: phoneUrl });
   if (find("whatsapp")) dock.push({ icon: "message", label: "WhatsApp", href: find("whatsapp")! });
   if (find("website")) dock.push({ icon: "globe", label: "Website", href: find("website")! });
