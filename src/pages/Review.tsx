@@ -286,22 +286,6 @@ function ReviewForm() {
         const counts = new Map(((st.data || []) as { item_id: string; review_count: number }[]).map((x) => [x.item_id, x.review_count]));
         const opts = sortShopItems(it.items.map((i) => ({ ...i, count: counts.get(i.id) ?? 0 })), (i) => i.count);
         setItems(opts);
-        const pre = opts.find((i) => i.id === params.get("item"));
-        let plannedIds: string[] = [];
-        try {
-          const rawPlan = localStorage.getItem(`tp-plan:${placeId}`) || sessionStorage.getItem(`tp_preselected_${placeId}`);
-          if (rawPlan) {
-            if (rawPlan.startsWith("{")) {
-              const parsed = JSON.parse(rawPlan);
-              if (parsed.expiresAt > Date.now() && Array.isArray(parsed.ids)) {
-                plannedIds = parsed.ids;
-              }
-            } else if (rawPlan.length > 5) {
-              plannedIds = [rawPlan];
-            }
-          }
-        } catch {}
-        const plannedItems = opts.filter((i) => plannedIds.includes(i.id)).slice(0, 5);
         const kept = readDraft(placeId, uid);
         if (kept && (kept.dishes.length || kept.done.length)) {
           // Phones often reload the tab after the camera: bring back what was written (photos and voice can't be kept).
@@ -310,10 +294,6 @@ function ReviewForm() {
           // Back from Google after the tab was reloaded: show the thank-you screen again, not the menu.
           if (kept.finished && kept.done.length) { setStage("done"); setGoogleOpened(Boolean(kept.googleOpened)); }
           else if (open >= 0) { setAt(open); setStage("dish"); } else if (kept.dishes.length) setStage("preview");
-        } else if (pre) {
-          setDishes([newDish(pre.name, pre.id)]);
-        } else if (plannedItems.length > 0) {
-          setDishes(plannedItems.map((pi) => newDish(pi.name, pi.id)));
         } else if (!opts.length) setOther(true);
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));

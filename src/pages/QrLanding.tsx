@@ -1,5 +1,5 @@
 import { clearFocusShop, setFocusShop } from "../lib/focus";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { deviceId } from "../lib/device";
 import { supabase, errorText } from "../lib/supabase";
@@ -8,7 +8,6 @@ import { getLocation } from "../lib/util";
 import { Icon, Spinner } from "../components/ui";
 import { DietDot, loadShopItems, type ShopItem } from "../components/place/shop";
 import { ItemThumb } from "../components/place/ItemThumb";
-import { playHapticTap } from "../lib/haptics";
 import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
@@ -34,6 +33,17 @@ function friendly(e: unknown): string {
   return m;
 }
 
+const miniCard = (item: ShopItem, badge?: ReactNode) => (
+    <div key={item.id} className="premeal-card">
+      {badge}
+      <div className="premeal-thumb-wrap"><ItemThumb path={item.image_path} /></div>
+      <div className="premeal-info">
+        <span className="premeal-name"><DietDot diet={item.diet} />{item.name}</span>
+        {item.price_inr != null && <span className="tiny muted">₹{item.price_inr}</span>}
+      </div>
+    </div>
+  );
+
 /** Landing for a table QR (/q/:token) or a shop's one-time review link (/r/:token). Both unlock a visit. */
 export default function QrLanding({ link = false }: { link?: boolean }) {
   const { token = "" } = useParams();
@@ -52,39 +62,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   // Unlocking can work while reviewing is still refused (a guest who already reviewed from this phone).
   const [refused, setRefused] = useState<Refusal | null>(null);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
-  // The whole menu, shown when there are no top picks yet so people can still mark what they are having.
-  const [menuItems, setMenuItems] = useState<TopItem[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!peek?.place_id) return;
-    try {
-      const raw = localStorage.getItem(`tp-plan:${peek.place_id}`) || sessionStorage.getItem(`tp_preselected_${peek.place_id}`);
-      if (raw) {
-        if (raw.startsWith("{")) {
-          const parsed = JSON.parse(raw);
-          if (parsed.expiresAt > Date.now() && Array.isArray(parsed.ids)) {
-            setSelectedIds(parsed.ids);
-          }
-        } else if (raw) {
-          setSelectedIds([raw]);
-        }
-      }
-    } catch {}
-  }, [peek?.place_id]);
-
-  const toggleSelected = (item: TopItem) => {
-    if (!peek?.place_id) return;
-    const next = selectedIds.includes(item.id)
-      ? selectedIds.filter((id) => id !== item.id)
-      : [...selectedIds, item.id].slice(0, 5);
-    setSelectedIds(next);
-    playHapticTap(850);
-    try {
-      localStorage.setItem(`tp-plan:${peek.place_id}`, JSON.stringify({ ids: next, expiresAt: Date.now() + 6 * 3600 * 1000 }));
-      sessionStorage.setItem(`tp_preselected_${peek.place_id}`, next[0] || "");
-    } catch {}
-  };
+  // The shop's own special picks (products it chose to list), shown like a mini shop page.
+  const [specials, setSpecials] = useState<ShopItem[]>([]);
   // One visit per code per signed-in user per page view (StrictMode runs effects twice).
   const scannedFor = useRef<string | null>(null);
   const unlockFn = link ? "redeem_review_link" : "scan_qr";
@@ -118,7 +97,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       if (pk?.place_id) {
         loadShopItems(pk.place_id).then(async ({ items }) => {
           if (!alive || !items.length) return;
-          setMenuItems(items.map((it) => ({ ...it, reviewCount: 0 })));
+          setSpecials(items.filter((it) => it.is_listed).sort((x, y) => x.sort_order - y.sort_order).slice(0, 6));
           try {
             const { data: revs } = await supabase.from("review_feed").select("item_id, rating").eq("place_id", pk.place_id).order("created_at", { ascending: false }).limit(500);
             const counts: Record<string, { sum: number; count: number; fourPlus: number }> = {};
@@ -246,86 +225,24 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         </div>
       </header>
 
-      {topItems.length > 0 && (
-        <section className="rvx-sec" aria-label="Top rated dishes here">
-          <div className="premeal-guide">
-            <div className="premeal-head">
-              <div className="stack tight">
-                <strong style={{ fontSize: 14, color: "#fff" }}>Top 3 Dishes Here Right Now</strong>
-                <span className="tiny muted">Pre-meal recommendation guide</span>
-              </div>
-              <span className="premeal-badge">
-                <Icon name="verified" size={12} color="#4ade80" /> Verified Picks
-              </span>
-            </div>
-
-            <div className="premeal-grid">
-              {topItems.map((item, idx) => {
-                const isSelected = selectedIds.includes(item.id);
-                const ranks = ["🥇 #1 Loved", "🥈 #2 Pick", "🥉 #3 Choice"];
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`premeal-card ${isSelected ? "selected" : ""}`}
-                    onClick={() => toggleSelected(item)}
-                    aria-pressed={isSelected}
-                  >
-                    <span className={`premeal-rank ${idx === 0 ? "gold" : ""}`}>
-                      {ranks[idx] || `★ #${idx + 1}`}
-                    </span>
-                    <div className="premeal-thumb-wrap">
-                      <ItemThumb path={item.image_path} />
-                    </div>
-                    <div className="premeal-info">
-                      <span className="premeal-name"><DietDot diet={item.diet} />{item.name}</span>
-                      <div className="premeal-meta">
-                        {item.lovedPct != null ? (
-                          <span className="premeal-star" style={{ color: "#e5c78f" }}>
-                            🔥 {item.lovedPct}% loved
-                          </span>
-                        ) : item.ratingAvg ? (
-                          <span className="premeal-star">
-                            ★ {item.ratingAvg.toFixed(1)}
-                          </span>
-                        ) : (
-                          <span className="tiny muted">Popular</span>
-                        )}
-                        {item.reviewCount > 0 && (
-                          <span>{item.reviewCount} {item.reviewCount === 1 ? "review" : "reviews"}</span>
-                        )}
-                      </div>
-                      <span className="premeal-cta-pill">
-                        {isSelected ? "✓ Having this" : "+ Having this"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {selectedIds.length > 0 && (
-              <span className="tiny strong row" style={{ gap: 5, justifyContent: "center", marginTop: 6, color: "var(--champ, #e5c78f)" }}>
-                <Icon name="check" size={13} color="currentColor" />
-                {selectedIds.length} {selectedIds.length === 1 ? "dish" : "dishes"} pre-selected! Ready for your 10s review after dining.
-              </span>
-            )}
-          </div>
+      {specials.length > 0 && (
+        <section className="rvx-sec" aria-label="Special picks">
+          <h2>Special <i>picks</i></h2>
+          <p className="rvx-hint">What {peek.place_name} recommends.</p>
+          <div className="premeal-grid">{specials.map((it) => miniCard(it))}</div>
         </section>
       )}
 
-      {topItems.length === 0 && menuItems.length > 0 && (
-        <section className="rvx-sec" aria-label="Menu">
-          <h2>What are you <i>having?</i></h2>
-          <p className="rvx-hint">Tap your picks now, they'll be ready when you rate after the meal.</p>
-          <div className="rvx-chips">
-            {menuItems.map((item) => {
-              const on = selectedIds.includes(item.id);
-              return (
-                <button key={item.id} type="button" className={`rvx-chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => toggleSelected(item)}>
-                  <DietDot diet={item.diet} />{item.name}{on && <Icon name="check" size={12} width={3} />}
-                </button>
-              );
-            })}
+      {topItems.length > 0 && (
+        <section className="rvx-sec" aria-label="Top rated here">
+          <h2>Loved <i>here</i></h2>
+          <p className="rvx-hint">Rated best by people who ate here.</p>
+          <div className="premeal-grid">
+            {topItems.map((it, idx) => miniCard(it, (
+              <span className={`premeal-rank ${idx === 0 ? "gold" : ""}`}>
+                {it.lovedPct != null ? `🔥 ${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`} · {it.reviewCount}
+              </span>
+            )))}
           </div>
         </section>
       )}
@@ -370,9 +287,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           {session && visit && refused ? (
             refused === "guest_used" && <Link to={`/signin?next=${encodeURIComponent(`/review/${peek.place_id}`)}`} className="rvx-cta"><span>Sign in to rate more</span><Icon name="chev" size={20} /></Link>
           ) : session ? (
-            <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning || starting || !visit} onClick={(e) => { if (scanning || starting || !visit) e.preventDefault(); }}><span>{selectedIds.length > 0 ? `Rate your ${selectedIds.length === 1 ? "dish" : `${selectedIds.length} dishes`}` : "Rate what you had"}</span><Icon name="chev" size={20} /></Link>
+            <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning || starting || !visit} onClick={(e) => { if (scanning || starting || !visit) e.preventDefault(); }}><span>Rate what you had</span><Icon name="chev" size={20} /></Link>
           ) : (
-            <button type="button" className="rvx-cta" disabled={starting} onClick={rateAsGuest}><span>{starting ? "Opening…" : selectedIds.length > 0 ? `Rate your ${selectedIds.length === 1 ? "dish" : `${selectedIds.length} dishes`}` : "Rate what you had"}</span><Icon name="chev" size={20} /></button>
+            <button type="button" className="rvx-cta" disabled={starting} onClick={rateAsGuest}><span>{starting ? "Opening…" : "Rate what you had"}</span><Icon name="chev" size={20} /></button>
           )}
         </div>
       )}
