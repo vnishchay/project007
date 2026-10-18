@@ -109,10 +109,10 @@ function InviteAcceptor() {
   return null;
 }
 
-export function TopBar({ title, sub, right }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+export function TopBar({ title, sub, right, tone }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; tone?: "hero" | "sunset" }) {
   const nav = useNavigate();
   return (
-    <div className="topbar">
+    <div className={tone ? `topbar on-${tone}` : "topbar"}>
       {!focusShop() && <button className="icon-btn" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
       <div className="grow">
         {title && <div className="strong ellipsis" style={{ fontSize: 16 }}>{title}</div>}
