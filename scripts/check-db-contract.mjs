@@ -5,8 +5,9 @@
 //                                             what a live database is missing when run in the SQL Editor
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const read = (p) => readFileSync(join(root, p), "utf8");
 const walk = (dir) => readdirSync(join(root, dir)).flatMap((f) => {
   const p = join(dir, f);
@@ -54,7 +55,7 @@ for (const f of migs) {
 const update = read("supabase/update_existing_database.sql");
 for (const f of migs) {
   const body = read(`supabase/migrations/${f}`).trim();
-  const probe = body.split("\n").find((l) => /^(create|alter|drop)\b/i.test(l.trim())) || body.slice(0, 120);
+  const probe = body.split("\n").find((l) => /^(create|alter|drop|insert)\b/i.test(l.trim())) || body.slice(0, 120);
   if (!setup.includes(probe)) errors.push(`${f} is not in setup_all_in_one.sql`);
   // The update file starts after the base schema (migrations 1-5).
   if (Number(f.slice(8, 14)) > 5 && !update.includes(probe)) errors.push(`${f} is not in update_existing_database.sql`);
