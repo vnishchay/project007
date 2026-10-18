@@ -64,14 +64,17 @@ export default function Business() {
         ] as [IconName, string, string, string][]).map(([icon, cls, t, s], i) => (
           <div key={t} className="biz-step">
             <span className="num">{i + 1}</span>
-            <span className={`icon-chip lg ${cls}`}><Icon name={icon} size={24} /></span>
-            <span className="t">{t}</span>
-            <span className="s">{s}</span>
+            <span className={`icon-chip lg ${cls}`}><Icon name={icon} size={22} /></span>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>
+              <span className="t">{t}</span>
+              <span className="s">{s}</span>
+            </div>
+            <Icon name="chevronRight" size={16} color="var(--muted)" />
           </div>
         ))}
       </div>
 
-      <nav className="row wrap tiny muted center" style={{ gap: 12, justifyContent: "center", marginTop: 8 }}>
+      <nav className="biz-footer-nav">
         <Link to="/pricing">Pricing</Link><Link to="/terms">Terms</Link><Link to="/refunds">Refunds</Link><Link to="/privacy">Privacy</Link><Link to="/contact">Contact</Link>
       </nav>
     </div>

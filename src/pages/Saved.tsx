@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import type { ReviewRow } from "../lib/types";
+import { isUuid, type ReviewRow } from "../lib/types";
 import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
+import { isNegativeTag, tagLabels } from "../lib/reviews";
+import { generateStoryCard } from "../lib/story";
+import { ScratchCard } from "../components/ScratchCard";
 import { Icon, Spinner, Stars, useToast } from "../components/ui";
 import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
@@ -49,7 +52,16 @@ export default function Saved() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoSaved, setPhotoSaved] = useState(false);
 
+  // Reputation Shield & Private Feedback state
+  const [showPrivateForm, setShowPrivateForm] = useState(false);
+  const [privateNote, setPrivateNote] = useState("");
+  const [contactInfo, setContactInfo] = useState("");
+  const [sendingNote, setSendingNote] = useState(false);
+  const [noteSent, setNoteSent] = useState(false);
+  const [sharingStory, setSharingStory] = useState(false);
+
   useEffect(() => {
+    if (!isUuid(reviewId)) { setR(null); return; }
     let alive = true;
     setLoadErr("");
     supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("id", reviewId).maybeSingle().then(({ data, error }) => {
@@ -57,8 +69,11 @@ export default function Saved() {
       if (error && !/invalid input syntax for type uuid/i.test(error.message)) { setLoadErr(errorText(error)); return; }
       const row = (data as unknown as ReviewRow) ?? null;
       setR(row);
-      if (row && !row.places?.google_place_id) {
-        supabase.from("places").select("city").eq("id", row.place_id).maybeSingle().then(({ data: p }) => { if (alive) setCity((p as { city?: string } | null)?.city ?? null); });
+      if (row) {
+        if (!row.places?.google_place_id) {
+          supabase.from("places").select("city").eq("id", row.place_id).maybeSingle().then(({ data: p }) => { if (alive) setCity((p as { city?: string } | null)?.city ?? null); });
+        }
+        if (row.body) setPrivateNote(row.body);
       }
     }, (e: unknown) => { if (alive) setLoadErr(errorText(e)); });
     return () => { alive = false; };
@@ -98,6 +113,8 @@ export default function Saved() {
   const steps: [GlyphName, string][] = gid
     ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Long-press the box, Paste, Post"]]
     : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review"], ["star", `Tap ${stars}, long-press, Paste, Post`]];
+
+  const isNegative = r.rating <= 3 || tagLabels(r).some(isNegativeTag);
 
   async function savePhoto() {
     if (!photo) return;
@@ -142,16 +159,82 @@ export default function Saved() {
   }
 
   async function share() {
-    const url = await shareLink(`/p/${r!.place_id}`, "review");
-    const msg = `${r!.items?.name} at ${r!.places?.name}: ${"★".repeat(r!.rating)}\n${r!.body}`.trim();
-    if (navigator.share) {
-      try {
-        const file = await storyCard(r!);
-        if (file && navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], text: msg, url });
-        else await navigator.share({ text: msg, url });
-      } catch { /* dismissed */ }
-    } else if (await copyText(`${msg}\n${url}`)) toast("Copied, ready to paste");
-    else toast("Couldn't copy the link");
+    setSharingStory(true);
+    try {
+      const url = await shareLink(`/p/${r!.place_id}`, "review");
+      const msg = `${r!.items?.name} at ${r!.places?.name}: ${"★".repeat(r!.rating)}\n${r!.body}`.trim();
+      const file = await generateStoryCard({
+        itemName: r!.items?.name || "",
+        placeName: r!.places?.name || "",
+        rating: r!.rating,
+        body: r!.body,
+        photoBlob: photo,
+      });
+      if (navigator.share) {
+        if (file && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], text: msg, url });
+        } else {
+          await navigator.share({ text: msg, url });
+        }
+      } else if (file) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(file);
+        a.download = "verified-food-story.png";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        toast("Story card downloaded for Instagram / WhatsApp!");
+      } else if (await copyText(`${msg}\n${url}`)) {
+        toast("Copied, ready to paste");
+      }
+    } catch {
+      /* dismissed */
+    } finally {
+      setSharingStory(false);
+    }
+  }
+
+  async function sendPrivateFeedback() {
+    if (!privateNote.trim()) { toast("Please enter a note for management"); return; }
+    setSendingNote(true);
+    try {
+      let { error } = await supabase.rpc("send_owner_note", {
+        p_place: r!.place_id,
+        p_body: privateNote.trim(),
+        p_contact: contactInfo.trim() || null,
+        p_review: r!.id,
+        p_item: r!.item_id || null,
+      });
+      if (error && (error.code === "PGRST202" || error.code === "PGRST205")) {
+        const res2 = await supabase.rpc("submit_private_feedback", {
+          p_place_id: r!.place_id,
+          p_review_id: r!.id,
+          p_message: privateNote.trim(),
+          p_contact: contactInfo.trim() || null,
+          p_rating: r!.rating,
+          p_item_name: r!.items?.name || null,
+        });
+        error = res2.error;
+      }
+      if (error && (error.code === "PGRST202" || error.code === "PGRST205")) {
+        const fallbackBody = `[Private Management Note]: ${privateNote.trim()}${contactInfo.trim() ? ` (Contact: ${contactInfo.trim()})` : ""}`;
+        const res3 = await supabase.rpc("submit_review", {
+          p_place_id: r!.place_id,
+          p_item_name: r!.items?.name || "Private Note",
+          p_rating: r!.rating || 3,
+          p_body: fallbackBody,
+          p_is_public: false,
+        });
+        error = res3.error;
+      }
+      if (error) throw error;
+      setNoteSent(true);
+      setShowPrivateForm(false);
+      toast("Your note was delivered directly to management.");
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setSendingNote(false);
+    }
   }
 
   const who: { icon: GlyphName; text: string } = isGuest || !r.is_public
@@ -166,6 +249,7 @@ export default function Saved() {
         <span className="pill white"><Glyph name={who.icon} size={13} />{who.text}</span>
       </header>
 
+      {/* Review summary preview */}
       <div className="card">
         <div className="row" style={{ alignItems: "flex-start" }}>
           <Chip icon={r.verified ? "verified" : "star"} tone={r.verified ? "sky" : "amber"} />
@@ -176,46 +260,167 @@ export default function Saved() {
           <Stars value={r.rating} />
         </div>
         {r.body && <p style={{ lineHeight: 1.5, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.body}</p>}
-        <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={share}><Icon name="share" size={16} />Share with friends</button>
+        <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
+          <button type="button" className="btn small green" onClick={share} disabled={sharingStory}>
+            <Icon name="share" size={16} />{sharingStory ? "Preparing story…" : "Share Story Card"}
+          </button>
+        </div>
       </div>
 
-      <section className="card" aria-labelledby="google-h">
-        <SectionTitle icon="globe" tone="sky"><span id="google-h">Post it on Google too</span></SectionTitle>
-        <ol className="step-list">
-          {steps.map(([icon, s], i) => (
-            <li key={s}>
-              <span className={`icon-chip sm ${i === 0 || opened ? "" : "sky"}`} aria-hidden="true">{i === 0 || opened ? <Icon name="check" size={16} width={2.6} /> : <Glyph name={icon} size={16} />}</span>
-              <span>{s}</span>
-            </li>
-          ))}
-        </ol>
-        <div className="g-stars-hint" aria-label={`On Google, tap ${stars}`}>
-          <span className="small strong">On Google, tap</span>
-          <Stars value={r.rating} />
-        </div>
-        {photo && (
-          <button type="button" className={`btn small ${photoSaved ? "quiet" : "ghost"}`} style={{ alignSelf: "flex-start" }} onClick={savePhoto}>
-            <Icon name={photoSaved ? "check" : "image"} size={16} />{photoSaved ? "Photo saved" : "Save your photo first"}
+      {/* Instant Micro-Reward (Digital Scratch Card / Table Perk) */}
+      <ScratchCard stars={r.rating} placeName={placeName} />
+
+      {/* FTC-Compliant Reputation Shield (Dual Exit for negative feedback) */}
+      {isNegative ? (
+        <section className="card" style={{ border: "2px solid rgba(220, 38, 38, 0.2)", background: "var(--card)" }} aria-labelledby="shield-h">
+          <div className="row" style={{ alignItems: "center", gap: 10 }}>
+            <span className="icon-chip coral"><Icon name="shield" size={22} /></span>
+            <div className="grow stack tight">
+              <h2 id="shield-h" style={{ fontSize: 17, margin: 0 }}>Experience wasn't 5-star?</h2>
+              <span className="small muted">You have two options for your feedback:</span>
+            </div>
+          </div>
+
+          <div className="stack" style={{ gap: 12, marginTop: 12 }}>
+            {/* Option 1: Direct VIP Resolution Channel (Recommended) */}
+            <div style={{ padding: 14, borderRadius: 16, border: "1.5px solid var(--green)", background: "rgba(30, 122, 70, 0.06)" }}>
+              <div className="row" style={{ alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span className="badge green">Recommended</span>
+                <strong style={{ fontSize: 15 }}>Send Private Note to Owner / Chef</strong>
+              </div>
+              <p className="small muted" style={{ margin: "4px 0 10px", lineHeight: 1.4 }}>
+                Management reads every note directly to resolve issues (e.g. replacement voucher, refund, or fixing kitchen/service issues).
+              </p>
+
+              {noteSent ? (
+                <div className="callout green" style={{ padding: "10px 14px" }}>
+                  <Chip icon="check" tone="green" size="sm" />
+                  <span className="small strong grow">Sent directly to management. Thank you for giving them a chance to make it right!</span>
+                </div>
+              ) : showPrivateForm ? (
+                <div className="stack" style={{ gap: 8 }}>
+                  <textarea
+                    className="textarea"
+                    placeholder="Tell the owner or chef what went wrong and how they can resolve it for you..."
+                    value={privateNote}
+                    onChange={(e) => setPrivateNote(e.target.value)}
+                    rows={3}
+                  />
+                  <input
+                    className="input"
+                    placeholder="Your phone or email (optional, for voucher / follow-up)"
+                    value={contactInfo}
+                    onChange={(e) => setContactInfo(e.target.value)}
+                  />
+                  <div className="row" style={{ gap: 8 }}>
+                    <button type="button" className="btn green small" disabled={sendingNote} onClick={sendPrivateFeedback}>
+                      {sendingNote ? "Sending…" : "Send Note to Owner / Chef"}
+                    </button>
+                    <button type="button" className="btn ghost small" onClick={() => setShowPrivateForm(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className="btn green small" onClick={() => setShowPrivateForm(true)}>
+                  <Icon name="message" size={16} />Message Management Privately
+                </button>
+              )}
+            </div>
+
+            {/* Option 2: Public Google Review (Always available for FTC compliance) */}
+            <div style={{ padding: 14, borderRadius: 16, border: "1.5px solid var(--line)", background: "var(--surface)" }}>
+              <div className="row" style={{ alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span className="icon-chip sm sky"><Icon name="globe" size={16} /></span>
+                <strong style={{ fontSize: 15 }}>Post Publicly to Google</strong>
+              </div>
+              <p className="small muted" style={{ margin: "4px 0 10px", lineHeight: 1.4 }}>
+                Share your review publicly on Google Maps (1-tap copy & redirect).
+              </p>
+              <button type="button" className="btn ghost small" onClick={openGoogle}>
+                <Icon name="copy" size={16} />{gid ? "Copy & open Google" : "Copy & open Google Maps"}
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        /* Standard flow for 4-star and 5-star positive reviews */
+        <section className="card" aria-labelledby="google-h">
+          <SectionTitle icon="globe" tone="sky"><span id="google-h">Post it on Google too</span></SectionTitle>
+          <ol className="step-list">
+            {steps.map(([icon, s], i) => (
+              <li key={s}>
+                <span className={`icon-chip sm ${i === 0 || opened ? "" : "sky"}`} aria-hidden="true">{i === 0 || opened ? <Icon name="check" size={16} width={2.6} /> : <Glyph name={icon} size={16} />}</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="g-stars-hint" aria-label={`On Google, tap ${stars}`}>
+            <span className="small strong">On Google, tap</span>
+            <Stars value={r.rating} />
+          </div>
+          {photo && (
+            <button type="button" className={`btn small ${photoSaved ? "quiet" : "ghost"}`} style={{ alignSelf: "flex-start" }} onClick={savePhoto}>
+              <Icon name={photoSaved ? "check" : "image"} size={16} />{photoSaved ? "Photo saved" : "Save your photo first"}
+            </button>
+          )}
+          <p className="tiny muted row" style={{ gap: 6, alignItems: "flex-start" }}><Icon name="info" size={14} />Google only lets you post yourself, so the last tap is yours.</p>
+          {copyFailed && (
+            <label className="stack tight">
+              <span className="small strong row" style={{ gap: 6 }}><Icon name="copy" size={14} />Copy by hand</span>
+              <textarea className="textarea" readOnly value={text} onFocus={(e) => e.currentTarget.select()} />
+            </label>
+          )}
+          {copyFailed && (
+            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ alignSelf: "flex-start" }}><Icon name="external" size={16} />Open {gid ? "Google" : "Google Maps"}</a>
+          )}
+
+          {/* Optional VIP note to kitchen */}
+          {!noteSent && (
+            <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+              {showPrivateForm ? (
+                <div className="stack" style={{ gap: 8 }}>
+                  <span className="small strong">Send a compliment or private note to the chef:</span>
+                  <textarea
+                    className="textarea"
+                    placeholder="e.g. Loved the special sauce! Thank you chef."
+                    value={privateNote}
+                    onChange={(e) => setPrivateNote(e.target.value)}
+                    rows={2}
+                  />
+                  <div className="row" style={{ gap: 8 }}>
+                    <button type="button" className="btn green small" disabled={sendingNote} onClick={sendPrivateFeedback}>
+                      {sendingNote ? "Sending…" : "Send to Chef"}
+                    </button>
+                    <button type="button" className="btn ghost small" onClick={() => setShowPrivateForm(false)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className="link-btn small" onClick={() => setShowPrivateForm(true)}>
+                  <Icon name="message" size={14} />Want to send a private compliment to the team?
+                </button>
+              )}
+            </div>
+          )}
+          {noteSent && (
+            <span className="tiny green strong row" style={{ gap: 4, marginTop: 4 }}>
+              <Icon name="check" size={13} />Private note delivered to management
+            </span>
+          )}
+        </section>
+      )}
+
+      {/* Main bottom navigation */}
+      <div className="stack" style={{ marginTop: "auto" }}>
+        {!isNegative && (
+          <button type="button" className="btn green block" onClick={openGoogle}>
+            <Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}
           </button>
         )}
-        <p className="tiny muted row" style={{ gap: 6, alignItems: "flex-start" }}><Icon name="info" size={14} />Google only lets you post yourself, so the last tap is yours.</p>
-        {copyFailed && (
-          <label className="stack tight">
-            <span className="small strong row" style={{ gap: 6 }}><Icon name="copy" size={14} />Copy by hand</span>
-            <textarea className="textarea" readOnly value={text} onFocus={(e) => e.currentTarget.select()} />
-          </label>
-        )}
-        {copyFailed && (
-          <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ alignSelf: "flex-start" }}><Icon name="external" size={16} />Open {gid ? "Google" : "Google Maps"}</a>
-        )}
-      </section>
-
-      <div className="stack" style={{ marginTop: "auto" }}>
-        <button type="button" className="btn green block" onClick={openGoogle}><Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}</button>
-        <Link to={`/p/${r.place_id}`} replace={opened} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Not now"}</Link>
+        <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Done"}</Link>
       </div>
 
-      {isGuest && opened && (
+      {isGuest && (opened || noteSent) && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${r.place_id}`)}`} className="callout violet">
           <Chip icon="lock" tone="violet" />
           <span className="grow stack tight">
@@ -227,45 +432,4 @@ export default function Saved() {
       )}
     </div>
   );
-}
-
-// A simple 1080x1350 image of the review for Instagram or WhatsApp status.
-async function storyCard(r: ReviewRow): Promise<File | null> {
-  try {
-    await document.fonts?.ready;
-    const c = document.createElement("canvas");
-    c.width = 1080; c.height = 1350;
-    const g = c.getContext("2d")!;
-    g.fillStyle = "#F5F6F4"; g.fillRect(0, 0, 1080, 1350);
-    g.fillStyle = "#FFFFFF"; roundRect(g, 80, 160, 920, 1030, 56); g.fill();
-    g.fillStyle = "#d4290f"; g.font = "700 40px Inter, -apple-system, system-ui, sans-serif"; g.fillText("Trusted Picks", 150, 270);
-    g.fillStyle = "#1c1c1e"; g.font = "800 72px Inter, -apple-system, system-ui, sans-serif";
-    wrap(g, r.items?.name || "", 150, 400, 780, 84, 2);
-    g.fillStyle = "#636366"; g.font = "600 40px Inter, -apple-system, system-ui, sans-serif"; g.fillText(r.places?.name || "", 150, 560);
-    g.fillStyle = "#E0A100"; g.font = "64px sans-serif"; g.fillText("★".repeat(r.rating) + "☆".repeat(5 - r.rating), 150, 670);
-    g.fillStyle = "#3a3a3c"; g.font = "500 40px Inter, -apple-system, system-ui, sans-serif";
-    wrap(g, r.body ? `“${r.body}”` : "", 150, 780, 780, 58, 6);
-    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
-    return blob ? new File([blob], "trusted-pick.png", { type: "image/png" }) : null;
-  } catch {
-    return null;
-  }
-}
-
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-}
-
-function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number, lines: number) {
-  const words = text.split(/\s+/);
-  let line = "";
-  let n = 0;
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (g.measureText(test).width > max && line) {
-      if (++n >= lines) { g.fillText(line + "…", x, y); return; }
-      g.fillText(line, x, y); y += lh; line = w;
-    } else line = test;
-  }
-  if (line) g.fillText(line, x, y);
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { isUuid } from "../lib/types";
 import { getLocation, type Coords } from "../lib/util";
 import { shrinkImage } from "../lib/media";
 import { Icon, Spinner, TopBar } from "../components/ui";
@@ -25,6 +26,7 @@ export default function Claim() {
   const [result, setResult] = useState("");
 
   useEffect(() => {
+    if (!isUuid(placeId)) { setName(""); return; }
     supabase.from("places").select("name").eq("id", placeId).maybeSingle().then(({ data }) => setName(data?.name ?? ""));
   }, [placeId]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);

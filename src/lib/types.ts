@@ -49,6 +49,7 @@ export interface Item {
   is_listed: boolean;
   is_hidden: boolean;
   section?: string | null;
+  diet?: string[] | null;
 }
 
 export interface Friend {
@@ -135,3 +136,6 @@ export interface QrCode {
   table_label: string | null;
   active: boolean;
 }
+
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid = (id?: string | null): id is string => Boolean(id && UUID_RE.test(id));

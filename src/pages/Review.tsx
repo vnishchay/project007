@@ -3,8 +3,8 @@ import { isNegativeTag } from "../lib/reviews";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import type { Place, Tag } from "../lib/types";
-import { Icon, Spinner, type IconName } from "../components/ui";
+import { isUuid, type Place, type Tag } from "../lib/types";
+import { Icon, Spinner, useToast, type IconName } from "../components/ui";
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ItemThumb } from "../components/place/ItemThumb";
@@ -14,7 +14,10 @@ import { callAi } from "../lib/assist";
 import { modeOf, tagFits } from "../lib/modes";
 import { fetchGoogleRating } from "../lib/google";
 import { copyText, googleReviewUrl } from "../lib/util";
-import { shareOrCopy, shareLink } from "../lib/invite";
+import { shareLink } from "../lib/invite";
+import { generateStoryCard } from "../lib/story";
+import { ScratchCard } from "../components/ScratchCard";
+import { HeadToHeadModal } from "../components/HeadToHeadModal";
 import "../styles/place.css";
 import "../styles/review.css";
 
@@ -157,6 +160,14 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
     const r = box.current?.getBoundingClientRect();
     return r && r.width ? Math.max(1, Math.min(5, Math.ceil(((x - r.left) / r.width) * 5))) : value;
   };
+  const triggerHaptic = (n: number) => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
+    } catch {
+      /* ignore */
+    }
+    onChange(n);
+  };
   return (
     <div
       ref={box}
@@ -175,7 +186,7 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
       onPointerLeave={() => { if (press.current?.drag) press.current = null; }}
     >
       {[1, 2, 3, 4, 5].map((i) => (
-        <button key={i} type="button" role="radio" aria-checked={value === i} aria-label={`${i} star${i > 1 ? "s" : ""}`} className={i <= value ? "on" : ""} onClick={() => onChange(i)}>
+        <button key={i} type="button" role="radio" aria-checked={value === i} aria-label={`${i} star${i > 1 ? "s" : ""}`} className={i <= value ? "on" : ""} onClick={() => triggerHaptic(i)}>
           <svg viewBox="0 0 24 24" width="46" height="46" aria-hidden="true"><path d={STAR_PATH} /></svg>
         </button>
       ))}
@@ -216,8 +227,23 @@ function ReviewForm() {
   const [canDictate] = useState(() => Boolean(recognitionCtor()));
   const [canRecord] = useState(() => canRecordVoice());
 
+  const toast = useToast();
+  const [showPrivateForm, setShowPrivateForm] = useState(false);
+  const [privateNote, setPrivateNote] = useState("");
+  const [contactInfo, setContactInfo] = useState("");
+  const [sendingNote, setSendingNote] = useState(false);
+  const [noteSent, setNoteSent] = useState(false);
+  const [sharingStory, setSharingStory] = useState(false);
+  const [showDuel, setShowDuel] = useState(false);
+  const [duelPlayed, setDuelPlayed] = useState(false);
+  const [eloScore, setEloScore] = useState<number | null>(null);
+
   useEffect(() => {
     if (!uid) return;
+    if (!isUuid(placeId)) {
+      setPlace(null);
+      return;
+    }
     let alive = true;
     setLoadErr("");
     setPlace(undefined);
@@ -236,7 +262,6 @@ function ReviewForm() {
         // A failed query is not the same as "this place isn't listed".
         const failed = [p, it, tg].find((r) => r.error);
         if (failed?.error) {
-          // A malformed id in the URL comes back as an invalid-uuid error: that's simply not a place.
           if (p.error && /invalid input syntax for type uuid/i.test(p.error.message)) { setPlace(null); return; }
           setLoadErr(errorText(failed.error));
           return;
@@ -247,6 +272,21 @@ function ReviewForm() {
         const opts = sortShopItems(it.items.map((i) => ({ ...i, count: counts.get(i.id) ?? 0 })), (i) => i.count);
         setItems(opts);
         const pre = opts.find((i) => i.id === params.get("item"));
+        let plannedIds: string[] = [];
+        try {
+          const rawPlan = localStorage.getItem(`tp-plan:${placeId}`) || sessionStorage.getItem(`tp_preselected_${placeId}`);
+          if (rawPlan) {
+            if (rawPlan.startsWith("{")) {
+              const parsed = JSON.parse(rawPlan);
+              if (parsed.expiresAt > Date.now() && Array.isArray(parsed.ids)) {
+                plannedIds = parsed.ids;
+              }
+            } else if (rawPlan.length > 5) {
+              plannedIds = [rawPlan];
+            }
+          }
+        } catch {}
+        const plannedItems = opts.filter((i) => plannedIds.includes(i.id)).slice(0, 5);
         const kept = readDraft(placeId, uid);
         if (kept && (kept.dishes.length || kept.done.length)) {
           // Phones often reload the tab after the camera: bring back what was written (photos and voice can't be kept).
@@ -255,8 +295,11 @@ function ReviewForm() {
           // Back from Google after the tab was reloaded: show the thank-you screen again, not the menu.
           if (kept.finished && kept.done.length) { setStage("done"); setGoogleOpened(Boolean(kept.googleOpened)); }
           else if (open >= 0) { setAt(open); setStage("dish"); } else if (kept.dishes.length) setStage("preview");
-        } else if (pre) setDishes([newDish(pre.name, pre.id)]);
-        else if (!opts.length) setOther(true);
+        } else if (pre) {
+          setDishes([newDish(pre.name, pre.id)]);
+        } else if (plannedItems.length > 0) {
+          setDishes(plannedItems.map((pi) => newDish(pi.name, pi.id)));
+        } else if (!opts.length) setOther(true);
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
         setGate(g);
@@ -380,8 +423,25 @@ function ReviewForm() {
     if (!dish?.rating) { setErr("Tap a star to rate it."); return; }
     if (recording) { setErr("Stop the recording first."); return; }
     if (listening) rec.current?.stop();
+    if (dish.rating === 5 && !duelPlayed && items.length > 1) {
+      setShowDuel(true);
+      return;
+    }
     if (at < dishes.length - 1) setAt(at + 1); else setStage("preview");
   }
+
+  const onDuelDecided = (_winner: string, score: number) => {
+    setEloScore(score);
+    setDuelPlayed(true);
+    setShowDuel(false);
+    if (at < dishes.length - 1) setAt(at + 1); else setStage("preview");
+  };
+
+  const onDuelSkip = () => {
+    setDuelPlayed(true);
+    setShowDuel(false);
+    if (at < dishes.length - 1) setAt(at + 1); else setStage("preview");
+  };
   function back() {
     setErr("");
     if (stage === "preview") { setAt(dishes.length - 1); setStage("dish"); }
@@ -499,6 +559,7 @@ function ReviewForm() {
       setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       setSaving(false);
       setStage("done");
+      try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15); } catch {}
     } catch (e) {
       try { win?.close(); } catch { /* already gone */ }
       if (saved.length) setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
@@ -525,10 +586,90 @@ function ReviewForm() {
 
   async function copyAgain() { setCopied(await copyNow(googleText(done, tags))); }
 
+  async function sendPrivateFeedback() {
+    if (!privateNote.trim()) { toast("Please write a quick note for management"); return; }
+    setSendingNote(true);
+    try {
+      let { error } = await supabase.rpc("send_owner_note", {
+        p_place: placeId,
+        p_body: privateNote.trim(),
+        p_contact: contactInfo.trim() || null,
+        p_review: done[0]?.reviewId || null,
+      });
+      if (error && (error.code === "PGRST202" || error.code === "PGRST205")) {
+        const res2 = await supabase.rpc("submit_private_feedback", {
+          p_place_id: placeId,
+          p_review_id: done[0]?.reviewId || null,
+          p_message: privateNote.trim(),
+          p_contact: contactInfo.trim() || null,
+          p_rating: averageStars(done),
+          p_item_name: done.map((d) => d.name).join(", ") || null,
+        });
+        error = res2.error;
+      }
+      if (error && (error.code === "PGRST202" || error.code === "PGRST205")) {
+        const fallbackBody = `[Private Management Note]: ${privateNote.trim()}${contactInfo.trim() ? ` (Contact: ${contactInfo.trim()})` : ""}`;
+        const res3 = await supabase.rpc("submit_review", {
+          p_place_id: placeId,
+          p_item_name: done[0]?.name || "Private Feedback",
+          p_rating: averageStars(done) || 3,
+          p_body: fallbackBody,
+          p_is_public: false,
+          p_device: deviceId(),
+        });
+        error = res3.error;
+      }
+      if (error) throw error;
+      setNoteSent(true);
+      setShowPrivateForm(false);
+      toast("Your private feedback was sent directly to management.");
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setSendingNote(false);
+    }
+  }
+
   async function share() {
-    const url = await shareLink(`/p/${placeId}`, "review");
-    const lines = done.map((d) => `${d.name} ${"★".repeat(d.rating)}`).join(", ");
-    await shareOrCopy({ title: place?.name, text: `${lines} at ${place?.name}`, url });
+    setSharingStory(true);
+    try {
+      const url = await shareLink(`/p/${placeId}`, "review");
+      const primary = done[0];
+      const cardFile = await generateStoryCard({
+        itemName: done.map((d) => d.name).join(", "),
+        placeName: place?.name || "",
+        rating: averageStars(done),
+        body: done.find((d) => d.body)?.body || "",
+        photoBlob: primary?.photo,
+        eloScore,
+      });
+
+      const lines = done.map((d) => `${d.name} ${"★".repeat(d.rating)}`).join(", ");
+      const msg = `${lines} at ${place?.name}\n${url}`;
+
+      if (navigator.share) {
+        if (cardFile && navigator.canShare?.({ files: [cardFile] })) {
+          await navigator.share({ files: [cardFile], text: msg, url });
+        } else {
+          await navigator.share({ text: msg, url });
+        }
+      } else if (cardFile) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(cardFile);
+        a.download = "verified-food-story.png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        toast("Story card downloaded for Instagram / WhatsApp!");
+      } else if (await copyText(msg)) {
+        toast("Review link copied, ready to paste");
+      }
+    } catch {
+      /* cancelled */
+    } finally {
+      setSharingStory(false);
+    }
   }
 
   function another() {
@@ -660,6 +801,39 @@ function ReviewForm() {
             <span key={dish.rating} className="rvx-emoji">{FACES[dish.rating] || "🍽️"}</span>
             <span className="rvx-word">{FACE_WORDS[dish.rating]}</span>
           </div>
+
+          {/* 3-Tier Vibe Reactions */}
+          <div className="rvx-vibes">
+            {[
+              { label: "Must Try", emoji: "🔥", rating: 5, cls: "must-try" },
+              { label: "Solid", emoji: "👍", rating: 4, cls: "solid" },
+              { label: "Skip It", emoji: "👎", rating: 2, cls: "skip" },
+            ].map((v) => {
+              const active = dish.rating === v.rating || (v.rating === 2 && dish.rating > 0 && dish.rating <= 3);
+              return (
+                <button
+                  key={v.label}
+                  type="button"
+                  className={`rvx-vibe-pill ${v.cls} ${active ? "on" : ""}`}
+                  aria-pressed={active}
+                  onClick={() => {
+                    try {
+                      if (typeof navigator !== "undefined" && navigator.vibrate) {
+                        navigator.vibrate(12);
+                      }
+                    } catch {
+                      /* ignore */
+                    }
+                    patch(at, { rating: v.rating });
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>{v.emoji}</span>
+                  <span>{v.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <Stars value={dish.rating} onChange={(v) => patch(at, { rating: v })} />
           <p className="rvx-hint c">Drag across the stars or tap one</p>
 
@@ -707,6 +881,17 @@ function ReviewForm() {
             <Icon name="chev" size={20} />
           </button>
         </div>
+        {showDuel && items.length > 1 && dish && (
+          <HeadToHeadModal
+            currentDish={{ name: dish.name, imagePath: items.find((i) => i.id === dish.itemId)?.image_path }}
+            compareDish={{
+              name: items.find((i) => i.id !== dish.itemId)?.name || items[0]?.name || "Signature Dish",
+              imagePath: items.find((i) => i.id !== dish.itemId)?.image_path,
+            }}
+            onDecided={onDuelDecided}
+            onSkip={onDuelSkip}
+          />
+        )}
       </div>
     );
   }
@@ -776,33 +961,122 @@ function ReviewForm() {
 
   /* ---------- done ---------- */
   const names = done.map((d) => d.name);
+  const isNegative = stars <= 3 || done.some((d) => d.picked.some((id) => isNegativeTag(tags.find((t) => t.id === id)?.label || "")));
+
   return (
     <div className="rvx" data-stage="done">
-      <div className="rvx-confetti" aria-hidden="true">{Array.from({ length: 16 }, (_, i) => <i key={i} style={{ left: `${4 + i * 6}%`, animationDelay: `${(i * 0.13) % 1.2}s` }} />)}</div>
       <section className="rvx-sec center">
         <span className="rvx-big"><Icon name="check" size={40} width={3} /></span>
         <h2 ref={head} tabIndex={-1}>Posted. <i>Thank you!</i></h2>
         <p className="rvx-hint c">{names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]} {names.length > 1 ? "are" : "is"} on {place.name}'s page{isGuest ? ", anonymously" : isPublic ? ", with your name" : ", anonymously"}.</p>
       </section>
 
-      <section className="rvx-google">
-        <div className="rvx-ghead"><span className="rvx-g"><Icon name="star" size={16} fill="#fff" color="#fff" /></span><div className="grow"><b>{place.name}</b><small>{googleOpened ? "Google opened in a new tab. Finish it there in 3 taps." : "Add it on Google too, in 3 taps"}</small></div></div>
-        <ol className="rvx-coach">
-          <li><b>1</b>Tap <span className="rvx-gs">{"★".repeat(stars)}</span></li>
-          <li><b>2</b>Press and hold the box, tap <u>Paste</u></li>
-          <li><b>3</b>Tap <span className="rvx-post">Post</span></li>
-        </ol>
-        {copied === false && <p className="rvx-warn">Couldn't copy by itself. Press Copy, then open Google.</p>}
-        <div className="rvx-two">
-          <button type="button" className="rvx-tool" onClick={openGoogle}><Icon name="external" size={16} />{googleOpened ? "Open Google again" : "Copy and open Google"}</button>
-          <button type="button" className="rvx-tool" onClick={copyAgain}><Icon name="copy" size={16} />{copied ? "Copied" : "Copy again"}</button>
-        </div>
-        <p className="rvx-fine">Google only lets you post yourself, so the last tap is yours.</p>
-      </section>
+      {/* Instant Micro-Reward (Table Perk Digital Pass) */}
+      <ScratchCard stars={stars} placeName={place.name} />
+
+      {/* FTC-Compliant Reputation Shield (Handling Negative Reviews) */}
+      {isNegative ? (
+        <section className="rvx-shield-card" aria-labelledby="shield-h">
+          <div className="row" style={{ alignItems: "center", gap: 10 }}>
+            <span className="icon-chip sm coral"><Icon name="shield" size={18} /></span>
+            <div className="grow stack tight">
+              <div className="row" style={{ alignItems: "center", gap: 8 }}>
+                <strong id="shield-h" style={{ fontSize: 16 }}>Private Management Resolution</strong>
+                <span className="badge coral" style={{ fontSize: 10, fontWeight: 700 }}>DIRECT CARE</span>
+              </div>
+              <span className="tiny muted">Something wasn't right? Let management resolve it directly</span>
+            </div>
+          </div>
+          <p className="small" style={{ lineHeight: 1.5, margin: "4px 0" }}>
+            The executive chef & owner read private feedback directly. Share what went wrong and we'll reach out to resolve it or offer a return voucher.
+          </p>
+          {!noteSent ? (
+            !showPrivateForm ? (
+              <button
+                type="button"
+                className="btn small danger block"
+                onClick={() => {
+                  setShowPrivateForm(true);
+                  if (!privateNote) setPrivateNote(done.find((d) => d.body)?.body || "");
+                }}
+              >
+                <Icon name="message" size={16} />Send Private Note to Owner/Chef
+              </button>
+            ) : (
+              <form
+                className="stack tight"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  sendPrivateFeedback();
+                }}
+                style={{ marginTop: 8 }}
+              >
+                <label className="field">
+                  <span className="tiny strong">What can we improve?</span>
+                  <textarea
+                    className="textarea"
+                    rows={3}
+                    placeholder="Tell the owner what went wrong..."
+                    value={privateNote}
+                    onChange={(e) => setPrivateNote(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span className="tiny strong">Your phone or email (for compensation / voucher)</span>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="e.g. alex@gmail.com or (555) 019-2834"
+                    value={contactInfo}
+                    onChange={(e) => setContactInfo(e.target.value)}
+                  />
+                </label>
+                <div className="row" style={{ gap: 8, marginTop: 4 }}>
+                  <button type="submit" className="btn green small grow" disabled={sendingNote}>
+                    <Icon name="send" size={14} />{sendingNote ? "Sending…" : "Send Private Note"}
+                  </button>
+                  <button type="button" className="btn quiet small" onClick={() => setShowPrivateForm(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )
+          ) : (
+            <span className="tiny green strong row" style={{ gap: 6, marginTop: 4, background: "rgba(34, 197, 94, 0.15)", padding: "8px 12px", borderRadius: 10 }}>
+              <Icon name="check" size={14} color="#4ade80" />Private note delivered to management
+            </span>
+          )}
+
+          <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px dashed rgba(255, 255, 255, 0.18)" }}>
+            <span className="tiny muted" style={{ display: "block", marginBottom: 6 }}>Or post publicly to Google (unrestricted):</span>
+            <button type="button" className="btn quiet small block" onClick={openGoogle}>
+              <Icon name="external" size={15} />Open Google Reviews
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="rvx-google">
+          <div className="rvx-ghead"><span className="rvx-g"><Icon name="star" size={16} fill="#fff" color="#fff" /></span><div className="grow"><b>{place.name}</b><small>{googleOpened ? "Google opened in a new tab. Finish it there in 3 taps." : "Add it on Google too, in 3 taps"}</small></div></div>
+          <ol className="rvx-coach">
+            <li><b>1</b>Tap <span className="rvx-gs">{"★".repeat(stars)}</span></li>
+            <li><b>2</b>Press and hold the box, tap <u>Paste</u></li>
+            <li><b>3</b>Tap <span className="rvx-post">Post</span></li>
+          </ol>
+          {copied === false && <p className="rvx-warn">Couldn't copy by itself. Press Copy, then open Google.</p>}
+          <div className="rvx-two">
+            <button type="button" className="rvx-tool" onClick={openGoogle}><Icon name="external" size={16} />{googleOpened ? "Open Google again" : "Copy and open Google"}</button>
+            <button type="button" className="rvx-tool" onClick={copyAgain}><Icon name="copy" size={16} />{copied ? "Copied" : "Copy again"}</button>
+          </div>
+          <p className="rvx-fine">Google only lets you post yourself, so the last tap is yours.</p>
+        </section>
+      )}
 
       <div className="rvx-after">
+        <button type="button" className="rvx-cta" onClick={share} disabled={sharingStory}>
+          <Icon name="share" size={16} />{sharingStory ? "Generating story card…" : "Share Story Card"}
+        </button>
         <button type="button" className="rvx-more" onClick={another}><Icon name="plus" size={16} />Rate another dish</button>
-        <button type="button" className="rvx-more" onClick={share}><Icon name="share" size={16} />Share with friends</button>
         <Link to={`/p/${placeId}`} className="rvx-more"><Icon name="eye" size={16} />See what people loved</Link>
       </div>
       {isGuest && (

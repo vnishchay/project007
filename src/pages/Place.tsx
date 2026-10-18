@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import type { Place, ReviewRow, SearchResult } from "../lib/types";
+import { isUuid, type Place, type ReviewRow, type SearchResult } from "../lib/types";
 import { googleConfigured, type GoogleRating } from "../lib/google";
 import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
 import { isStockPhoto, placeMediaUrl } from "../lib/media";
@@ -13,7 +13,7 @@ import { shareLink, shareOrCopy } from "../lib/invite";
 import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { ItemThumb } from "../components/place/ItemThumb";
-import { loadShopItems, missingColumn, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { DietDot, loadShopItems, missingColumn, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
 import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
@@ -30,6 +30,7 @@ type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}
 
 /** Newest columns first; older databases lack kind, then links, then cover/logo. */
 async function loadPlace(id: string) {
+  if (!isUuid(id)) return { data: null, error: null };
   let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links`).eq("id", id).maybeSingle();
@@ -77,7 +78,7 @@ export default function PlacePage() {
   const withText = reviews.filter((r) => (r.body || "").trim()).length;
   // Only worth asking once there's something to summarise; the answer is cached for a day.
   useEffect(() => {
-    if (withText < 3) { setAiSummary(null); return; }
+    if (withText < 3 || !isUuid(id)) { setAiSummary(null); return; }
     let alive = true;
     placeSummary(id).then((s) => { if (alive) setAiSummary(s); });
     return () => { alive = false; };
@@ -106,6 +107,7 @@ export default function PlacePage() {
     let alive = true;
     (async () => {
       setErr(""); setLoadErr("");
+      if (!isUuid(id)) { setPlace(null); return; }
       const { data, error } = await loadPlace(id);
       if (!alive) return;
       if (error) { setErr(errorText(error)); setPlace(null); return; }
@@ -162,7 +164,7 @@ export default function PlacePage() {
   }
 
   useEffect(() => {
-    if (!me) { setFriends(new Set()); setSaved(false); setCanManage(false); setCanRate(false); return; }
+    if (!me || !isUuid(id)) { setFriends(new Set()); setSaved(false); setCanManage(false); setCanRate(false); return; }
     let alive = true;
     loadFriendIds(me).then((s) => alive && setFriends(s));
     supabase.from("saved_places").select("place_id").eq("user_id", me).eq("place_id", id).maybeSingle().then(({ data }) => alive && setSaved(Boolean(data)));
@@ -362,7 +364,7 @@ export default function PlacePage() {
                     return (
                       <button key={p.id} type="button" className="pn-sig-card" style={{ animationDelay: `${0.1 + i * 0.1}s` }} onClick={() => (canRate ? nav(`${rateUrl}?item=${p.id}`) : openReviews(`item:${p.id}`))}>
                         <span className="pn-sig-img"><ItemThumb path={p.image_path} icon={look.icon} /></span>
-                        <span className="pn-sig-name">{p.name}</span>
+                        <span className="pn-sig-name"><DietDot diet={p.diet} />{p.name}</span>
                         <span className="pn-sig-foot"><b>{priceLabel(p.price_inr) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{st.avg.toFixed(1)} · {st.count}</span></span>
                       </button>
                     );
@@ -395,7 +397,7 @@ export default function PlacePage() {
                     {s && <span className="pl-product-rate"><Icon name="star" size={12} fill="currentColor" />{s.avg.toFixed(1)}<span>· {s.count}</span></span>}
                   </span>
                   <span className="pl-product-body">
-                    <span className="pl-product-name">{p.name}</span>
+                    <span className="pl-product-name"><DietDot diet={p.diet} />{p.name}</span>
                     <span className="pl-product-foot">
                       {priceLabel(p.price_inr) ? <span className="pl-price">{priceLabel(p.price_inr)}</span> : <span className="muted tiny">{s ? "" : "New"}</span>}
                       {canRate && <span className="pl-rate-btn"><Icon name="star" size={14} /></span>}

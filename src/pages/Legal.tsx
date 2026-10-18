@@ -34,16 +34,18 @@ export function Pricing() {
       <h2>Free to list. Pay only for review QRs.</h2>
       <p>Every business gets a free page and a free trial: 1 review QR for 30 days or 25 reviews, whichever comes first.
         After that, pick a plan. If a plan ends, your page and QRs keep working; only new reviews pause until you renew.</p>
-      <table className="legal-table">
-        <thead><tr><th>Plan</th><th>Review QRs</th><th>Yearly</th><th>Monthly</th></tr></thead>
-        <tbody>{plans.map((p) => (
-          <tr key={p.code}><td>{p.name}</td><td>{p.qr_limit}</td>
-            <td>{p.price_inr_year ? `₹${p.price_inr_year.toLocaleString("en-IN")}` : "Free"}</td>
-            <td>{p.price_inr_month ? `₹${p.price_inr_month.toLocaleString("en-IN")}` : "Free"}</td></tr>
-        ))}</tbody>
-      </table>
+      <div className="legal-table-wrap">
+        <table className="legal-table">
+          <thead><tr><th>Plan</th><th>Review QRs</th><th>Yearly</th><th>Monthly</th></tr></thead>
+          <tbody>{plans.map((p) => (
+            <tr key={p.code}><td><b>{p.name}</b></td><td>{p.qr_limit}</td>
+              <td>{p.price_inr_year ? `₹${p.price_inr_year.toLocaleString("en-IN")}` : "Free"}</td>
+              <td>{p.price_inr_month ? `₹${p.price_inr_month.toLocaleString("en-IN")}` : "Free"}</td></tr>
+          ))}</tbody>
+        </table>
+      </div>
       <p className="small muted">Prices include all fees charged by us. Each payment covers one month or one year. Nothing renews automatically, so there's nothing to cancel.</p>
-      <Link to="/business" className="btn green block"><Icon name="store" size={18} />List your business</Link>
+      <Link to="/business" className="btn green block" style={{ marginTop: 8 }}><Icon name="store" size={18} />List your business</Link>
     </Doc>
   );
 }
