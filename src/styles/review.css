@@ -178,3 +178,8 @@ a.rvx-cta { text-decoration: none; color: #fff; }
 a.rvx-skip { text-decoration: none; }
 .rvx-status .spinner { width: 22px; height: 22px; }
 a.rvx-cta[aria-disabled="true"] { opacity: 0.5; }
+
+/* Preview step: the buttons sit after the visibility choice instead of floating over it. */
+.rvx-foot.inline { position: static; transform: none; width: auto; margin-top: 8px; padding: 0 20px calc(24px + env(safe-area-inset-bottom)); background: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.rvx-foot.inline .rvx-cta { min-height: 56px; }
+.rvx[data-stage="preview"], .rvx[data-stage="sending"] { padding-bottom: 0; }
