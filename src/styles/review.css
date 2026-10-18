@@ -183,3 +183,15 @@ a.rvx-cta[aria-disabled="true"] { opacity: 0.5; }
 .rvx-foot.inline { position: static; transform: none; width: auto; margin-top: 8px; padding: 0 20px calc(24px + env(safe-area-inset-bottom)); background: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .rvx-foot.inline .rvx-cta { min-height: 56px; }
 .rvx[data-stage="preview"], .rvx[data-stage="sending"] { padding-bottom: 0; }
+
+/* Visit progress ring and verdict stamps. */
+.taste-ring { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--champ); }
+.taste-ring svg { transform: rotate(-90deg); }
+.taste-ring circle { fill: none; stroke-width: 3; }
+.taste-ring .track { stroke: rgba(255, 255, 255, 0.14); }
+.taste-ring .fill { stroke: var(--champ); stroke-linecap: round; transition: stroke-dashoffset 0.4s var(--ease); }
+.wax-stamp { flex: none; padding: 3px 9px; border-radius: 999px; border: 1.5px solid #d9a441; color: #f3d38a; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; transform: rotate(-4deg); animation: stamp-in 0.25s ease-out both; }
+.wax-stamp.ok { border-color: #7fbf9e; color: #a9dcc0; }
+.wax-stamp.bad { border-color: #ff9a78; color: #ffb9a0; }
+@keyframes stamp-in { from { transform: scale(1.6) rotate(-12deg); opacity: 0; } to { transform: rotate(-4deg); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .wax-stamp { animation: none; } }

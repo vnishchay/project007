@@ -1,4 +1,5 @@
 import { focusShop } from "../lib/focus";
+import { playAppleChime, playHapticTap, playWaxStamp } from "../lib/haptics";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { isNegativeTag } from "../lib/reviews";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -143,6 +144,24 @@ function writeDraft(placeId: string, uid: string, d: Draft) {
   try { sessionStorage.setItem(draftKey(placeId, uid), JSON.stringify({ ...d, dishes: d.dishes.map(lite), done: d.done.map(lite) })); } catch { /* storage blocked or full */ }
 }
 
+/** Ring that fills as each dish in the visit gets rated. */
+function TasteRing({ done, total }: { done: number; total: number }) {
+  const r = 9, c = 2 * Math.PI * r, pct = total ? done / total : 0;
+  return (
+    <span className="taste-ring" role="img" aria-label={`${done} of ${total} rated`}>
+      <svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r={r} className="track" /><circle cx="12" cy="12" r={r} className="fill" strokeDasharray={c} strokeDashoffset={c - pct * c} /></svg>
+      {done}/{total}
+    </span>
+  );
+}
+
+/** Stamp naming the verdict the diner gave (from their own stars). */
+function WaxStamp({ rating }: { rating: number }) {
+  if (!rating) return null;
+  const [label, cls] = rating >= 5 ? ["Must try", ""] : rating === 4 ? ["Solid", "ok"] : ["Skip", "bad"];
+  return <span className={`wax-stamp ${cls}`}>{label}</span>;
+}
+
 export default function Review() {
   const { session, loading, profile } = useAuth();
   const { placeId = "" } = useParams();
@@ -161,7 +180,7 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
   };
   const triggerHaptic = (n: number) => {
     try {
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
+      playHapticTap(700 + n * 60);
     } catch {
       /* ignore */
     }
@@ -558,7 +577,7 @@ function ReviewForm() {
       setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       setSaving(false);
       setStage("done");
-      try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15); } catch {}
+      playAppleChime();
     } catch (e) {
       try { win?.close(); } catch { /* already gone */ }
       if (saved.length) setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
@@ -770,7 +789,10 @@ function ReviewForm() {
     return (
       <div className="rvx" data-stage="dish">
         {bar}
-        <div className="rvx-ctx"><Icon name="store" size={14} />{place.name}{dishes.length > 1 && <span> · {at + 1} of {dishes.length}</span>}</div>
+        <div className="rvx-ctx">
+          <Icon name="store" size={14} />{place.name}{dishes.length > 1 && <span> · {at + 1} of {dishes.length}</span>}
+          {dishes.length > 1 && <TasteRing done={dishes.filter((d) => d.rating > 0).length} total={dishes.length} />}
+        </div>
         <section className="rvx-sec" key={dish.key}>
           <h2 ref={head} tabIndex={-1}><i>{dish.name}</i></h2>
           <div className="rvx-face" aria-live="polite">
@@ -793,13 +815,7 @@ function ReviewForm() {
                   className={`rvx-vibe-pill ${v.cls} ${active ? "on" : ""}`}
                   aria-pressed={active}
                   onClick={() => {
-                    try {
-                      if (typeof navigator !== "undefined" && navigator.vibrate) {
-                        navigator.vibrate(12);
-                      }
-                    } catch {
-                      /* ignore */
-                    }
+                    playWaxStamp();
                     patch(at, { rating: v.rating });
                   }}
                 >
@@ -876,6 +892,7 @@ function ReviewForm() {
                 <article key={d.key} className="rvx-rcard">
                   <div className="rvx-rhead">
                     <div className="grow"><b>{d.name}</b><div className="rvx-sm">{place.name}</div></div>
+                    <WaxStamp rating={d.rating} />
                     <span className="rvx-rstars" aria-label={`${d.rating} stars`}>{FACES[d.rating]} {d.rating}<Icon name="star" size={13} fill="#d9a441" color="#d9a441" /></span>
                   </div>
                   {labels.length > 0 && <div className="rvx-chips sm">{labels.map((l) => <span key={l} className={`rvx-chip static ${isNegativeTag(l) ? "bad" : ""}`}>{l}</span>)}</div>}
