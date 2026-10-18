@@ -8,7 +8,7 @@ import type { ReviewRow } from "../lib/types";
 import { placeMediaUrl, shrinkImage } from "../lib/media";
 import { copyText } from "../lib/util";
 import { triggerConfetti } from "../lib/confetti";
-import { Avatar, Icon, Spinner, StarInput, useToast } from "../components/ui";
+import { Avatar, Icon, Spinner, StarInput, TopBar, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { Chip, Cover, EmptyArt, Glyph, MenuRow, Retry, SectionTitle, lookFor } from "../components/home/Kit";
 import "../styles/home.css";
@@ -160,6 +160,7 @@ export default function Me() {
 
   return (
     <div className="page" style={{ gap: 18 }}>
+      <TopBar title="Your profile" />
       {isGuest ? (
         <header className="hero sunset">
           <div className="row" style={{ gap: 12 }}>
