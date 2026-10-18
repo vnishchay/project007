@@ -22,6 +22,7 @@ import Business from "./pages/Business";
 import BusinessSetup from "./pages/BusinessSetup";
 import Admin from "./pages/Admin";
 import AdminPlace from "./pages/AdminPlace";
+import Demo from "./pages/Demo";
 import NotFound from "./pages/NotFound";
 import Manage from "./pages/Manage";
 
@@ -69,6 +70,8 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/refunds" element={<Refunds />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/demo" element={<Demo />} />
+                <Route path="/demo/:slug" element={<Demo />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>

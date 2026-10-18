@@ -20,8 +20,10 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   const [items, setItems] = useState<ItemStat[]>([]);
   const [err, setErr] = useState("");
   const [old, setOld] = useState(false);
-  const [menuCount, setMenuCount] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [hasInsights, setHasInsights] = useState<boolean | null>(null);
+  const [hasAi, setHasAi] = useState<boolean | null>(null);
+  const [planCode, setPlanCode] = useState<string>("trial");
 
   useEffect(() => {
     let alive = true;
@@ -29,22 +31,22 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
     Promise.all([
       supabase.rpc("shop_stats", { p_place: place.id }),
       supabase.rpc("shop_item_stats", { p_place: place.id }),
-    ]).then(([s, i]) => {
+      supabase.rpc("place_has_feature", { p_place: place.id, p_feature: "insights" }),
+      supabase.rpc("place_has_feature", { p_place: place.id, p_feature: "ai_insights" }),
+      supabase.rpc("my_plan", { p_place: place.id }),
+    ]).then(([s, i, fi, fa, mp]) => {
       if (!alive) return;
       if (s.error?.code === "PGRST202") { setOld(true); setStats(null); return; }
       if (s.error) { setErr(errorText(s.error)); setStats(null); return; }
       setStats(((s.data as ShopStats[]) || [])[0] ?? null);
       setItems((i.data as ItemStat[]) || []);
+      if (!fi.error && typeof fi.data === "boolean") setHasInsights(fi.data);
+      if (!fa.error && typeof fa.data === "boolean") setHasAi(fa.data);
+      const plan = (mp.data as { plan?: string }[] | null)?.[0]?.plan;
+      if (plan) setPlanCode(plan);
     });
     return () => { alive = false; };
   }, [place.id, attempt]);
-
-  useEffect(() => {
-    let alive = true;
-    supabase.from("items").select("id", { count: "exact", head: true }).eq("place_id", place.id).eq("is_hidden", false)
-      .then(({ count }) => { if (alive) setMenuCount(count ?? 0); }, () => {});
-    return () => { alive = false; };
-  }, [place.id]);
 
   if (stats === undefined) return (
     <div className="stack"><div className="skeleton" style={{ height: 132, borderRadius: 24 }} /><div className="grid2"><div className="skeleton" style={{ height: 96 }} /><div className="skeleton" style={{ height: 96 }} /></div></div>
@@ -53,6 +55,8 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   if (err) return <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={() => setAttempt((x) => x + 1)}><Icon name="refresh" size={15} />Retry</button></div>;
 
   const s = stats ?? { reviews: 0, avg_rating: null, reviews_30d: 0, verified: 0, google_handoffs: 0, google_handoffs_30d: 0, scans_30d: 0, saves: 0, items_rated: 0 };
+  const isStandardOrPro = hasInsights ?? (planCode !== "trial" && planCode !== "starter");
+  const isPro = hasAi ?? (planCode === "pro" || planCode === "growth_pro" || planCode === "autopilot_vip");
   const best = items.filter((i) => i.reviews > 0 && Number(i.avg_rating) >= 3.5).slice(0, 3);
   const attention = items.filter((i) => i.low_ratings > 0).sort((a, b) => b.low_ratings - a.low_ratings || Number(a.avg_rating) - Number(b.avg_rating)).slice(0, 3);
   const nudgeGoogle = googleConfigured && !place.google_place_id;
@@ -84,13 +88,51 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
       )}
 
       {s.reviews === 0 ? (
-        <Finish place={place} menuCount={menuCount} onGo={onGo} />
+        <div className="mg-empty">
+          <div className="mg-empty-art" aria-hidden="true">
+            <span className="icon-chip lg violet a"><Icon name="scan" size={24} /></span>
+            <span className="icon-chip lg amber b" style={{ width: 60, height: 60 }}><Icon name="star" size={28} /></span>
+            <span className="icon-chip lg c"><Icon name="chart" size={24} /></span>
+          </div>
+          <h2>Your first reviews start here</h2>
+          <p className="small muted" style={{ maxWidth: 270 }}>Put a QR on each table. Customers scan, rate what they had, and these numbers grow.</p>
+          <button className="btn green" onClick={() => onGo("qr")}><Icon name="print" size={18} />Print table QRs</button>
+        </div>
       ) : (
         <>
-          {best.length > 0 && <ItemBlock title="Most loved" icon="trophy" cls="amber" rows={best} />}
-          {attention.length > 0 && <ItemBlock title="Needs attention" icon="alert" cls="coral" rows={attention} low />}
-          {best.length === 0 && attention.length === 0 && <p className="small muted center">Product ratings show here once customers rate them.</p>}
-          {s.reviews >= 3 && <AiTips placeId={place.id} />}
+          {isStandardOrPro ? (
+            <>
+              {best.length > 0 && <ItemBlock title="Most loved" icon="trophy" cls="amber" rows={best} />}
+              {attention.length > 0 && <ItemBlock title="Needs attention" icon="alert" cls="coral" rows={attention} low />}
+              {best.length === 0 && attention.length === 0 && <p className="small muted center">Product ratings show here once customers rate them.</p>}
+            </>
+          ) : (
+            <div style={{ position: "relative" }}>
+              <div style={{ filter: "blur(4.5px)", pointerEvents: "none", userSelect: "none", opacity: 0.6 }}>
+                <ItemBlock
+                  title="Most loved (Sample)"
+                  icon="trophy"
+                  cls="amber"
+                  rows={[
+                    { item_id: "sample-1", name: "Truffle Pasta", image_path: null, reviews: 24, avg_rating: 4.8, low_ratings: 0 },
+                    { item_id: "sample-2", name: "Artisan Burrata", image_path: null, reviews: 18, avg_rating: 4.6, low_ratings: 1 },
+                  ]}
+                />
+              </div>
+              <div className="callout violet" style={{ margin: "10px 0", alignItems: "flex-start" }}>
+                <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
+                <div className="grow stack tight">
+                  <strong>Dish-Level Ratings & Insights</strong>
+                  <span className="tiny">Standard and Growth Pro plans unlock detailed ratings for every dish, low-rating warnings, and sentiment ranking.</span>
+                  <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
+                    <Icon name="crown" size={14} />See plans
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <PrivateNotes placeId={place.id} onGo={onGo} />
+          {s.reviews >= 3 && <AiTips placeId={place.id} isPro={isPro} onGo={onGo} />}
         </>
       )}
       <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Counts only. Customers stay private.</p>
@@ -98,27 +140,59 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   );
 }
 
-/** The free way to finish a shop: menu, then links, then (optionally, with a plan) table QRs. */
-function Finish({ place, menuCount, onGo }: { place: Place; menuCount: number | null; onGo: (t: ManageTab) => void }) {
-  const links = ((place as Place & { links?: { kind: string }[] }).links ?? []).filter((l) => l.kind !== "maps").length;
-  const steps: { id: ManageTab; icon: IconName; tint: string; title: string; sub: string; done: boolean; cta: string; tag?: string }[] = [
-    { id: "products", icon: "box", tint: "violet", title: "Add your menu", sub: "Snap a photo and we add the items", done: (menuCount ?? 0) > 0, cta: "Start", tag: "Free" },
-    { id: "links", icon: "link", tint: "sky", title: "Add your links", sub: "Swiggy, Zomato, Instagram, WhatsApp", done: links > 0, cta: "Add", tag: "Free" },
-    { id: "qr", icon: "qr", tint: "amber", title: "Print your table QRs", sub: "Optional. Pick a plan when you are ready", done: false, cta: "Unlock" },
-  ];
-  const done = steps.filter((x) => x.done).length;
-  const first = steps.findIndex((x) => !x.done);
+interface NoteRow { id: string; item_name: string | null; created_at: string; read_at: string | null; locked: boolean; body: string | null; contact: string | null }
+
+/** Private notes from customers at the shop. The server withholds the text and contact until the plan includes notes. */
+function PrivateNotes({ placeId, onGo }: { placeId: string; onGo: (t: ManageTab) => void }) {
+  const [notes, setNotes] = useState<NoteRow[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    supabase.rpc("my_owner_notes", { p_place: placeId }).then(({ data, error }) => {
+      if (alive) setNotes(error ? [] : ((data as NoteRow[]) || []));
+    });
+    return () => { alive = false; };
+  }, [placeId]);
+
+  async function markRead(id: string) {
+    const { error } = await supabase.rpc("mark_note_read", { p_note: id });
+    if (!error) setNotes((prev) => (prev || []).map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)));
+  }
+
+  if (!notes || notes.length === 0) return null;
+  const locked = notes.some((n) => n.locked);
+  const unread = notes.filter((n) => !n.read_at).length;
+
   return (
-    <section className="fn" aria-label="Finish your shop">
-      <div className="fn-head"><span className="grow">Finish your shop</span><span className="fn-count">{done} of {steps.length} done</span></div>
-      <p className="small muted">Your page works fully for free. Add the rest in any order.</p>
-      {steps.map((x, i) => (
-        <button key={x.id} type="button" className={`fn-step ${x.done ? "done" : ""} ${i === first ? "now" : ""}`} onClick={() => onGo(x.id)}>
-          <span className={`icon-chip ${x.tint}`}><Icon name={x.done ? "check" : x.icon} size={20} width={x.done ? 3 : 2} /></span>
-          <span className="grow"><b>{x.title}{x.tag && <span className="fn-tag">{x.tag}</span>}</b><span className="small muted">{x.sub}</span></span>
-          {x.done ? null : i === first ? <span className="fn-go">{x.cta}</span> : <Icon name="chev" size={18} color="var(--muted)" />}
-        </button>
-      ))}
+    <section className="mg-section" style={{ gap: 10 }}>
+      <div className="mg-section-head">
+        <span className="icon-chip sm coral"><Icon name="message" size={16} /></span>
+        <span className="grow strong">Private notes</span>
+        {unread > 0 && <span className="badge coral">{unread} new</span>}
+      </div>
+      <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>Customers at your shop can send you a note. You never see who sent it, unless they leave a phone or email for a reply.</p>
+      <div className="stack" style={{ gap: 8 }}>
+        {notes.slice(0, 10).map((n) => (
+          <div key={n.id} className="card" style={{ padding: 12 }}>
+            <div className="row" style={{ alignItems: "center", gap: 6, marginBottom: 4 }}>
+              {n.item_name && <strong className="small grow ellipsis">{n.item_name}</strong>}
+              <span className="tiny muted" style={{ marginLeft: "auto" }}>{new Date(n.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
+            </div>
+            {n.locked ? (
+              <p className="small" aria-hidden="true" style={{ margin: 0, filter: "blur(5px)", userSelect: "none" }}>A private note is waiting for you. Upgrade your plan to read it.</p>
+            ) : (
+              <>
+                <p className="small" style={{ margin: 0, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{n.body}</p>
+                {n.contact && <p className="tiny muted" style={{ margin: "6px 0 0" }}>Reply to: <strong style={{ color: "var(--ink)" }}>{n.contact}</strong></p>}
+                {!n.read_at && <button type="button" className="btn ghost small" style={{ marginTop: 8 }} onClick={() => markRead(n.id)}><Icon name="check" size={14} />Mark as read</button>}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      {locked && (
+        <button type="button" className="btn green small" style={{ alignSelf: "flex-start" }} onClick={() => onGo("plan")}><Icon name="crown" size={14} />See plans</button>
+      )}
     </section>
   );
 }
@@ -126,7 +200,7 @@ function Finish({ place, menuCount, onGo }: { place: Place; menuCount: number | 
 interface Tips { summary: string; loved: string[]; fix: string[] }
 
 /** On demand only, so it costs an AI call just when the owner asks. */
-function AiTips({ placeId }: { placeId: string }) {
+function AiTips({ placeId, isPro, onGo }: { placeId: string; isPro: boolean; onGo: (t: ManageTab) => void }) {
   const [tips, setTips] = useState<Tips | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -138,7 +212,18 @@ function AiTips({ placeId }: { placeId: string }) {
   return (
     <section className="mg-section ai-tips">
       <div className="mg-section-head"><span className="icon-chip sm violet"><Icon name="spark" size={16} /></span><span className="grow">What your reviews say</span></div>
-      {!tips ? (
+      {!isPro ? (
+        <div className="callout violet" style={{ margin: "4px 0", alignItems: "flex-start" }}>
+          <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
+          <div className="grow stack tight">
+            <strong style={{ fontSize: 14 }}>AI Review Analysis & Recipe Tips</strong>
+            <span className="tiny">AI reads your customer reviews to highlight what diners love and what to fix first on Pro and Growth Pro plans.</span>
+            <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
+              <Icon name="crown" size={14} />See plans
+            </button>
+          </div>
+        </div>
+      ) : !tips ? (
         <>
           <p className="small muted">AI reads your recent reviews and tells you what customers love and what to fix first.</p>
           <button type="button" className="btn ghost block" disabled={busy} onClick={run}><Icon name="spark" size={18} />{busy ? "Reading your reviews…" : "Read my reviews"}</button>

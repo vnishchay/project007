@@ -6,7 +6,9 @@ import { olderThan } from "../lib/reviews";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { placeMediaUrl, shrinkImage } from "../lib/media";
-import { Avatar, Icon, Spinner, StarInput, useToast } from "../components/ui";
+import { copyText } from "../lib/util";
+import { triggerConfetti } from "../lib/confetti";
+import { Avatar, Icon, Spinner, StarInput, TopBar, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { Chip, Cover, EmptyArt, Glyph, MenuRow, Retry, SectionTitle, lookFor } from "../components/home/Kit";
 import "../styles/home.css";
@@ -158,6 +160,7 @@ export default function Me() {
 
   return (
     <div className="page" style={{ gap: 18 }}>
+      <TopBar title="Your profile" />
       {isGuest ? (
         <header className="hero sunset">
           <div className="row" style={{ gap: 12 }}>
@@ -226,6 +229,8 @@ export default function Me() {
               <button className="btn green block" disabled={busy}><Icon name="check" size={18} />{busy ? "Saving…" : "Save"}</button>
             </form>
           )}
+
+          <FoodPassport reviews={reviews || []} city={profile?.city} userId={me} />
 
           <InviteCard />
 
@@ -357,6 +362,116 @@ export default function Me() {
           <MenuRow icon="logout" tone="coral" title={signingOut ? "Signing out…" : "Sign out"} onClick={doSignOut} right={<span />} />
         </div>
       )}
+    </div>
+  );
+}
+
+function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: string | null; userId?: string }) {
+  const toast = useToast();
+  const [expertBadges, setExpertBadges] = useState<string[]>([]);
+  const verifiedCount = reviews.filter((r) => r.verified).length;
+  const placeCount = new Set(reviews.map((r) => r.place_id)).size;
+  const mustTryCount = reviews.filter((r) => r.rating === 5).length;
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("user_topic_stats")
+      .select("review_count, is_expert, topics(name)")
+      .eq("user_id", userId)
+      .eq("is_expert", true)
+      .then(({ data, error }) => {
+        if (!error && data) {
+          const list = (data as unknown as { topics: { name: string } | null }[])
+            .map((t) => t.topics?.name || "")
+            .filter(Boolean);
+          setExpertBadges(list);
+        }
+      });
+  }, [userId]);
+
+  const areas = Array.from(
+    new Set(reviews.map((r) => r.places?.area).filter(Boolean))
+  ).slice(0, 4) as string[];
+
+  async function sharePassport() {
+    const text = `My Dining Journal on Trusted Picks: ${reviews.length} dishes reviewed across ${placeCount} local spots.`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "My Dining Journal", text, url: window.location.href });
+      } catch {
+        /* dismissed */
+      }
+    } else {
+      await copyText(`${text}\n${window.location.href}`);
+      toast("Profile summary link copied");
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      <div className="row between" style={{ alignItems: "center" }}>
+        <div className="stack tight">
+          <span className="strong" style={{ fontSize: 17 }}>Dining Journal</span>
+          <span className="tiny muted">{city ? `${city} Chapter` : "Verified Dining Activity"}</span>
+        </div>
+        <span className="badge green">
+          <Icon name="verified" size={13} />
+          <span>{verifiedCount} Verified</span>
+        </span>
+      </div>
+
+      <div className="stats" style={{ margin: "4px 0", borderTop: "0.5px solid var(--line-soft)", borderBottom: "0.5px solid var(--line-soft)" }}>
+        <div className="stack tight center">
+          <span className="n">{reviews.length}</span>
+          <span className="l">Dishes Rated</span>
+        </div>
+        <div className="stack tight center">
+          <span className="n">{placeCount}</span>
+          <span className="l">Spots Visited</span>
+        </div>
+        <div className="stack tight center">
+          <span className="n">{mustTryCount}</span>
+          <span className="l">Must-Tries</span>
+        </div>
+      </div>
+
+      {expertBadges.length > 0 && (
+        <div className="stack tight" style={{ marginTop: 2 }}>
+          <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 10 }}>
+            <Icon name="award" size={11} color="var(--amber)" /> Community Badges
+          </span>
+          <div className="chips" style={{ gap: 6 }}>
+            {expertBadges.map((b) => (
+              <span key={b} className="badge amber" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", fontSize: 12 }}>
+                <Icon name="trophy" size={12} />
+                <span>{b} Expert</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {areas.length > 0 && (
+        <div className="chips" style={{ marginTop: expertBadges.length > 0 ? 4 : 0 }}>
+          {areas.map((a) => (
+            <span key={a} className="chip">
+              <Icon name="pin" size={12} />
+              <span>{a}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="btn ghost small block"
+        style={{ marginTop: 2 }}
+        onClick={sharePassport}
+      >
+        <Icon name="share" size={15} />
+        <span>Share Dining Summary</span>
+      </button>
     </div>
   );
 }

@@ -12,9 +12,61 @@ export interface ShopItem {
   price_inr: number | null;
   sort_order: number;
   is_listed: boolean;
+  diet?: string[] | null;
 }
 
-export const ITEM_COLS = "id, place_id, topic_id, name, image_path, description, price_inr, sort_order, is_listed, is_hidden";
+export const ITEM_COLS = "id, place_id, topic_id, name, image_path, description, price_inr, sort_order, is_listed, is_hidden, diet";
+export const ITEM_COLS_LEGACY = "id, place_id, topic_id, name, image_path, description, price_inr, sort_order, is_listed, is_hidden";
+
+export type DietType = "veg" | "non_veg" | "egg" | "vegan" | "jain" | "gluten_free";
+export const DIET_OPTIONS: { id: DietType; label: string; color: string }[] = [
+  { id: "veg", label: "Veg", color: "#16a34a" },
+  { id: "non_veg", label: "Non-Veg", color: "#dc2626" },
+  { id: "egg", label: "Egg", color: "#ca8a04" },
+  { id: "vegan", label: "Vegan", color: "#059669" },
+  { id: "jain", label: "Jain", color: "#ea580c" },
+  { id: "gluten_free", label: "Gluten-Free", color: "#64748b" },
+];
+
+export function DietDot({ diet }: { diet?: string[] | null }) {
+  if (!diet || !diet.length) return null;
+  const isVeg = diet.includes("veg") || diet.includes("vegan");
+  const isNonVeg = diet.includes("non_veg");
+  const isEgg = diet.includes("egg");
+  if (!isVeg && !isNonVeg && !isEgg) return null;
+
+  const color = isNonVeg ? "#dc2626" : isEgg ? "#ca8a04" : "#16a34a";
+  const title = isNonVeg ? "Non-Vegetarian" : isEgg ? "Contains Egg" : "Vegetarian";
+
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 13,
+        height: 13,
+        border: `1.5px solid ${color}`,
+        borderRadius: 2.5,
+        padding: 1.5,
+        flexShrink: 0,
+        verticalAlign: "middle",
+        marginRight: 4,
+      }}
+    >
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: isNonVeg ? 1 : "50%",
+          backgroundColor: color,
+        }}
+      />
+    </span>
+  );
+}
 
 /** The database hasn't been updated with the shop columns yet. */
 export function missingColumn(e: { code?: string; message?: string } | null | undefined): boolean {
@@ -23,7 +75,11 @@ export function missingColumn(e: { code?: string; message?: string } | null | un
 
 /** Products a place shows (not hidden), shop-listed ones first. */
 export async function loadShopItems(placeId: string): Promise<{ items: ShopItem[]; error: { message: string; code?: string } | null }> {
-  const r = await supabase.from("items").select(ITEM_COLS).eq("place_id", placeId).eq("is_hidden", false);
+  let r: { data: Record<string, unknown>[] | null; error: { message: string; code?: string } | null } =
+    await supabase.from("items").select(ITEM_COLS).eq("place_id", placeId).eq("is_hidden", false) as any;
+  if (missingColumn(r.error)) {
+    r = await supabase.from("items").select(ITEM_COLS_LEGACY).eq("place_id", placeId).eq("is_hidden", false) as any;
+  }
   if (!r.error) return { items: (r.data || []).map(toItem), error: null };
   if (!missingColumn(r.error)) return { items: [], error: r.error };
   const old = await supabase.from("items").select("id, name, topic_id").eq("place_id", placeId);
@@ -40,6 +96,7 @@ function toItem(x: Record<string, unknown>): ShopItem {
     price_inr: (x.price_inr as number | null) ?? null,
     sort_order: (x.sort_order as number | null) ?? 0,
     is_listed: Boolean(x.is_listed),
+    diet: Array.isArray(x.diet) ? (x.diet as string[]) : null,
   };
 }
 

@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import type { ReviewRow } from "../lib/types";
+import { isUuid, type ReviewRow } from "../lib/types";
 import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
+import { deviceId } from "../lib/device";
+import { generateStoryCard } from "../lib/story";
 import { Icon, Spinner, Stars, useToast } from "../components/ui";
 import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
@@ -49,7 +51,16 @@ export default function Saved() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoSaved, setPhotoSaved] = useState(false);
 
+  // Reputation Shield & Private Feedback state
+  const [showPrivateForm, setShowPrivateForm] = useState(false);
+  const [privateNote, setPrivateNote] = useState("");
+  const [contactInfo, setContactInfo] = useState("");
+  const [sendingNote, setSendingNote] = useState(false);
+  const [noteSent, setNoteSent] = useState(false);
+  const [sharingStory, setSharingStory] = useState(false);
+
   useEffect(() => {
+    if (!isUuid(reviewId)) { setR(null); return; }
     let alive = true;
     setLoadErr("");
     supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("id", reviewId).maybeSingle().then(({ data, error }) => {
@@ -57,8 +68,11 @@ export default function Saved() {
       if (error && !/invalid input syntax for type uuid/i.test(error.message)) { setLoadErr(errorText(error)); return; }
       const row = (data as unknown as ReviewRow) ?? null;
       setR(row);
-      if (row && !row.places?.google_place_id) {
-        supabase.from("places").select("city").eq("id", row.place_id).maybeSingle().then(({ data: p }) => { if (alive) setCity((p as { city?: string } | null)?.city ?? null); });
+      if (row) {
+        if (!row.places?.google_place_id) {
+          supabase.from("places").select("city").eq("id", row.place_id).maybeSingle().then(({ data: p }) => { if (alive) setCity((p as { city?: string } | null)?.city ?? null); });
+        }
+        if (row.body) setPrivateNote(row.body);
       }
     }, (e: unknown) => { if (alive) setLoadErr(errorText(e)); });
     return () => { alive = false; };
@@ -142,16 +156,60 @@ export default function Saved() {
   }
 
   async function share() {
-    const url = await shareLink(`/p/${r!.place_id}`, "review");
-    const msg = `${r!.items?.name} at ${r!.places?.name}: ${"★".repeat(r!.rating)}\n${r!.body}`.trim();
-    if (navigator.share) {
-      try {
-        const file = await storyCard(r!);
-        if (file && navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], text: msg, url });
-        else await navigator.share({ text: msg, url });
-      } catch { /* dismissed */ }
-    } else if (await copyText(`${msg}\n${url}`)) toast("Copied, ready to paste");
-    else toast("Couldn't copy the link");
+    setSharingStory(true);
+    try {
+      const url = await shareLink(`/p/${r!.place_id}`, "review");
+      const msg = `${r!.items?.name} at ${r!.places?.name}: ${"★".repeat(r!.rating)}\n${r!.body}`.trim();
+      const file = await generateStoryCard({
+        itemName: r!.items?.name || "",
+        placeName: r!.places?.name || "",
+        rating: r!.rating,
+        body: r!.body,
+        photoBlob: photo,
+      });
+      if (navigator.share) {
+        if (file && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], text: msg, url });
+        } else {
+          await navigator.share({ text: msg, url });
+        }
+      } else if (file) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(file);
+        a.download = "verified-food-story.png";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        toast("Story card downloaded for Instagram / WhatsApp!");
+      } else if (await copyText(`${msg}\n${url}`)) {
+        toast("Copied, ready to paste");
+      }
+    } catch {
+      /* dismissed */
+    } finally {
+      setSharingStory(false);
+    }
+  }
+
+  async function sendPrivateFeedback() {
+    if (!privateNote.trim()) { toast("Write a quick note for the owner first"); return; }
+    setSendingNote(true);
+    try {
+      // Not linked to the review or the account, so the owner never learns who sent it.
+      const { error } = await supabase.rpc("send_owner_note", {
+        p_place: r!.place_id,
+        p_body: privateNote.trim(),
+        p_contact: contactInfo.trim() || null,
+        p_device: deviceId(),
+      });
+      if (error) throw error;
+      setNoteSent(true);
+      setShowPrivateForm(false);
+      toast("Your private note was sent to the owner.");
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setSendingNote(false);
+    }
   }
 
   const who: { icon: GlyphName; text: string } = isGuest || !r.is_public
@@ -166,6 +224,7 @@ export default function Saved() {
         <span className="pill white"><Glyph name={who.icon} size={13} />{who.text}</span>
       </header>
 
+      {/* Review summary preview */}
       <div className="card">
         <div className="row" style={{ alignItems: "flex-start" }}>
           <Chip icon={r.verified ? "verified" : "star"} tone={r.verified ? "sky" : "amber"} />
@@ -176,46 +235,87 @@ export default function Saved() {
           <Stars value={r.rating} />
         </div>
         {r.body && <p style={{ lineHeight: 1.5, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.body}</p>}
-        <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={share}><Icon name="share" size={16} />Share with friends</button>
-      </div>
-
-      <section className="card" aria-labelledby="google-h">
-        <SectionTitle icon="globe" tone="sky"><span id="google-h">Post it on Google too</span></SectionTitle>
-        <ol className="step-list">
-          {steps.map(([icon, s], i) => (
-            <li key={s}>
-              <span className={`icon-chip sm ${i === 0 || opened ? "" : "sky"}`} aria-hidden="true">{i === 0 || opened ? <Icon name="check" size={16} width={2.6} /> : <Glyph name={icon} size={16} />}</span>
-              <span>{s}</span>
-            </li>
-          ))}
-        </ol>
-        <div className="g-stars-hint" aria-label={`On Google, tap ${stars}`}>
-          <span className="small strong">On Google, tap</span>
-          <Stars value={r.rating} />
-        </div>
-        {photo && (
-          <button type="button" className={`btn small ${photoSaved ? "quiet" : "ghost"}`} style={{ alignSelf: "flex-start" }} onClick={savePhoto}>
-            <Icon name={photoSaved ? "check" : "image"} size={16} />{photoSaved ? "Photo saved" : "Save your photo first"}
+        <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
+          <button type="button" className="btn small green" onClick={share} disabled={sharingStory}>
+            <Icon name="share" size={16} />{sharingStory ? "Preparing story…" : "Share Story Card"}
           </button>
-        )}
-        <p className="tiny muted row" style={{ gap: 6, alignItems: "flex-start" }}><Icon name="info" size={14} />Google only lets you post yourself, so the last tap is yours.</p>
-        {copyFailed && (
-          <label className="stack tight">
-            <span className="small strong row" style={{ gap: 6 }}><Icon name="copy" size={14} />Copy by hand</span>
-            <textarea className="textarea" readOnly value={text} onFocus={(e) => e.currentTarget.select()} />
-          </label>
-        )}
-        {copyFailed && (
-          <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ alignSelf: "flex-start" }}><Icon name="external" size={16} />Open {gid ? "Google" : "Google Maps"}</a>
-        )}
-      </section>
-
-      <div className="stack" style={{ marginTop: "auto" }}>
-        <button type="button" className="btn green block" onClick={openGoogle}><Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}</button>
-        <Link to={`/p/${r.place_id}`} replace={opened} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Not now"}</Link>
+        </div>
       </div>
 
-      {isGuest && opened && (
+      {/* Google is offered at every rating; the private note sits beside it, never instead of it. */}
+        <section className="card" aria-labelledby="google-h">
+          <SectionTitle icon="globe" tone="sky"><span id="google-h">Post it on Google too</span></SectionTitle>
+          <ol className="step-list">
+            {steps.map(([icon, s], i) => (
+              <li key={s}>
+                <span className={`icon-chip sm ${i === 0 || opened ? "" : "sky"}`} aria-hidden="true">{i === 0 || opened ? <Icon name="check" size={16} width={2.6} /> : <Glyph name={icon} size={16} />}</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="g-stars-hint" aria-label={`On Google, tap ${stars}`}>
+            <span className="small strong">On Google, tap</span>
+            <Stars value={r.rating} />
+          </div>
+          {photo && (
+            <button type="button" className={`btn small ${photoSaved ? "quiet" : "ghost"}`} style={{ alignSelf: "flex-start" }} onClick={savePhoto}>
+              <Icon name={photoSaved ? "check" : "image"} size={16} />{photoSaved ? "Photo saved" : "Save your photo first"}
+            </button>
+          )}
+          <p className="tiny muted row" style={{ gap: 6, alignItems: "flex-start" }}><Icon name="info" size={14} />Google only lets you post yourself, so the last tap is yours.</p>
+          {copyFailed && (
+            <label className="stack tight">
+              <span className="small strong row" style={{ gap: 6 }}><Icon name="copy" size={14} />Copy by hand</span>
+              <textarea className="textarea" readOnly value={text} onFocus={(e) => e.currentTarget.select()} />
+            </label>
+          )}
+          {copyFailed && (
+            <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="link-btn" style={{ alignSelf: "flex-start" }}><Icon name="external" size={16} />Open {gid ? "Google" : "Google Maps"}</a>
+          )}
+
+          {/* Optional VIP note to kitchen */}
+          {!noteSent && (
+            <div style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+              {showPrivateForm ? (
+                <div className="stack" style={{ gap: 8 }}>
+                  <span className="small strong">Send a private note to the owner:</span>
+                  <textarea
+                    className="textarea"
+                    placeholder="Tell the owner what went well or what could be better"
+                    value={privateNote}
+                    onChange={(e) => setPrivateNote(e.target.value)}
+                    rows={2}
+                  />
+                  <div className="row" style={{ gap: 8 }}>
+                    <button type="button" className="btn green small" disabled={sendingNote} onClick={sendPrivateFeedback}>
+                      {sendingNote ? "Sending…" : "Send to the owner"}
+                    </button>
+                    <button type="button" className="btn ghost small" onClick={() => setShowPrivateForm(false)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className="link-btn small" onClick={() => setShowPrivateForm(true)}>
+                  <Icon name="message" size={14} />Send a private note to the owner
+                </button>
+              )}
+            </div>
+          )}
+          {noteSent && (
+            <span className="tiny green strong row" style={{ gap: 4, marginTop: 4 }}>
+              <Icon name="check" size={13} />Private note sent to the owner
+            </span>
+          )}
+        </section>
+
+      {/* Main bottom navigation */}
+      <div className="stack" style={{ marginTop: "auto" }}>
+        <button type="button" className="btn green block" onClick={openGoogle}>
+          <Icon name="copy" size={18} />{gid ? "Copy and open Google" : "Copy and open Google Maps"}
+        </button>
+        <Link to={`/p/${r.place_id}`} className="btn block quiet">{opened ? <><Icon name="back" size={18} />Back to the place</> : "Done"}</Link>
+      </div>
+
+      {isGuest && (opened || noteSent) && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${r.place_id}`)}`} className="callout violet">
           <Chip icon="lock" tone="violet" />
           <span className="grow stack tight">
@@ -227,45 +327,4 @@ export default function Saved() {
       )}
     </div>
   );
-}
-
-// A simple 1080x1350 image of the review for Instagram or WhatsApp status.
-async function storyCard(r: ReviewRow): Promise<File | null> {
-  try {
-    await document.fonts?.ready;
-    const c = document.createElement("canvas");
-    c.width = 1080; c.height = 1350;
-    const g = c.getContext("2d")!;
-    g.fillStyle = "#F5F6F4"; g.fillRect(0, 0, 1080, 1350);
-    g.fillStyle = "#FFFFFF"; roundRect(g, 80, 160, 920, 1030, 56); g.fill();
-    g.fillStyle = "#d4290f"; g.font = "700 40px Inter, -apple-system, system-ui, sans-serif"; g.fillText("Trusted Picks", 150, 270);
-    g.fillStyle = "#1c1c1e"; g.font = "800 72px Inter, -apple-system, system-ui, sans-serif";
-    wrap(g, r.items?.name || "", 150, 400, 780, 84, 2);
-    g.fillStyle = "#636366"; g.font = "600 40px Inter, -apple-system, system-ui, sans-serif"; g.fillText(r.places?.name || "", 150, 560);
-    g.fillStyle = "#E0A100"; g.font = "64px sans-serif"; g.fillText("★".repeat(r.rating) + "☆".repeat(5 - r.rating), 150, 670);
-    g.fillStyle = "#3a3a3c"; g.font = "500 40px Inter, -apple-system, system-ui, sans-serif";
-    wrap(g, r.body ? `“${r.body}”` : "", 150, 780, 780, 58, 6);
-    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
-    return blob ? new File([blob], "trusted-pick.png", { type: "image/png" }) : null;
-  } catch {
-    return null;
-  }
-}
-
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-}
-
-function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number, lines: number) {
-  const words = text.split(/\s+/);
-  let line = "";
-  let n = 0;
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (g.measureText(test).width > max && line) {
-      if (++n >= lines) { g.fillText(line + "…", x, y); return; }
-      g.fillText(line, x, y); y += lh; line = w;
-    } else line = test;
-  }
-  if (line) g.fillText(line, x, y);
 }

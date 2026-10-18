@@ -7,9 +7,10 @@ import { useSettings, type AppSettings } from "../lib/settings";
 import type { Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
 import { syncPinFromGoogle } from "../lib/pin";
-import { Icon, useToast, type IconName } from "../components/ui";
+import { Icon, TopBar, useToast, type IconName } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { CoordsField } from "../components/CoordsField";
+import { GoogleFind, areaCityFromAddress, matchCategory } from "../components/manage/Google";
 import "../styles/manage.css";
 
 type Tab = "verify" | "places" | "reviews" | "alerts" | "claims" | "billing" | "settings";
@@ -29,6 +30,7 @@ export default function Admin() {
 
   return (
     <div className="page">
+      <TopBar title="Admin" />
       <div className="ad-head">
         <span className="icon-chip lg violet"><Icon name="shield" size={26} /></span>
         <h1 className="grow">Admin</h1>
@@ -196,7 +198,23 @@ function Places({ onChange }: { onChange: () => void }) {
       {adding ? (
         <form className="card" onSubmit={add}>
           <h2>Add a place</h2>
-          <div className="grid2">
+          <p className="tiny muted" style={{ margin: "-4px 0 8px" }}>
+            Search Google Places to auto-fill details, or type them directly:
+          </p>
+          <GoogleFind
+            placeholder="Search Google Places to auto-fill"
+            onPick={(m) => {
+              const { area, city } = areaCityFromAddress(m.address);
+              setF({
+                name: m.name,
+                category: matchCategory(m) || f.category || "Restaurant",
+                area: area || f.area,
+                city: city || f.city || "Pune",
+                google_place_id: m.id,
+              });
+            }}
+          />
+          <div className="grid2" style={{ marginTop: 8 }}>
             <input className="input" required placeholder="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
             <input className="input" required placeholder="Category" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} />
             <input className="input" placeholder="Area" value={f.area} onChange={(e) => setF({ ...f, area: e.target.value })} />

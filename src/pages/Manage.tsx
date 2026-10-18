@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import type { Place, QrCode } from "../lib/types";
+import { isUuid, type Place, type QrCode } from "../lib/types";
 import { Icon, Spinner, TopBar, useToast } from "../components/ui";
 import { ShopHeader } from "../components/manage/ShopHeader";
 import { Products } from "../components/manage/Products";
@@ -46,6 +46,11 @@ export default function Manage() {
   const pinState = usePin(placeId, place?.google_place_id);
 
   useEffect(() => {
+    if (!isUuid(placeId)) {
+      setAllowed(false);
+      setPlace(null);
+      return;
+    }
     let alive = true;
     setErr("");
     (async () => {

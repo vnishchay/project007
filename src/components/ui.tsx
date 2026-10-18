@@ -1,6 +1,6 @@
 import { allowedInFocus, clearFocusShop, focusShop } from "../lib/focus";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { Link, Navigate, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import QRCode from "qrcode";
 import * as L from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -23,6 +23,7 @@ const ICONS = {
   flame: L.Flame, trophy: L.Trophy, award: L.Award, lock: L.Lock, send: L.Send, info: L.Info, alert: L.CircleAlert,
   zap: L.Zap, flag: L.Flag, wallet: L.Wallet, dashboard: L.LayoutDashboard, chart: L.ChartBar, filter: L.Filter, list: L.List,
   grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, cake: L.CakeSlice, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,
+  gift: L.Gift, chevronRight: L.ChevronRight, arrowLeft: L.ArrowLeft, fileText: L.FileText,
 } satisfies Record<string, L.LucideIcon>;
 export type IconName = keyof typeof ICONS;
 
@@ -72,6 +73,9 @@ export function Avatar({ id, name, path, size = "" }: { id: string; name: string
 export function Layout({ children }: { children: ReactNode }) {
   const { authError, clearAuthError, session, isGuest, loading } = useAuth();
   const loc = useLocation();
+  const navType = useNavigationType();
+  // Every new screen opens at the top. Back/forward (POP) keeps the browser's own restored position.
+  useLayoutEffect(() => { if (navType !== "POP") window.scrollTo(0, 0); }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   // Shop mode keeps customers (guests, signed-out visitors) with the shop they scanned. A signed-in
   // account may be the owner, so it always gets the full app, never a redirect to the shop page.
   const account = Boolean(session) && !isGuest;
@@ -117,6 +121,13 @@ export function TopBar({ title, sub, right }: { title?: ReactNode; sub?: ReactNo
       {right}
     </div>
   );
+}
+
+/** Back button for the dark review-style screens. Hidden in shop mode, where customers stay with the shop they scanned. */
+export function RvxBack({ fallback = "/" }: { fallback?: string }) {
+  const nav = useNavigate();
+  if (focusShop()) return null;
+  return <button type="button" className="rvx-back" aria-label="Back" onClick={() => goBack(nav, fallback)}><Icon name="back" size={20} /></button>;
 }
 
 export function Spinner() { return <div className="spinner" role="status" aria-label="Loading" />; }
