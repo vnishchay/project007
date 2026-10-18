@@ -428,6 +428,25 @@ function ReviewForm() {
     else if (stage === "dish") { if (at > 0) setAt(at - 1); else setStage("pick"); }
   }
 
+  // The phone's own Back (Android button, iPhone swipe) steps back through the questions instead of
+  // leaving the review. One extra history entry is held while answering and dropped when we leave the steps.
+  const backRef = useRef(back);
+  backRef.current = back;
+  const answering = stage === "dish" || stage === "preview";
+  const held = useRef(false);
+  useEffect(() => {
+    if (!answering) return;
+    if (!held.current) { window.history.pushState({ ...window.history.state, rvx: 1 }, ""); held.current = true; }
+    const onPop = () => { held.current = false; backRef.current(); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [answering, stage, at]);
+  useEffect(() => {
+    if (answering || !held.current) return;
+    held.current = false;
+    if (window.history.state?.rvx) window.history.back();
+  }, [answering]);
+
   const gUrl = place?.google_place_id
     ? googleReviewUrl(place.google_place_id)
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([place?.name, place?.area, place?.city].filter(Boolean).join(" "))}`;
