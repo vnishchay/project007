@@ -12,6 +12,12 @@
 .hero a:not(.btn) { color: #fff; }
 .hero.violet { background: #2b2a5e; }
 .hero.sunset { background: #6b2e14; }
+/* Top bar sitting on a dark hero: same colour, so the two read as one block. */
+.topbar.on-hero, .topbar.on-sunset { background: var(--hero); border-bottom: 0; color: #fff; }
+.topbar.on-sunset { background: #6b2e14; }
+.topbar.on-hero .icon-btn, .topbar.on-sunset .icon-btn { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.topbar.on-hero .muted, .topbar.on-sunset .muted { color: rgba(255, 255, 255, 0.7); }
+.topbar.on-hero + .hero, .topbar.on-sunset + .hero { border-top-left-radius: 0; border-top-right-radius: 0; }
 .hero.sky { background: #17375e; }
 .hero.compact { padding-bottom: 22px; gap: 10px; }
 

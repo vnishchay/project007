@@ -160,7 +160,7 @@ export default function Me() {
 
   return (
     <div className="page" style={{ gap: 18 }}>
-      <TopBar title="Your profile" />
+      <TopBar title="Your profile" tone={isGuest ? "sunset" : "hero"} />
       {isGuest ? (
         <header className="hero sunset">
           <div className="row" style={{ gap: 12 }}>
