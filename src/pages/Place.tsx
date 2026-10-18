@@ -19,7 +19,7 @@ import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
 import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
-import { sortReviews, summarize, type ReviewSort } from "../lib/reviews";
+import { olderThan, sortReviews, summarize, type ReviewSort } from "../lib/reviews";
 import "../styles/place.css";
 import "../styles/night.css";
 
@@ -113,7 +113,7 @@ export default function PlacePage() {
       // The Google rating is billed per lookup, so it loads only when someone taps "See on Google".
       const [it, r, sc] = await Promise.all([
         loadShopItems(id),
-        supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(REVIEW_PAGE + 1),
+        supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).order("id", { ascending: false }).limit(REVIEW_PAGE + 1),
         // Same score as Discover: one formula, computed in the database.
         searchPlaces({ p_place: id, p_limit: 1 }),
       ]);
@@ -142,7 +142,7 @@ export default function PlacePage() {
     setLoadingReviews(true);
     // Keyset paging: everything older than the oldest review shown, so new reviews arriving never shift the pages.
     const r = await supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published")
-      .lt("created_at", last.created_at).order("created_at", { ascending: false }).limit(REVIEW_PAGE + 1);
+      .or(olderThan(last)).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(REVIEW_PAGE + 1);
     setLoadingReviews(false);
     if (r.error) { toast(errorText(r.error)); return; }
     const all = (r.data as unknown as ReviewRow[]) || [];
@@ -225,7 +225,7 @@ export default function PlacePage() {
   const friendReviews = reviews.filter(isFriend).length;
   // What friends (people you're connected with through an invite link) loved here. Only reviews
   // they posted with their name, so an anonymous review never points to a friend.
-  const friendLiked = reviews.filter((r) => isFriend(r) && r.rating >= 4 && r.author_name).slice(0, 6);
+  const friendLiked = reviews.filter((r) => isFriend(r) && r.rating >= 4 && r.author_name && r.is_public).slice(0, 6);
   const rateUrl = `/review/${place.id}`;
   // A newly listed shop's links stay hidden until the team has checked they are genuine.
   const unchecked = place.verification === "pending" || place.verification === "rejected";
@@ -248,7 +248,7 @@ export default function PlacePage() {
   // Items people rate highly, for the big cards at the top.
   const signature = products.filter((p) => { const st = stats.get(p.id); return st && st.sum / st.count >= 3.5; })
     .sort((a, b) => { const x = stats.get(a.id)!, y = stats.get(b.id)!; return y.sum / y.count - x.sum / x.count || y.count - x.count; }).slice(0, 5);
-  const ticker = reviews.filter((r) => r.author_name && r.rating >= 4).slice(0, 6)
+  const ticker = reviews.filter((r) => r.author_name && r.is_public && r.rating >= 4).slice(0, 6)
     .map((r) => `${r.author_name!.split(" ")[0]} rated ${r.items?.name || "it"} ${r.rating}★`);
   const photos = reviews.filter((r) => r.photo_path);
   const tabs: { id: typeof tab; label: string; n?: number }[] = [
@@ -359,7 +359,7 @@ export default function PlacePage() {
                 </div>
               </section>
             )}
-            <ShopUpdates placeId={place.id} />
+            <ShopUpdates placeId={place.id} hideLinks={unchecked && !canManage} />
       <section className="stack" style={{ gap: 12 }}>
         <div className="section-title">
           <span className={`icon-chip sm ${look.tint}`}><Icon name={look.icon} size={16} /></span>
@@ -540,7 +540,7 @@ export default function PlacePage() {
         </section>
       )}
 
-      <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>
+      {!focusShop() && <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>}
 
       {canRate && (
         <div className="pn-foot">

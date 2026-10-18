@@ -124,6 +124,17 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
     </>);
 }
 
+/** The review in progress, kept for this tab only, without photos or voice notes. */
+interface Draft { dishes: Dish[]; done: Dish[]; isPublic: boolean }
+const draftKey = (placeId: string, uid: string) => `tp-review:${uid}:${placeId}`;
+const lite = (d: Dish): Dish => ({ ...d, photo: null, voice: null });
+function readDraft(placeId: string, uid: string): Draft | null {
+  try { const raw = sessionStorage.getItem(draftKey(placeId, uid)); return raw ? (JSON.parse(raw) as Draft) : null; } catch { return null; }
+}
+function writeDraft(placeId: string, uid: string, d: Draft) {
+  try { sessionStorage.setItem(draftKey(placeId, uid), JSON.stringify({ ...d, dishes: d.dishes.map(lite), done: d.done.map(lite) })); } catch { /* storage blocked or full */ }
+}
+
 export default function Review() {
   const { session, loading, profile } = useAuth();
   const { placeId = "" } = useParams();
@@ -220,7 +231,13 @@ function ReviewForm() {
         const opts = sortShopItems(it.items.map((i) => ({ ...i, count: counts.get(i.id) ?? 0 })), (i) => i.count);
         setItems(opts);
         const pre = opts.find((i) => i.id === params.get("item"));
-        if (pre) setDishes([newDish(pre.name, pre.id)]);
+        const kept = readDraft(placeId, uid);
+        if (kept && (kept.dishes.length || kept.done.length)) {
+          // Phones often reload the tab after the camera: bring back what was written (photos and voice can't be kept).
+          setDishes(kept.dishes); setDone(kept.done); setIsPublic(kept.isPublic);
+          const open = kept.dishes.findIndex((d) => !d.rating);
+          if (open >= 0) { setAt(open); setStage("dish"); } else if (kept.dishes.length) setStage("preview");
+        } else if (pre) setDishes([newDish(pre.name, pre.id)]);
         else if (!opts.length) setOther(true);
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
@@ -245,6 +262,10 @@ function ReviewForm() {
   // Stop listening if the page goes away.
   useEffect(() => () => rec.current?.stop(), []);
   useEffect(() => { window.scrollTo({ top: 0 }); }, [stage, at]);
+
+  useEffect(() => {
+    if (uid && place && stage !== "sending") writeDraft(placeId, uid, { dishes: stage === "done" ? [] : dishes, done, isPublic });
+  }, [dishes, done, isPublic, stage, place, placeId, uid]);
 
   const dish = dishes[at];
   const patch = (i: number, p: Partial<Dish>) => setDishes((all) => all.map((d, k) => (k === i ? { ...d, ...p } : d)));
@@ -348,7 +369,7 @@ function ReviewForm() {
 
   /** Copy on the tap itself (browsers refuse it later), then keep the tab to point at Google. */
   function copyNow(text: string): Promise<boolean> {
-    if (navigator.clipboard?.writeText && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => false);
+    if (navigator.clipboard?.writeText && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => copyText(text).catch(() => false));
     return copyText(text).catch(() => false);
   }
 
@@ -413,6 +434,12 @@ function ReviewForm() {
             const { p_device: _d, ...older } = args;
             ({ data, error } = await supabase.rpc("submit_review", older));
           }
+          // The review may have been saved on an earlier try whose answer never arrived: use that one.
+          if (error && /already reviewed/i.test(errorText(error))) {
+            const prior = await supabase.from("reviews").select("id, items(name)").eq("user_id", uid).eq("place_id", placeId).order("created_at", { ascending: false }).limit(30);
+            const hit = ((prior.data as unknown as { id: string; items: { name: string } | null }[]) || []).find((r) => r.items?.name.toLowerCase() === d.name.toLowerCase());
+            if (hit) { data = { id: hit.id }; error = null; }
+          }
           if (error) throw error;
           const withId = { ...d, reviewId: (data as { id: string }).id };
           saved.push(withId);
@@ -425,15 +452,16 @@ function ReviewForm() {
       const ok = await copying;
       setCopied(withGoogle ? ok : null);
       if (withGoogle) {
-        if (win) { win.location.href = gUrl; setGoogleOpened(true); }
+        if (win && !win.closed) { win.location.href = gUrl; setGoogleOpened(true); }
         const first = saved[0]?.reviewId;
         if (first) void supabase.from("google_shares").insert({ review_id: first, user_id: uid }).then(({ error }) => { if (error) console.warn(errorText(error)); });
       }
-      setDone((all) => [...all, ...saved]);
+      setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       setSaving(false);
       setStage("done");
     } catch (e) {
       try { win?.close(); } catch { /* already gone */ }
+      if (saved.length) setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       const m = errorText(e);
       setErr(m === "Failed to fetch" ? "You seem to be offline. Your review is still here; try again." : m);
       setSaving(false);
@@ -627,7 +655,7 @@ function ReviewForm() {
               </div>
               <div className="rvx-media">
                 <ReviewPhotoPicker value={dish.photo} onChange={(b) => patch(at, { photo: b })} disabled={busy} />
-                {canRecord && <ReviewVoiceRecorder value={dish.voice} onChange={(c) => patch(at, { voice: c })} disabled={busy || listening} onRecordingChange={setRecording} />}
+                {canRecord && !isGuest && <ReviewVoiceRecorder value={dish.voice} onChange={(c) => patch(at, { voice: c })} disabled={busy || listening} onRecordingChange={setRecording} />}
               </div>
             </div>
           )}
@@ -662,7 +690,8 @@ function ReviewForm() {
                   </div>
                   {labels.length > 0 && <div className="rvx-chips sm">{labels.map((l) => <span key={l} className={`rvx-chip static ${isNegativeTag(l) ? "bad" : ""}`}>{l}</span>)}</div>}
                   {d.body.trim() && <p>{d.body.trim()}</p>}
-                  {!sending && <button type="button" className="rvx-edit" onClick={() => goDish(i)}><Icon name="edit" size={13} />Edit</button>}
+                  {d.reviewId ? <span className="rvx-edit"><Icon name="check" size={13} />Posted</span>
+                    : !sending && <button type="button" className="rvx-edit" onClick={() => goDish(i)}><Icon name="edit" size={13} />Edit</button>}
                 </article>
               );
             })}
@@ -682,6 +711,7 @@ function ReviewForm() {
           </fieldset>
         )}
 
+        {!isGuest && !isPublic && dishes.some((d) => d.voice && !d.reviewId) && <p className="rvx-anon"><Icon name="mic" size={16} />Voice notes play only on reviews that show your name, so anonymous ones stay anonymous.</p>}
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot">
           {sending ? (

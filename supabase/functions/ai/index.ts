@@ -131,6 +131,11 @@ const TASKS: Record<string, (c: Ctx, b: Record<string, unknown>) => Promise<unkn
     const item = clean(b.item, 80);
     const rating = Math.max(1, Math.min(5, Math.round(Number(b.rating) || 0)));
     if (!item || !Number(b.rating)) throw new Fail(400, "Pick what you had and give it stars first.");
+    // A guest only gets drafts while at a shop (an open visit), so new guest accounts can't farm AI calls.
+    if (c.guest) {
+      const { count } = await c.admin.from("visits").select("id", { count: "exact", head: true }).eq("user_id", c.userId!).gt("expires_at", new Date().toISOString());
+      if (!count) throw new Fail(403, "Scan the QR at the shop to get help writing.");
+    }
     await take(c);
     const tags = strList(b.tags, 8, 30);
     const facts = [
@@ -299,7 +304,18 @@ Each point under 90 characters, plain English, grounded in the reviews. If nothi
     if (!UUID.test(placeId)) throw new Fail(400, "Missing shop");
     const { data: cached } = await c.admin.from("place_ai_summaries").select("summary, highlights, updated_at").eq("place_id", placeId).maybeSingle();
     const fresh = cached && Date.now() - new Date((cached as { updated_at: string }).updated_at).getTime() < 86_400_000;
-    if (fresh) return { summary: (cached as { summary: string }).summary, highlights: (cached as { highlights: string[] }).highlights };
+    const stale = { summary: (cached as { summary?: string } | null)?.summary || "", highlights: (cached as { highlights?: string[] } | null)?.highlights || [] };
+    if (fresh) return stale;
+    // Claim the day's run first, so many visitors opening the shop at once make one AI call, not many.
+    const now = new Date().toISOString();
+    if (cached) {
+      const { data: won } = await c.admin.from("place_ai_summaries").update({ updated_at: now })
+        .eq("place_id", placeId).eq("updated_at", (cached as { updated_at: string }).updated_at).select("place_id");
+      if (!won?.length) return stale;
+    } else {
+      const { data: won } = await c.admin.from("place_ai_summaries").upsert({ place_id: placeId, summary: "", highlights: [], review_count: 0, updated_at: now }, { onConflict: "place_id", ignoreDuplicates: true }).select("place_id");
+      if (!won?.length) return stale;
+    }
     const reviews = (await publicReviews(c, placeId, 40)).filter((r) => clean(r.body, 10));
     let out = { summary: "", highlights: [] as string[] };
     if (reviews.length >= 3) {

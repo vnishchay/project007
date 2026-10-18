@@ -74,14 +74,17 @@ export async function shareOrCopy(data: { title?: string; text?: string; url: st
 
 export interface AcceptedFriend { friend_id: string; display_name: string | null; avatar_path: string | null; is_new: boolean }
 
-/** Accept a pending invite for the current session. */
-export async function acceptPendingInvite(): Promise<AcceptedFriend | null> {
+/**
+ * Accept a pending invite for the current session. A guest accepts it too, but the invite is kept
+ * until a full account accepts it, so signing in later still makes the real account friends.
+ */
+export async function acceptPendingInvite(isGuest = false): Promise<AcceptedFriend | null> {
   const p = read();
   if (!p) return null;
   const r = await supabase.rpc("accept_invite", { p_code: p.code, p_via: p.via });
-  // Database not updated yet: keep the invite for later.
-  if (r.error?.code === "PGRST202") return null;
-  clearPendingRef();
+  // Database not updated yet, or the network failed: keep the invite for later.
+  if (r.error?.code === "PGRST202" || (r.error && !r.error.code)) return null;
+  if (!isGuest || r.error) clearPendingRef();
   if (r.error) return null;
   return ((r.data as AcceptedFriend[] | null) || [])[0] ?? null;
 }

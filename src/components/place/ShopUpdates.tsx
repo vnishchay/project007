@@ -7,7 +7,8 @@ import { LinkIcon, guessLinkKind, linkLabel } from "../LinkIcon";
 interface Update { id: string; body: string; link_url: string | null; created_at: string }
 
 /** The latest notes the shop posted for all its customers. Hidden when there are none. */
-export function ShopUpdates({ placeId }: { placeId: string }) {
+/** hideLinks: the shop hasn't been checked by the team yet, so its updates show without their links. */
+export function ShopUpdates({ placeId, hideLinks = false }: { placeId: string; hideLinks?: boolean }) {
   const [rows, setRows] = useState<Update[]>([]);
   useEffect(() => {
     let alive = true;
@@ -26,14 +27,15 @@ export function ShopUpdates({ placeId }: { placeId: string }) {
         <span className="grow">From the shop</span>
       </div>
       {rows.map((u) => {
-        const kind = u.link_url ? guessLinkKind(u.link_url) : "";
+        const link = hideLinks ? null : u.link_url;
+        const kind = link ? guessLinkKind(link) : "";
         return (
           <article key={u.id} className="pl-news-item">
             <p>{u.body}</p>
             <div className="pl-news-foot">
               <span className="tiny muted">{timeAgo(u.created_at)}</span>
-              {u.link_url && (
-                <a className="pl-news-link" href={u.link_url} target="_blank" rel="noopener noreferrer">
+              {link && (
+                <a className="pl-news-link" href={link} target="_blank" rel="noopener noreferrer">
                   <LinkIcon kind={kind} size={20} />{kind === "website" || kind === "other" ? "Open link" : linkLabel({ kind })}
                 </a>
               )}

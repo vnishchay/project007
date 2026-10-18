@@ -58,3 +58,8 @@ export function sortReviews(list: ReviewRow[], how: ReviewSort, isFriend: (r: Re
     : how === "low" ? a.rating - b.rating || time(b) - time(a)
     : useful(b) - useful(a) || time(b) - time(a));
 }
+
+/** Keyset paging filter for "older than this review", with the id breaking ties between equal times. */
+export function olderThan(r: { created_at: string; id: string }): string {
+  return `created_at.lt."${r.created_at}",and(created_at.eq."${r.created_at}",id.lt.${r.id})`;
+}

@@ -61,7 +61,9 @@ export function Setup() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [shopId, setShopId] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<null | "paid" | "live" | "unpaid">(null);
+  const [outcome, setOutcome] = useState<null | "paid" | "live" | "unpaid" | "pending">(null);
+  const [qrCount, setQrCount] = useState<number | null>(null);
+  const [payErr, setPayErr] = useState("");
 
   useEffect(() => { loadPlans().then(setPlans); }, []);
   // A reload loses what was typed, so start again from the first screen instead of showing an empty one.
@@ -134,17 +136,22 @@ export function Setup() {
         id = (ins.data as { id: string }).id;
         setShopId(id);
         // The free trial QR right away; paid tables come after payment.
-        if (tables > 0) await supabase.rpc("make_table_qrs", { p_place: id, p_tables: tables, p_style: style });
+        await makeQrs(id);
       }
       if (price <= 0) { setOutcome("live"); return; }
       const paid = await payForPlan(id, form.business_name.trim(), chosen.code, interval);
-      if (paid && tables > 0) await supabase.rpc("make_table_qrs", { p_place: id, p_tables: tables, p_style: style });
-      setOutcome(paid ? "paid" : "unpaid");
+      if (paid === "paid") await makeQrs(id);
+      setOutcome(paid === "paid" ? "paid" : paid === "pending" ? "pending" : "unpaid");
     } catch (e) {
-      setErr(errorText(e));
-      if (id) toast("Your shop is listed. You can pay from its Plan tab.");
+      // Once the shop exists, the earlier screens can't change it any more: finish on the outcome screen.
+      if (id) { setPayErr(errorText(e)); setOutcome("unpaid"); } else setErr(errorText(e));
     }
     setBusy(false);
+  }
+  /** Table QRs up to what the plan allows; remembers how many exist so the last screen tells the truth. */
+  async function makeQrs(id: string) {
+    const r = await supabase.rpc("make_table_qrs", { p_place: id, p_tables: Math.max(1, tables), p_style: style });
+    setQrCount(r.error ? null : (r.data as number));
   }
 
   if (outcome) {
@@ -152,12 +159,16 @@ export function Setup() {
     return (
       <div className="su-screen">
         <main className="su-body su-card su-done" data-dir="fwd" data-step="7">
-          {outcome !== "unpaid" && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#c9604a", "#d9a441", "#c2492b", "#6d5fb0", "#4a78b8", "#2f7d6e"][i % 6] }} />)}
-          <span className={`icon-chip lg ${outcome === "unpaid" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" ? "wallet" : "check"} size={26} /></span>
-          <h2>{paid ? "Paid. Your shop is live" : outcome === "live" ? "Your shop is live" : "Your shop is live, payment pending"}</h2>
+          {(outcome === "paid" || outcome === "live") && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#c9604a", "#d9a441", "#c2492b", "#6d5fb0", "#4a78b8", "#2f7d6e"][i % 6] }} />)}
+          <span className={`icon-chip lg ${outcome === "unpaid" || outcome === "pending" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" || outcome === "pending" ? "wallet" : "check"} size={26} /></span>
+          <h2>{paid ? "Paid. Your shop is live" : outcome === "live" ? "Your shop is live" : outcome === "pending" ? "Payment received. Your shop is live" : "Your shop is live, payment pending"}</h2>
           <p className="small muted">{outcome === "unpaid"
-            ? "Your payment wasn't completed, so you're on the free trial QR for now. Pay from your shop's Plan tab whenever you're ready."
-            : "Your QR codes are ready to print. We'll check your Google page and links, usually within a day, then show your links on your page."}</p>
+            ? `${payErr ? payErr + " " : ""}You're on the free trial QR for now. Pay from your shop's Plan tab whenever you're ready.`
+            : outcome === "pending"
+            ? "We're confirming your payment with Razorpay; your plan turns on in a few minutes, so there's no need to pay again. Then add your table QRs from the QR tab."
+            : qrCount == null
+            ? "Your shop is live, but the QR codes didn't get made. Open your shop and add them from the QR tab."
+            : `${qrCount} QR code${qrCount === 1 ? " is" : "s are"} ready to print. We'll check your Google page and links, usually within a day, then show your links on your page.`}</p>
         </main>
         <footer className="su-foot"><button className="btn green block" onClick={() => nav(shopId ? `/manage/${shopId}` : "/business", { replace: true })}><Icon name="store" size={18} />Open my shop</button></footer>
       </div>

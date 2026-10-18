@@ -70,11 +70,13 @@ export default function SignIn() {
     setErr(""); clearAuthError();
     if (isGuest && !taken) {
       // Keeps the guest's reviews. Needs "Allow manual linking" in Supabase; falls back to a normal sign-in.
-      const { error } = await supabase.auth.linkIdentity({ provider: "google", options: { redirectTo } });
-      if (!error) return;
+      const { data, error } = await supabase.auth.linkIdentity({ provider: "google", options: { redirectTo, skipBrowserRedirect: true } });
+      if (!error && data?.url) { window.location.replace(data.url); return; }
     }
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+    // replace(), not a normal visit: Back after signing in returns to the app, not to Google's finished page.
+    const { data, error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo, skipBrowserRedirect: true } });
     if (error) setErr(errorText(error));
+    else if (data?.url) window.location.replace(data.url);
   }
 
   const alreadyHasAccount = Boolean(authError && /already|exists/i.test(authError));

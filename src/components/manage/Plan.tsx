@@ -15,8 +15,11 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
   const [interval, setInterval] = useState<"year" | "month">("year");
   const [busy, setBusy] = useState("");
 
+  const [loadErr, setLoadErr] = useState("");
   const load = useCallback(async () => {
+    setLoadErr("");
     const [r, p] = await Promise.all([supabase.rpc("my_plan", { p_place: placeId }), loadPlans()]);
+    if (r.error && r.error.code !== "PGRST202") { setLoadErr(errorText(r.error)); setMe(null); return; }
     setMe(r.error ? null : ((r.data as MyPlan[] | null)?.[0] ?? null));
     setPlans(p.filter((x) => x.code !== "trial"));
   }, [placeId]);
@@ -25,12 +28,15 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
   async function buy(code: string) {
     setBusy(code);
     try {
-      if (await payForPlan(placeId, placeName, code, interval)) { toast("Paid. Your plan is on."); await load(); }
+      const r = await payForPlan(placeId, placeName, code, interval);
+      if (r === "paid") { toast("Paid. Your plan is on. Add table QRs from the QR tab."); await load(); }
+      else if (r === "pending") { toast("Payment received. Your plan turns on in a few minutes; no need to pay again."); await load(); }
     } catch (e) { toast(errorText(e)); }
     setBusy("");
   }
 
   if (me === undefined) return <Spinner />;
+  if (loadErr) return <div className="notice err row"><span className="grow">Couldn't load your plan: {loadErr}</span><button className="btn small ghost" onClick={() => { setMe(undefined); load(); }}>Try again</button></div>;
   if (me === null) return <div className="card small muted">Plans will show here once the latest database update is run.</div>;
 
   const trial = me.status === "trial";

@@ -2,6 +2,7 @@ import { InviteCard } from "../components/home/InviteCard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
+import { olderThan } from "../lib/reviews";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { placeMediaUrl } from "../lib/media";
@@ -45,7 +46,7 @@ export default function Me() {
 
   const loadReviews = useCallback(() => {
     setReviewsErr(null);
-    supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).order("created_at", { ascending: false }).limit(PAGE + 1)
+    supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PAGE + 1)
       .then(({ data, error }) => {
         if (error) { setReviewsErr(errorText(error)); return; }
         const all = (data as unknown as ReviewRow[]) || [];
@@ -57,8 +58,8 @@ export default function Me() {
     const last = reviews?.[reviews.length - 1];
     if (!last || loadingMore) return;
     setLoadingMore(true);
-    const { data, error } = await supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).lt("created_at", last.created_at)
-      .order("created_at", { ascending: false }).limit(PAGE + 1);
+    const { data, error } = await supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).or(olderThan(last))
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PAGE + 1);
     setLoadingMore(false);
     if (error) { toast(errorText(error)); return; }
     const all = (data as unknown as ReviewRow[]) || [];

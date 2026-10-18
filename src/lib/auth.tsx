@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const own = async () => {
       const r = await supabase.rpc("my_profile");
       // Before the privacy migration, my_profile() doesn't exist yet: read the table.
-      if (r.error?.code === "PGRST202") return (await supabase.from("profiles").select(PROFILE_COLS + ", city").eq("id", uid).maybeSingle()).data;
+      if (r.error?.code === "PGRST202") return (await supabase.from("profiles").select(PROFILE_COLS + ", role, city").eq("id", uid).maybeSingle()).data;
       return ((r.data as Profile[] | null) || [])[0] ?? null;
     };
     let data: unknown = null;

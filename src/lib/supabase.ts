@@ -47,7 +47,8 @@ export const supabase = createClient(url || "http://localhost", key || "missing-
 
 // Columns of other people's profiles anyone may read. Phone fingerprint and home city
 // are private; your own full profile comes from the my_profile() function.
-export const PROFILE_COLS = "id, display_name, avatar_path, role, created_at";
+// Other people's profiles: role is not readable by users (only my_profile() returns your own).
+export const PROFILE_COLS = "id, display_name, avatar_path, created_at";
 
 export function avatarUrl(path: string | null | undefined): string | null {
   if (!path) return null;

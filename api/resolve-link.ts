@@ -3,7 +3,9 @@
 // Only Google hosts are followed, and nothing is fetched beyond the redirects.
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const ALLOWED = /^(maps\.app\.goo\.gl|goo\.gl|g\.co|share\.google|(www\.|maps\.)?google\.[a-z.]{2,6})$/i;
+// Google's own country domains only (google.com, google.co.in, google.com.au...), never look-alikes
+// such as google.eu.org that anyone can register.
+const ALLOWED = /^(maps\.app\.goo\.gl|goo\.gl|g\.co|share\.google|(www\.|maps\.)?google\.(com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2}))$/i;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   let url = typeof req.query.url === "string" ? req.query.url : "";
@@ -14,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return hop === 0 ? res.status(400).json({ error: "Paste a Google Maps link" }) : res.json({ url });
     }
     if (/^(www\.|maps\.)?google\./i.test(u.hostname) && u.pathname.startsWith("/maps")) return res.json({ url });
-    const r = await fetch(u, { redirect: "manual" }).catch(() => null);
+    const r = await fetch(u, { redirect: "manual", signal: AbortSignal.timeout(5000) }).catch(() => null);
     const next = r?.headers.get("location");
     if (!next) return res.json({ url });
     url = new URL(next, u).toString();

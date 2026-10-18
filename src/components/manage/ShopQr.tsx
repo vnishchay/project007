@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
+import { supabase, errorText } from "../../lib/supabase";
 import type { Place, QrCode } from "../../lib/types";
 import { qrUrl, QR_STYLES } from "../../lib/util";
-import { Icon, QrImage, qrPngDataUrl } from "../ui";
+import { Icon, QrImage, qrPngDataUrl, useToast } from "../ui";
 
 export async function downloadQr(placeName: string, c: QrCode) {
   const col = QR_STYLES[c.style];
@@ -35,13 +35,42 @@ export function QrPrintSheet({ place, codes, topItem }: { place: Pick<Place, "na
   );
 }
 
+/** For the owner: make more table codes, up to what the plan allows, or go buy more. */
+function AddQrs({ placeId, active, onMade }: { placeId: string; active: number; onMade: () => void }) {
+  const toast = useToast();
+  const [limit, setLimit] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    supabase.rpc("my_plan", { p_place: placeId }).then(({ data }) => setLimit(((data as { qr_limit: number }[] | null) || [])[0]?.qr_limit ?? null));
+  }, [placeId, active]);
+  async function make(total: number) {
+    setBusy(true);
+    const r = await supabase.rpc("make_table_qrs", { p_place: placeId, p_tables: total, p_style: "paper" });
+    setBusy(false);
+    if (r.error) { toast(errorText(r.error)); return; }
+    onMade();
+  }
+  if (limit == null) return null;
+  const room = limit - active;
+  return (
+    <div className="card row wrap" style={{ gap: 10 }}>
+      <span className="grow small"><b>{active} of {limit}</b> table codes in use</span>
+      {room > 0 ? <>
+        <button className="btn small ghost" disabled={busy} onClick={() => make(active + 1)}><Icon name="plus" size={16} />One more</button>
+        {room > 1 && <button className="btn small" disabled={busy} onClick={() => make(limit)}><Icon name="qr" size={16} />Make all {limit}</button>}
+      </> : <Link to="?tab=plan" replace className="btn small ghost"><Icon name="crown" size={16} />Get more codes</Link>}
+    </div>
+  );
+}
+
 /** The shop's table QR codes if this account can read them, else a way to get some. */
 export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boolean; onCodes: (c: QrCode[]) => void }) {
   const [codes, setCodes] = useState<QrCode[] | null>(null);
-  useEffect(() => {
+  const load = useCallback(() => {
     supabase.from("qr_codes").select("id, place_id, token, style, table_label, active").eq("place_id", place.id).order("created_at")
       .then(({ data }) => { const c = (data as QrCode[]) || []; setCodes(c); onCodes(c); });
   }, [place.id, onCodes]);
+  useEffect(load, [load]);
 
   if (codes === null) return <div className="skeleton" style={{ height: 180 }} />;
   const active = codes.filter((c) => c.active);
@@ -57,9 +86,8 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
           <span className="row" style={{ gap: 6 }}><Icon name="verified" size={15} />Every review is verified</span>
           <span className="row" style={{ gap: 6 }}><Icon name="print" size={15} />Print-ready, four styles</span>
         </div>
-        <Link to="/business" className="btn small" style={{ alignSelf: "flex-start" }}><Icon name="qr" size={17} />Get table QRs</Link>
       </div>
-      {!isAdmin && <p className="tiny muted center">Already ordered? Your print files come from our team on WhatsApp.</p>}
+      <AddQrs placeId={place.id} active={0} onMade={load} />
       {isAdmin && <Link to={`/admin/place/${place.id}`} className="btn ghost block"><Icon name="plus" size={18} />Create codes in admin</Link>}
     </div>
   );
@@ -84,6 +112,7 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
           );
         })}
       </div>
+      <AddQrs placeId={place.id} active={active.length} onMade={load} />
       {isAdmin && <Link to={`/admin/place/${place.id}`} className="link-btn"><Icon name="settings" size={15} />Add or turn off codes</Link>}
     </div>
   );

@@ -1,6 +1,7 @@
 import { setFocusShop } from "../lib/focus";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { deviceId } from "../lib/device";
 import { supabase, errorText } from "../lib/supabase";
 import { lastGuestError, useAuth } from "../lib/auth";
 import { getLocation } from "../lib/util";
@@ -36,7 +37,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const unlockFn = link ? "redeem_review_link" : "scan_qr";
   // Table scans send where the phone is (if allowed), so far-away scans count less. Only "near or not" is kept.
   async function unlock() {
-    if (link) return supabase.rpc(unlockFn, { p_token: token });
+    if (link) {
+      const r = await supabase.rpc(unlockFn, { p_token: token, p_device: deviceId() });
+      return r.error?.code === "PGRST202" ? supabase.rpc(unlockFn, { p_token: token }) : r;
+    }
     const at = await getLocation();
     const r = await supabase.rpc(unlockFn, { p_token: token, p_lat: at?.lat ?? null, p_lng: at?.lng ?? null });
     return r.error?.code === "PGRST202" ? supabase.rpc(unlockFn, { p_token: token }) : r;
@@ -101,20 +105,24 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   );
 
   const until = visit?.expires_at ? new Date(visit.expires_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : null;
-  const next = `/${link ? "r" : "q"}/${token}`;
 
   async function rateAsGuest() {
     // Start a guest session and unlock the verified visit before moving on.
     setStarting(true); setGuestErr(""); startingGuest.current = true;
     const ok = await startGuest();
-    setStarting(false);
     if (ok) {
+      // Stay on "Opening…" until the visit is unlocked, so nobody reaches the review before it exists.
       const { data } = await supabase.auth.getSession();
       scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
-      const { error } = await unlock();
-      if (error) { startingGuest.current = false; setGuestErr(`Couldn't unlock this table: ${friendly(error)}`); return; }
+      setScanning(true);
+      const r = await unlock().then((x) => x, (e: unknown) => ({ data: null, error: e as Error }));
+      setScanning(false); setStarting(false); startingGuest.current = false;
+      if (r.error) { setScanErr(friendly(r.error)); return; }
+      const v = ((r.data as Visit[]) || [])[0];
+      setVisit(v ?? { visit_id: "", expires_at: "" });
       navTo(`/review/${peek!.place_id}`);
     } else {
+      setStarting(false);
       startingGuest.current = false;
       const why = lastGuestError;
       setGuestErr(/anonymous/i.test(why) && /disabled/i.test(why)
@@ -166,13 +174,12 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         </div>
         {guestErr && <div className="notice err" role="alert">{guestErr}</div>}
         <Link to={`/p/${peek.place_id}`} className="rvx-more"><Icon name="eye" size={16} />See what others loved first</Link>
-        {!session && !loading && <Link to={`/signin?next=${encodeURIComponent(next)}`} className="rvx-skip" style={{ textAlign: "center" }}>Sign in instead (optional)</Link>}
       </section>
 
       {!loading && !scanErr && (
         <div className="rvx-foot">
           {session ? (
-            <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning} onClick={(e) => { if (scanning) e.preventDefault(); }}><span>Rate what you had</span><Icon name="chev" size={20} /></Link>
+            <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning || starting || !visit} onClick={(e) => { if (scanning || starting || !visit) e.preventDefault(); }}><span>Rate what you had</span><Icon name="chev" size={20} /></Link>
           ) : (
             <button type="button" className="rvx-cta" disabled={starting} onClick={rateAsGuest}><span>{starting ? "Opening…" : "Rate what you had"}</span><Icon name="chev" size={20} /></button>
           )}

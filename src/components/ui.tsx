@@ -93,15 +93,15 @@ export function Layout({ children }: { children: ReactNode }) {
 
 /** Someone opened a friend's link: once they have a session, make them friends. */
 function InviteAcceptor() {
-  const { session } = useAuth();
+  const { session, isGuest } = useAuth();
   const toast = useToast();
   const uid = session?.user.id;
   useEffect(() => {
     if (!uid || !pendingRef()) return;
-    acceptPendingInvite().then((f) => {
+    acceptPendingInvite(isGuest).then((f) => {
       if (f?.is_new) toast(`You and ${f.display_name || "your friend"} are now friends`);
     });
-  }, [uid, toast]);
+  }, [uid, isGuest, toast]);
   return null;
 }
 

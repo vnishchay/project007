@@ -45,12 +45,15 @@ function ReviewPhoto({ path, alt }: { path: string; alt: string }) {
   return <img className="rc-photo" src={reviewPhotoUrl(path)!} alt={alt} loading="lazy" onError={() => setBroken(true)} />;
 }
 
-export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemImage, itemIcon = "food", children }: {
-  r: ReviewRow; mine?: boolean; friend?: boolean; expert?: string | null; showPlace?: boolean;
+export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemImage, itemIcon = "food", reveal = false, children }: {
+  r: ReviewRow; mine?: boolean;
+  /** admin moderation only: show who wrote an anonymous review */
+  reveal?: boolean; friend?: boolean; expert?: string | null; showPlace?: boolean;
   /** the product's shop photo (place-media path), shown in the item chip */
   itemImage?: string | null; itemIcon?: IconName; children?: ReactNode;
 }) {
-  const anon = !r.user_id;
+  // Anonymous unless the author chose to show their name (admins see who it was only in moderation).
+  const anon = !r.user_id || (!r.is_public && !mine && !reveal);
   const name = mine ? "You" : anon ? "Anonymous" : r.author_name || "Someone";
   const { good, bad } = splitTags(tagLabels(r));
   const who = anon || !r.author_name

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase, searchPlaces, PROFILE_COLS, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -87,8 +87,11 @@ export default function Discover() {
     if (pm && !pm.error) setMedia((prev) => ({ ...prev, ...Object.fromEntries(((pm.data as unknown as (Media & { id: string })[]) || []).map((m) => [m.id, m])) }));
   }
 
+  // Bumped on every new search, so a "Show more" that comes back late is dropped instead of mixing in old results.
+  const gen = useRef(0);
   useEffect(() => {
     let cancelled = false;
+    gen.current += 1;
     setResults(null); setErr(""); setHasMore(false); setWidened(0);
     (async () => {
       let radius = 15000;
@@ -114,15 +117,19 @@ export default function Discover() {
   async function loadMore() {
     if (!results || loadingMore) return;
     setLoadingMore(true);
+    const mine = gen.current;
     const res = await searchPlaces(searchArgs(widened ? widened * 1000 : 15000, results.length));
     setLoadingMore(false);
+    if (mine !== gen.current) return;
     if (res.error) { setErr(errorText(res.error)); return; }
     const all = (res.data as SearchResult[]) || [];
-    const seen = new Set(results.map((r) => r.place_id));
-    const rows = all.slice(0, PAGE).filter((r) => !seen.has(r.place_id));
+    const rows = all.slice(0, PAGE);
     setHasMore(all.length > PAGE);
-    setResults([...results, ...rows]);
-    hydrate(rows, () => false);
+    setResults((prev) => {
+      const seen = new Set((prev || []).map((r) => r.place_id));
+      return [...(prev || []), ...rows.filter((r) => !seen.has(r.place_id))];
+    });
+    hydrate(rows, () => mine !== gen.current);
   }
 
   // Flag when Google's rating hides a weaker one from people you trust.

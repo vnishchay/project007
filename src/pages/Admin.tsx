@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
+import { olderThan } from "../lib/reviews";
 import { demoArtUrl, isDemoArt } from "../lib/demoArt";
 import { useSettings, type AppSettings } from "../lib/settings";
 import type { Place, ReviewRow, Topic } from "../lib/types";
@@ -270,10 +271,10 @@ function Reviews() {
   const [more, setMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const PAGE = 40;
-  const page = (before?: string) => {
-    let q = supabase.from(REVIEW_FEED).select(REVIEW_SELECT).order("created_at", { ascending: false }).limit(PAGE + 1);
+  const page = (before?: { created_at: string; id: string }) => {
+    let q = supabase.from(REVIEW_FEED).select(REVIEW_SELECT).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PAGE + 1);
     if (show === "hidden") q = q.eq("status", "hidden");
-    if (before) q = q.lt("created_at", before);
+    if (before) q = q.or(olderThan(before));
     return q;
   };
   const load = () => {
@@ -290,7 +291,7 @@ function Reviews() {
     const last = rows?.[rows.length - 1];
     if (!last || loadingMore) return;
     setLoadingMore(true);
-    const { data, error } = await page(last.created_at);
+    const { data, error } = await page(last);
     setLoadingMore(false);
     if (error) { toast(errorText(error)); return; }
     const all = (data as unknown as ReviewRow[]) || [];
@@ -314,7 +315,7 @@ function Reviews() {
       {err && <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={load}>Retry</button></div>}
       {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <div className="empty"><p>{show === "hidden" ? "No hidden reviews." : "No reviews yet."}</p></div> :
         rows.map((r) => (
-          <ReviewCard key={r.id} r={r} showPlace>
+          <ReviewCard key={r.id} r={r} showPlace reveal>
             <div className="row between">
               {r.status === "hidden" ? <span className="badge red">Hidden</span> : <span className="badge gray">Published</span>}
               {r.status === "hidden"

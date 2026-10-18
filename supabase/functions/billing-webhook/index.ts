@@ -24,19 +24,14 @@ Deno.serve(async (req) => {
 
   let ev: { event?: string; payload?: { payment?: { entity?: { id?: string; order_id?: string; amount?: number } } } };
   try { ev = JSON.parse(raw); } catch { return new Response("bad body", { status: 400 }); }
+  // billing_mark_paid is safe to run twice, so the event is recorded only after it has worked:
+  // a crash half way through leaves nothing behind and Razorpay's retry does the work again.
   const eventId = req.headers.get("x-razorpay-event-id");
-  if (eventId) {
-    const seen = await admin.from("billing_events").insert({ id: eventId, kind: ev.event || "unknown" });
-    if (seen.error?.code === "23505") return new Response("ok"); // already handled
-  }
   const pay = ev.payload?.payment?.entity;
   if ((ev.event === "payment.captured" || ev.event === "order.paid") && pay?.order_id && pay.id) {
     const r = await admin.rpc("billing_mark_paid", { p_order: pay.order_id, p_payment: pay.id, p_amount: pay.amount ?? null });
-    if (r.error) {
-      console.error(r.error);
-      if (eventId) await admin.from("billing_events").delete().eq("id", eventId); // let Razorpay retry
-      return new Response("retry", { status: 500 });
-    }
+    if (r.error) { console.error(r.error); return new Response("retry", { status: 500 }); }
   }
+  if (eventId) await admin.from("billing_events").upsert({ id: eventId, kind: ev.event || "unknown" }, { onConflict: "id", ignoreDuplicates: true });
   return new Response("ok");
 });

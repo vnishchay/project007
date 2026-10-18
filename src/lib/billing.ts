@@ -47,15 +47,19 @@ function loadCheckout(): Promise<void> {
   });
 }
 
-type PayTarget = { placeId: string; plan: string; interval: "month" | "year" } | { requestId: string };
+type PayTarget = { placeId: string; plan: string; interval: "month" | "year" };
 
-/** Opens Razorpay checkout. Resolves true once paid and verified, false if the person closed it. */
-export async function pay(target: PayTarget, label: string): Promise<boolean> {
+/**
+ * Opens Razorpay checkout. Resolves "paid" once paid and verified, false if the person closed it,
+ * and "pending" when Razorpay took the money but our confirmation didn't get through: the webhook
+ * finishes that one, so the caller must not offer to pay again.
+ */
+export async function pay(target: PayTarget, label: string): Promise<"paid" | "pending" | false> {
   await loadCheckout();
   const o = await billing<{ key_id: string; order_id: string; amount: number; currency: string; plan_name: string; email: string | null }>(
-    "requestId" in target
-      ? { action: "order", request_id: target.requestId }
-      : { action: "order", place_id: target.placeId, plan: target.plan, interval: target.interval });
+    { action: "order", place_id: target.placeId, plan: target.plan, interval: target.interval });
+  // A failed attempt keeps the checkout open with "Retry", so only give up when it is closed.
+  let failed: Error | null = null;
   const paid = await new Promise<RazorpayResult | null>((resolve, reject) => {
     const rz = new window.Razorpay!({
       key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency,
@@ -63,14 +67,21 @@ export async function pay(target: PayTarget, label: string): Promise<boolean> {
       prefill: o.email ? { email: o.email } : undefined,
       theme: { color: "#d4290f" },
       handler: (r: RazorpayResult) => resolve(r),
-      modal: { ondismiss: () => resolve(null) },
+      modal: { ondismiss: () => (failed ? reject(failed) : resolve(null)) },
     });
-    rz.on("payment.failed", () => reject(new Error("The payment didn't go through. No money was taken.")));
+    rz.on("payment.failed", () => { failed = new Error("The payment didn't go through. No money was taken."); });
     rz.open();
   });
   if (!paid) return false;
-  await billing({ action: "verify", order_id: paid.razorpay_order_id, payment_id: paid.razorpay_payment_id, signature: paid.razorpay_signature });
-  return true;
+  for (let i = 0; i < 3; i++) {
+    try {
+      await billing({ action: "verify", order_id: paid.razorpay_order_id, payment_id: paid.razorpay_payment_id, signature: paid.razorpay_signature });
+      return "paid";
+    } catch {
+      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  return "pending";
 }
 
 export const payForPlan = (placeId: string, placeName: string, plan: string, interval: "month" | "year") =>

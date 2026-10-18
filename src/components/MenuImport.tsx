@@ -54,17 +54,25 @@ export function MenuImport({ placeId, mode, nextSort, links = [], start = "photo
   }
 
   async function save() {
-    const keep = (rows || []).filter((r) => r.keep && r.name.trim());
+    // One row per name; names already on the menu are left exactly as the owner set them.
+    const seen = new Set<string>();
+    const keep = (rows || []).filter((r) => {
+      const k = r.name.trim().toLowerCase().replace(/\s+/g, " ");
+      if (!r.keep || !k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
     if (!keep.length) return;
     setBusy(`Adding ${keep.length}…`);
-    const { error } = await supabase.from("items").upsert(
+    const { data: added, error } = await supabase.from("items").upsert(
       keep.map((r, i) => ({
         place_id: placeId, name: r.name.trim(), price_inr: r.price_inr, section: r.section.trim() || null,
         description: r.description.trim() || null, is_listed: true, is_hidden: false, sort_order: nextSort + i,
       })),
-      { onConflict: "place_id,name_normalized" },
-    );
+      { onConflict: "place_id,name_normalized", ignoreDuplicates: true },
+    ).select("id");
     if (error) { setBusy(false); setErr(errorText(error)); return; }
+    const count = added?.length ?? keep.length;
     let note = "";
     if (pics) {
       // Up to three rounds of 40, so a big menu gets its pictures in one go.
@@ -79,8 +87,9 @@ export function MenuImport({ placeId, mode, nextSort, links = [], start = "photo
       }
     }
     setBusy(false);
-    toast(`${keep.length} ${keep.length === 1 ? mode.item : mode.itemPlural} added.${note}`.trim());
-    onSaved(keep.length);
+    const skipped = keep.length - count;
+    toast(`${count} ${count === 1 ? mode.item : mode.itemPlural} added.${skipped ? ` ${skipped} already on your list were left as they are.` : ""}${note}`.trim());
+    onSaved(count);
   }
 
   const set = (i: number, patch: Partial<Row>) => setRows((rs) => rs!.map((r, j) => (j === i ? { ...r, ...patch } : r)));
