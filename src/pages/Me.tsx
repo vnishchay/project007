@@ -5,7 +5,7 @@ import { supabase, errorText } from "../lib/supabase";
 import { olderThan } from "../lib/reviews";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
-import { placeMediaUrl } from "../lib/media";
+import { placeMediaUrl, shrinkImage } from "../lib/media";
 import { Avatar, Icon, Spinner, StarInput, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { Chip, Cover, EmptyArt, Glyph, MenuRow, Retry, SectionTitle, lookFor } from "../components/home/Kit";
@@ -46,7 +46,7 @@ export default function Me() {
 
   const loadReviews = useCallback(() => {
     setReviewsErr(null);
-    supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PAGE + 1)
+    supabase.rpc("my_reviews", { p_limit: PAGE + 1 }).select(REVIEW_SELECT)
       .then(({ data, error }) => {
         if (error) { setReviewsErr(errorText(error)); return; }
         const all = (data as unknown as ReviewRow[]) || [];
@@ -58,8 +58,7 @@ export default function Me() {
     const last = reviews?.[reviews.length - 1];
     if (!last || loadingMore) return;
     setLoadingMore(true);
-    const { data, error } = await supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", me).or(olderThan(last))
-      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PAGE + 1);
+    const { data, error } = await supabase.rpc("my_reviews", { p_before_created: last.created_at, p_before_id: last.id, p_limit: PAGE + 1 }).select(REVIEW_SELECT);
     setLoadingMore(false);
     if (error) { toast(errorText(error)); return; }
     const all = (data as unknown as ReviewRow[]) || [];
@@ -102,12 +101,14 @@ export default function Me() {
 
   async function uploadAvatar(file: File) {
     if (!file.type.startsWith("image/")) { toast("Pick an image file"); return; }
-    if (file.size > 3 * 1024 * 1024) { toast("Pick a photo under 3 MB"); return; }
+    if (file.size > 15 * 1024 * 1024) { toast("Pick a photo under 15 MB"); return; }
     setUploading(true);
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-      const path = `${me}/avatar-${Date.now()}.${ext}`;
-      const up = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
+      // Re-encoded so the photo's location and camera details never leave the phone.
+      const blob = await shrinkImage(file, 512, 0.85).catch(() => null);
+      if (!blob) { toast("Couldn't read that photo. Try a JPEG or PNG."); return; }
+      const path = `${me}/avatar-${Date.now()}.jpg`;
+      const up = await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
       if (up.error) { toast(errorText(up.error)); return; }
       const { error } = await supabase.from("profiles").update({ avatar_path: path }).eq("id", me);
       if (error) toast(errorText(error)); else { await refreshProfile(); toast("Photo updated"); }
@@ -117,16 +118,18 @@ export default function Me() {
   }
 
   async function setVisibility(id: string, isPublic: boolean) {
-    const { error } = await supabase.from("reviews").update({ is_public: isPublic }).eq("id", id);
+    const { data, error } = await supabase.from("reviews").update({ is_public: isPublic }).eq("id", id).select("id");
     if (error) { toast(errorText(error)); return; }
+    if (!data?.length) { toast("Couldn't change this review"); return; }
     setReviews((rs) => (rs || []).map((x) => (x.id === id ? { ...x, is_public: isPublic } : x)));
     toast(isPublic ? "Your name now shows on this review" : "This review is now anonymous");
   }
 
   async function remove(id: string) {
     if (!confirm("Delete this review?")) return;
-    const { error } = await supabase.from("reviews").delete().eq("id", id);
+    const { data, error } = await supabase.from("reviews").delete().eq("id", id).select("id");
     if (error) toast(errorText(error));
+    else if (!data?.length) toast(isGuest ? "Sign in to delete reviews" : "Couldn't delete this review");
     else { setReviews((rs) => (rs || []).filter((r) => r.id !== id)); if (draft?.id === id) setDraft(null); toast("Review deleted"); }
   }
 
@@ -320,8 +323,10 @@ export default function Me() {
                       )}
                       <button type="button" className="icon-act" onClick={() => setDraft({ id: r.id, rating: r.rating, body: r.body || "" })}
                         aria-label={`Edit review of ${what}`} title="Edit"><Icon name="edit" size={18} /></button>
-                      <button type="button" className="icon-act danger" onClick={() => remove(r.id)}
-                        aria-label={`Delete review of ${what}`} title="Delete"><Icon name="trash" size={18} /></button>
+                      {isGuest ? <Link to="/signin" className="tiny muted">Sign in to delete</Link> : (
+                        <button type="button" className="icon-act danger" onClick={() => remove(r.id)}
+                          aria-label={`Delete review of ${what}`} title="Delete"><Icon name="trash" size={18} /></button>
+                      )}
                     </div>
                   )}
                 </ReviewCard>

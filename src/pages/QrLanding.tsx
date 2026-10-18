@@ -1,4 +1,4 @@
-import { setFocusShop } from "../lib/focus";
+import { clearFocusShop, setFocusShop } from "../lib/focus";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { deviceId } from "../lib/device";
@@ -10,6 +10,14 @@ import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
 interface Visit { visit_id: string; expires_at: string }
+type Refusal = "scan" | "owner" | "paused" | "guest_used";
+
+const REFUSED: Record<Refusal, [string, string]> = {
+  guest_used: ["You've reviewed here from this phone", "Without signing in, each phone gets one visit per place. Sign in to rate more of what you had."],
+  owner: ["This is your shop", "Owners can't review their own shop."],
+  paused: ["Reviews are paused here for now", "You can still see what people loved at this shop."],
+  scan: ["Couldn't unlock your review", "Scan the table code again, or ask the staff for a new one."],
+};
 
 function friendly(e: unknown): string {
   const m = errorText(e);
@@ -32,6 +40,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const [scanErr, setScanErr] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanTry, setScanTry] = useState(0);
+  // Unlocking can work while reviewing is still refused (a guest who already reviewed from this phone).
+  const [refused, setRefused] = useState<Refusal | null>(null);
   // One visit per code per signed-in user per page view (StrictMode runs effects twice).
   const scannedFor = useRef<string | null>(null);
   const unlockFn = link ? "redeem_review_link" : "scan_qr";
@@ -45,6 +55,13 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     const r = await supabase.rpc(unlockFn, { p_token: token, p_lat: at?.lat ?? null, p_lng: at?.lng ?? null });
     return r.error?.code === "PGRST202" ? supabase.rpc(unlockFn, { p_token: token }) : r;
   }
+  /** Ask the server the same question the review page will, so the landing never promises a review it will refuse. */
+  async function checkCan(placeId: string): Promise<Refusal | null> {
+    const r = await supabase.rpc("can_review", { p_place: placeId, p_device: deviceId() }).then((x) => x, () => null);
+    if (!r || r.error) return null;
+    const row = (r.data as { allowed: boolean; reason: string }[] | null)?.[0];
+    return row && !row.allowed ? ((row.reason in REFUSED ? row.reason : "scan") as Refusal) : null;
+  }
   const startingGuest = useRef(false);
 
   useEffect(() => {
@@ -54,9 +71,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     supabase.rpc(link ? "peek_review_link" : "peek_qr", { p_token: token }).then(({ data, error }) => {
       if (!alive) return;
       if (error) { setPeekErr(friendly(error)); return; }
-      const pk = ((data as Peek[]) || [])[0] ?? null;
-      if (pk?.place_id) setFocusShop(pk.place_id);
-      setPeek(pk);
+      setPeek(((data as Peek[]) || [])[0] ?? null);
     }, (e: unknown) => { if (alive) setPeekErr(friendly(e)); });
     return () => { alive = false; };
   }, [token, peekTry, link]);
@@ -68,13 +83,23 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     scannedFor.current = key;
     setScanning(true);
     setScanErr("");
-    unlock().then(({ data, error }) => {
+    setRefused(null);
+    unlock().then(async ({ data, error }) => {
+      if (error) { setScanning(false); setScanErr(friendly(error)); return; }
+      const no = await checkCan(peek.place_id);
       setScanning(false);
-      if (error) { setScanErr(friendly(error)); return; }
+      setRefused(no);
       const v = ((data as Visit[]) || [])[0];
       setVisit(v ?? { visit_id: "", expires_at: "" });
     }, (e: unknown) => { setScanning(false); setScanErr(friendly(e)); });
   }, [loading, uid, peek, token, scanTry]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dead = peek === undefined ? null : !peek ? (link ? "This review link doesn't work" : "This code isn't active")
+    : peek.status === "expired" ? "This review link has expired"
+    : peek.status === "used" && !session ? "This review link was already used" : null;
+  // Shop mode starts only once the code is usable, so a dead code never traps the tab on a shop.
+  const usableShop = !loading && peek && !dead ? peek.place_id : null;
+  useEffect(() => { if (usableShop) setFocusShop(usableShop, `/${link ? "r" : "q"}/${token}`); }, [usableShop, link, token]);
 
   const bar = <div className="rvx-bar"><span className="rvx-brand">Trusted Picks</span><span className="grow" /></div>;
   if (peekErr) return (
@@ -89,9 +114,6 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     </div>
   );
   if (peek === undefined) return <div className="rvx"><div className="rvx-center"><Spinner /></div></div>;
-  const dead = !peek ? (link ? "This review link doesn't work" : "This code isn't active")
-    : peek.status === "expired" ? "This review link has expired"
-    : peek.status === "used" && !session ? "This review link was already used" : null;
   if (!peek || dead) return (
     <div className="rvx">
       {bar}
@@ -99,7 +121,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         <span className="ico"><Icon name={link ? "link" : "qr"} size={28} /></span>
         <h2>{dead}</h2>
         <p>{link ? "Ask the shop to send you a new link." : "Ask the staff for a new table card."}</p>
-        <Link className="rvx-more" to="/"><Icon name="search" size={16} />Search places</Link>
+        <Link className="rvx-more" to="/" onClick={() => clearFocusShop()}><Icon name="search" size={16} />Search places</Link>
       </div>
     </div>
   );
@@ -116,11 +138,13 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
       setScanning(true);
       const r = await unlock().then((x) => x, (e: unknown) => ({ data: null, error: e as Error }));
+      if (r.error) { setScanning(false); setStarting(false); startingGuest.current = false; setScanErr(friendly(r.error)); return; }
+      const no = await checkCan(peek!.place_id);
       setScanning(false); setStarting(false); startingGuest.current = false;
-      if (r.error) { setScanErr(friendly(r.error)); return; }
       const v = ((r.data as Visit[]) || [])[0];
       setVisit(v ?? { visit_id: "", expires_at: "" });
-      navTo(`/review/${peek!.place_id}`);
+      setRefused(no);
+      if (!no) navTo(`/review/${peek!.place_id}`);
     } else {
       setStarting(false);
       startingGuest.current = false;
@@ -150,7 +174,12 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         <h2>Rate what you <i>had</i></h2>
         <div aria-live="polite">
           {loading ? <Spinner /> : session ? (
-            visit ? (
+            visit && refused ? (
+              <div className="rvx-status warn" role="alert">
+                <Icon name={refused === "guest_used" ? "lock" : "alert"} size={22} color="#ff9a78" />
+                <span className="grow"><b>{REFUSED[refused][0]}</b><small>{REFUSED[refused][1]}</small></span>
+              </div>
+            ) : visit ? (
               <div className="rvx-status" role="status">
                 <Icon name="verified" size={22} color="#7fbf9e" />
                 <span className="grow"><b>You can review now</b><small>{until ? `Until ${until}` : "For the next few hours"}</small></span>
@@ -178,7 +207,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
 
       {!loading && !scanErr && (
         <div className="rvx-foot">
-          {session ? (
+          {session && visit && refused ? (
+            refused === "guest_used" && <Link to={`/signin?next=${encodeURIComponent(`/review/${peek.place_id}`)}`} className="rvx-cta"><span>Sign in to rate more</span><Icon name="chev" size={20} /></Link>
+          ) : session ? (
             <Link to={`/review/${peek.place_id}`} className="rvx-cta" aria-disabled={scanning || starting || !visit} onClick={(e) => { if (scanning || starting || !visit) e.preventDefault(); }}><span>Rate what you had</span><Icon name="chev" size={20} /></Link>
           ) : (
             <button type="button" className="rvx-cta" disabled={starting} onClick={rateAsGuest}><span>{starting ? "Opening…" : "Rate what you had"}</span><Icon name="chev" size={20} /></button>

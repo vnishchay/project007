@@ -41,7 +41,12 @@ export function MenuImport({ placeId, mode, nextSort, links = [], start = "photo
   async function read() {
     setErr(""); setBusy("Reading your menu…");
     try {
-      const images = source === "photo" ? await Promise.all(files.map(async (f) => ({ data: await toBase64(await shrinkImage(f, 1600, 0.8)), media_type: "image/jpeg" }))) : [];
+      const images = source === "photo" ? await Promise.all(files.map(async (f) => {
+        // The server takes photos up to about 1.1 MB each; a very detailed one is sent smaller.
+        let data = await toBase64(await shrinkImage(f, 1600, 0.8));
+        if (data.length > 1_400_000) data = await toBase64(await shrinkImage(f, 1200, 0.7));
+        return { data, media_type: "image/jpeg" };
+      })) : [];
       const j = await callAi<{ items?: Omit<Row, "keep">[] }>("menu", { placeId, images, ...(source === "text" ? { text } : {}) });
       if (!j.items) throw new Error("Couldn't read the menu. Try a clearer photo.");
       if (!j.items.length) throw new Error(`No ${mode.itemPlural} found. Try a closer, straighter photo, or paste more of the menu.`);

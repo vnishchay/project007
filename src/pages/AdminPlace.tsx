@@ -78,7 +78,7 @@ export default function AdminPlace() {
     const { error } = await supabase.from("places").update({
       name: p!.name, category: p!.category, area: p!.area || null, city: p!.city, about: p!.about || null,
       price_level: p!.price_level || null, google_place_id: gid,
-      status: p!.status, listed_until: p!.listed_until || null, hours: Object.keys(hoursObj).length ? hoursObj : null,
+      status: p!.status, hours: Object.keys(hoursObj).length ? hoursObj : null,
     }).eq("id", id);
     let err = error;
     if (!err) {
@@ -96,13 +96,6 @@ export default function AdminPlace() {
     }
     setBusy(false);
     toast(err ? errorText(err) : "Saved");
-  }
-
-  async function renew() {
-    const ref = prompt("Payment reference for the renewal (optional)") ?? null;
-    if (ref === null) return;
-    const { data, error } = await supabase.rpc("renew_listing", { p_place: id, p_provider_ref: ref || null });
-    if (error) toast(errorText(error)); else { setP(data as Place); toast("Renewed for a year"); }
   }
 
   async function addCode(e: React.FormEvent) {
@@ -157,15 +150,13 @@ export default function AdminPlace() {
           </div>
           <div className="field"><label>About</label><textarea className="textarea" style={{ minHeight: 80 }} value={p.about || ""} onChange={(e) => set("about", e.target.value)} /></div>
           <div className="field"><label>Hours (one per line, “Mon–Fri: 12–11 pm”)</label><textarea className="textarea" style={{ minHeight: 70 }} value={hours} onChange={(e) => setHours(e.target.value)} /></div>
-          <div className="grid2">
-            <div className="field"><label>Status</label>
-              <select className="select" value={p.status} onChange={(e) => set("status", e.target.value as Place["status"])}>
-                <option value="live">Live</option><option value="lapsed">Lapsed</option><option value="removed">Removed</option>
-              </select>
-            </div>
-            <div className="field"><label>Listed until</label><input className="input" type="date" value={p.listed_until || ""} onChange={(e) => set("listed_until", e.target.value)} /></div>
+          <div className="field"><label>Status</label>
+            <select className="select" value={p.status} onChange={(e) => set("status", e.target.value as Place["status"])}>
+              <option value="live">Live</option><option value="lapsed">Lapsed</option><option value="removed">Removed</option>
+            </select>
+            <span className="tiny muted">Plans and payments are under Admin, Billing.</span>
           </div>
-          <div className="row"><button className="btn green grow" disabled={busy} onClick={save}><Icon name="check" size={18} />{busy ? "Saving…" : "Save"}</button><button className="btn ghost" onClick={renew}><Icon name="refresh" size={18} />Renew</button></div>
+          <button className="btn green block" disabled={busy} onClick={save}><Icon name="check" size={18} />{busy ? "Saving…" : "Save"}</button>
         </div>
 
         <div className="mg-section">

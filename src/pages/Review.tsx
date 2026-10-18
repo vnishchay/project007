@@ -67,6 +67,12 @@ const newDish = (name: string, itemId: string | null): Dish => ({ key: `${itemId
 
 type Stage = "pick" | "dish" | "preview" | "sending" | "done";
 
+/** The database answered and said no (a PostgREST error with a code), as opposed to a reply that never arrived. */
+function refusedByServer(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === "string" && code !== "" && !/failed to fetch|network|load failed|timed? ?out|abort/i.test(errorText(e));
+}
+
 /** What goes on Google: the person's own words per dish, or their picks when they wrote none. */
 function googleText(dishes: Dish[], tags: Tag[]): string {
   const say = (d: Dish) => {
@@ -125,7 +131,7 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
 }
 
 /** The review in progress, kept for this tab only, without photos or voice notes. */
-interface Draft { dishes: Dish[]; done: Dish[]; isPublic: boolean }
+interface Draft { dishes: Dish[]; done: Dish[]; isPublic: boolean; finished?: boolean; googleOpened?: boolean }
 const draftKey = (placeId: string, uid: string) => `tp-review:${uid}:${placeId}`;
 const lite = (d: Dish): Dish => ({ ...d, photo: null, voice: null });
 function readDraft(placeId: string, uid: string): Draft | null {
@@ -145,6 +151,8 @@ export default function Review() {
 
 function Stars({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const box = useRef<HTMLDivElement>(null);
+  // Rates when the finger lifts or drags sideways, so a vertical scroll that starts on the stars never sets one.
+  const press = useRef<{ x: number; drag: boolean } | null>(null);
   const at = (x: number) => {
     const r = box.current?.getBoundingClientRect();
     return r && r.width ? Math.max(1, Math.min(5, Math.ceil(((x - r.left) / r.width) * 5))) : value;
@@ -155,8 +163,16 @@ function Stars({ value, onChange }: { value: number; onChange: (v: number) => vo
       className="rvx-stars"
       role="radiogroup"
       aria-label="Rating"
-      onPointerDown={(e) => { if (e.pointerType === "mouse" && e.button !== 0) return; onChange(at(e.clientX)); }}
-      onPointerMove={(e) => { if (e.buttons || e.pointerType === "touch") onChange(at(e.clientX)); }}
+      onPointerDown={(e) => { if (e.pointerType === "mouse" && e.button !== 0) return; press.current = { x: e.clientX, drag: false }; }}
+      onPointerMove={(e) => {
+        const p = press.current;
+        if (!p) return;
+        if (!p.drag && Math.abs(e.clientX - p.x) > 8) p.drag = true;
+        if (p.drag) onChange(at(e.clientX));
+      }}
+      onPointerUp={(e) => { if (press.current) onChange(at(e.clientX)); press.current = null; }}
+      onPointerCancel={() => { press.current = null; }}
+      onPointerLeave={() => { if (press.current?.drag) press.current = null; }}
     >
       {[1, 2, 3, 4, 5].map((i) => (
         <button key={i} type="button" role="radio" aria-checked={value === i} aria-label={`${i} star${i > 1 ? "s" : ""}`} className={i <= value ? "on" : ""} onClick={() => onChange(i)}>
@@ -236,7 +252,9 @@ function ReviewForm() {
           // Phones often reload the tab after the camera: bring back what was written (photos and voice can't be kept).
           setDishes(kept.dishes); setDone(kept.done); setIsPublic(kept.isPublic);
           const open = kept.dishes.findIndex((d) => !d.rating);
-          if (open >= 0) { setAt(open); setStage("dish"); } else if (kept.dishes.length) setStage("preview");
+          // Back from Google after the tab was reloaded: show the thank-you screen again, not the menu.
+          if (kept.finished && kept.done.length) { setStage("done"); setGoogleOpened(Boolean(kept.googleOpened)); }
+          else if (open >= 0) { setAt(open); setStage("dish"); } else if (kept.dishes.length) setStage("preview");
         } else if (pre) setDishes([newDish(pre.name, pre.id)]);
         else if (!opts.length) setOther(true);
         const kind = modeOf(pl?.kind, pl?.category).kind;
@@ -261,11 +279,18 @@ function ReviewForm() {
 
   // Stop listening if the page goes away.
   useEffect(() => () => rec.current?.stop(), []);
-  useEffect(() => { window.scrollTo({ top: 0 }); }, [stage, at]);
+  const head = useRef<HTMLHeadingElement>(null);
+  const moved = useRef(false);
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    // Screen readers hear the new step; skipped on first load so the page opens normally.
+    if (moved.current) head.current?.focus({ preventScroll: true });
+    moved.current = true;
+  }, [stage, at]);
 
   useEffect(() => {
-    if (uid && place && stage !== "sending") writeDraft(placeId, uid, { dishes: stage === "done" ? [] : dishes, done, isPublic });
-  }, [dishes, done, isPublic, stage, place, placeId, uid]);
+    if (uid && place && stage !== "sending") writeDraft(placeId, uid, { dishes: stage === "done" ? [] : dishes, done, isPublic, finished: stage === "done", googleOpened });
+  }, [dishes, done, isPublic, stage, place, placeId, uid, googleOpened]);
 
   const dish = dishes[at];
   const patch = (i: number, p: Partial<Dish>) => setDishes((all) => all.map((d, k) => (k === i ? { ...d, ...p } : d)));
@@ -385,6 +410,13 @@ function ReviewForm() {
     if (withGoogle) {
       copying = copyNow(text);
       try { win = window.open("", "_blank"); } catch { win = null; }
+      // Something to look at while the review saves; Google replaces it.
+      try {
+        win?.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saving your review…</title></head>`
+          + `<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#14110f;color:#f3ece2;font:16px/1.5 system-ui,sans-serif;text-align:center">`
+          + `<p style="padding:24px">Saving your review…<br><small style="opacity:.65">Google opens here in a moment.</small></p></body></html>`);
+        win?.document.close();
+      } catch { /* cross-origin or blocked */ }
     }
     setStage("sending");
     setSaving("Saving…");
@@ -393,6 +425,8 @@ function ReviewForm() {
       for (const d of dishes) {
         if (d.reviewId) { saved.push(d); continue; }
         const uploaded: { bucket: string; path: string }[] = [];
+        // Once submit_review is called, a lost reply may still mean it saved: then the uploads must stay.
+        let sent = false;
         try {
           let photoPath: string | null = null;
           let voicePath: string | null = null;
@@ -428,6 +462,7 @@ function ReviewForm() {
             p_is_public: isPublic,
             p_device: deviceId(),
           };
+          sent = true;
           let { data, error } = await supabase.rpc("submit_review", args);
           // Database without migration 0014 doesn't know p_device yet.
           if (error?.code === "PGRST202") {
@@ -436,16 +471,21 @@ function ReviewForm() {
           }
           // The review may have been saved on an earlier try whose answer never arrived: use that one.
           if (error && /already reviewed/i.test(errorText(error))) {
-            const prior = await supabase.from("reviews").select("id, items(name)").eq("user_id", uid).eq("place_id", placeId).order("created_at", { ascending: false }).limit(30);
-            const hit = ((prior.data as unknown as { id: string; items: { name: string } | null }[]) || []).find((r) => r.items?.name.toLowerCase() === d.name.toLowerCase());
-            if (hit) { data = { id: hit.id }; error = null; }
+            const prior = await supabase.from("reviews").select("id, photo_path, voice_path, items(name)").eq("user_id", uid).eq("place_id", placeId).order("created_at", { ascending: false }).limit(30);
+            const hit = ((prior.data as unknown as { id: string; photo_path: string | null; voice_path: string | null; items: { name: string } | null }[]) || []).find((r) => r.items?.name.toLowerCase() === d.name.toLowerCase());
+            if (hit) {
+              data = { id: hit.id }; error = null;
+              // This try's copies went unused; never touch the files the saved review points at.
+              const spare = uploaded.filter((u) => u.path !== hit.photo_path && u.path !== hit.voice_path);
+              void Promise.all(spare.map((u) => supabase.storage.from(u.bucket).remove([u.path]))).catch(() => {});
+            }
           }
           if (error) throw error;
           const withId = { ...d, reviewId: (data as { id: string }).id };
           saved.push(withId);
           setDishes((all) => all.map((x) => (x.key === d.key ? withId : x)));
         } catch (e) {
-          await Promise.all(uploaded.map((u) => supabase.storage.from(u.bucket).remove([u.path]))).catch(() => {});
+          if (!sent || refusedByServer(e)) await Promise.all(uploaded.map((u) => supabase.storage.from(u.bucket).remove([u.path]))).catch(() => {});
           throw e;
         }
       }
@@ -550,7 +590,7 @@ function ReviewForm() {
   const bar = (
     <div className="rvx-bar">
       {stage === "pick" ? <span className="rvx-brand">Trusted Picks</span> : <button type="button" className="rvx-back" aria-label="Back" onClick={back}><Icon name="back" size={20} /></button>}
-      <div className="rvx-dots" aria-label={`Step ${stepNo + 1} of ${steps}`}>
+      <div className="rvx-dots" role="img" aria-label={`Step ${stepNo + 1} of ${steps}`}>
         {Array.from({ length: steps }, (_, i) => <i key={i} className={i < stepNo ? "done" : i === stepNo ? "now" : ""} />)}
       </div>
       <span className="rvx-who">{isGuest ? <Icon name="eyeOff" size={16} /> : <Icon name="user" size={16} />}</span>
@@ -566,7 +606,7 @@ function ReviewForm() {
         {bar}
         {hero}
         <section className="rvx-sec">
-          <h2>{ratePromptHead} <i>{ratePromptTail}</i></h2>
+          <h2 ref={head} tabIndex={-1}>{ratePromptHead} <i>{ratePromptTail}</i></h2>
           <p className="rvx-hint">Tap everything you tried. You can rate more than one.</p>
           <div className="rvx-tiles">
             {items.map((i) => {
@@ -615,7 +655,7 @@ function ReviewForm() {
         {bar}
         <div className="rvx-ctx"><Icon name="store" size={14} />{place.name}{dishes.length > 1 && <span> · {at + 1} of {dishes.length}</span>}</div>
         <section className="rvx-sec" key={dish.key}>
-          <h2><i>{dish.name}</i></h2>
+          <h2 ref={head} tabIndex={-1}><i>{dish.name}</i></h2>
           <div className="rvx-face" aria-live="polite">
             <span key={dish.rating} className="rvx-emoji">{FACES[dish.rating] || "🍽️"}</span>
             <span className="rvx-word">{FACE_WORDS[dish.rating]}</span>
@@ -678,7 +718,7 @@ function ReviewForm() {
       <div className="rvx" data-stage={stage}>
         {bar}
         <section className="rvx-sec">
-          <h2>Looks <i>good?</i></h2>
+          <h2 ref={head} tabIndex={-1}>Looks <i>good?</i></h2>
           <div className="rvx-cards">
             {dishes.map((d, i) => {
               const labels = [...tags.filter((t) => d.picked.includes(t.id)).map((t) => t.label), ...d.custom];
@@ -741,7 +781,7 @@ function ReviewForm() {
       <div className="rvx-confetti" aria-hidden="true">{Array.from({ length: 16 }, (_, i) => <i key={i} style={{ left: `${4 + i * 6}%`, animationDelay: `${(i * 0.13) % 1.2}s` }} />)}</div>
       <section className="rvx-sec center">
         <span className="rvx-big"><Icon name="check" size={40} width={3} /></span>
-        <h2>Posted. <i>Thank you!</i></h2>
+        <h2 ref={head} tabIndex={-1}>Posted. <i>Thank you!</i></h2>
         <p className="rvx-hint c">{names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]} {names.length > 1 ? "are" : "is"} on {place.name}'s page{isGuest ? ", anonymously" : isPublic ? ", with your name" : ", anonymously"}.</p>
       </section>
 

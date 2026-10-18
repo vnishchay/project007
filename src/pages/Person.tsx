@@ -35,7 +35,7 @@ export default function Person() {
     setErr(null);
     Promise.all([
       supabase.from("profiles").select(PROFILE_COLS).eq("id", id).maybeSingle(),
-      supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("user_id", id).eq("status", "published").order("created_at", { ascending: false }).limit(50),
+      supabase.rpc("person_reviews", { p_user: id, p_limit: 50 }).select(REVIEW_SELECT),
       // Only signed-in people may read the follow graph.
       supabase.rpc("person_stats", { p_user: id }),
       supabase.from("user_topic_stats").select("review_count, is_expert, topics(name)").eq("user_id", id).eq("is_expert", true),

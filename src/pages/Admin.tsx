@@ -109,9 +109,12 @@ function VerifyCard({ r, onDone }: { r: ToVerify; onDone: () => void }) {
 }
 
 /* ---------- Places ---------- */
+interface PlaceSub { plan: string; status: string; period_end: string }
+type PlaceRow = Omit<Place, "listed_until"> & { subscriptions?: PlaceSub | PlaceSub[] | null };
+
 function Places({ onChange }: { onChange: () => void }) {
   const toast = useToast();
-  const [rows, setRows] = useState<Place[] | null>(null);
+  const [rows, setRows] = useState<PlaceRow[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ name: "", category: "", area: "", city: "", google_place_id: "" });
   const [coords, setCoords] = useState("");
@@ -121,23 +124,25 @@ function Places({ onChange }: { onChange: () => void }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [noPin, setNoPin] = useState<Set<string>>(new Set());
   const PAGE = 50;
-  const COLS = "id, name, category, area, city, status, listed_until, google_place_id, about, hours, price_level, created_at";
+  const COLS = "id, name, category, area, city, status, google_place_id, about, hours, price_level, created_at";
 
   // Search and the renewals filter run in the database, a page at a time, so the list stays quick with thousands of places.
+  // "Renewals due" = paid plans that end within 14 days (or have just ended and aren't marked expired yet).
   const query = (from: number) => {
-    let q = supabase.from("places").select(COLS).order("created_at", { ascending: false }).range(from, from + PAGE);
+    const renewals = show === "renewals";
+    let q = supabase.from("places").select(`${COLS}, subscriptions${renewals ? "!inner" : ""}(plan, status, period_end)`).order("created_at", { ascending: false }).range(from, from + PAGE);
     const t = find.trim().replace(/[%,()*]/g, " ").trim();
     if (t) q = q.or(["name", "category", "area", "city"].map((c) => `${c}.ilike.%${t}%`).join(","));
-    if (show === "renewals") {
-      const soonDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-      q = q.or(`status.eq.lapsed,and(status.eq.live,listed_until.lte.${soonDate})`);
+    if (renewals) {
+      q = q.neq("subscriptions.plan", "trial").in("subscriptions.status", ["active", "past_due", "cancelled"])
+        .lte("subscriptions.period_end", new Date(Date.now() + 14 * 86400000).toISOString());
     }
     return q;
   };
   const load = () => {
     setRows(null);
     query(0).then(({ data }) => {
-      const all = (data as Place[]) || [];
+      const all = (data as unknown as PlaceRow[]) || [];
       setMore(all.length > PAGE);
       setRows(all.slice(0, PAGE));
     });
@@ -147,7 +152,7 @@ function Places({ onChange }: { onChange: () => void }) {
     setLoadingMore(true);
     const { data } = await query(rows.length);
     setLoadingMore(false);
-    const all = (data as Place[]) || [];
+    const all = (data as unknown as PlaceRow[]) || [];
     setMore(all.length > PAGE);
     setRows((prev) => { const seen = new Set((prev || []).map((x) => x.id)); return [...(prev || []), ...all.slice(0, PAGE).filter((x) => !seen.has(x.id))]; });
   }
@@ -167,10 +172,9 @@ function Places({ onChange }: { onChange: () => void }) {
     if (f.google_place_id.trim() && !gid) { toast("That isn't a Google Place ID"); return; }
     const c = coords.trim() ? parseCoords(coords) : null;
     if (coords.trim() && !c) { toast("Check the map location"); return; }
-    const until = new Date(); until.setFullYear(until.getFullYear() + 1);
     const { data, error } = await supabase.from("places").insert({
       name: f.name.trim(), category: f.category.trim(), area: f.area.trim() || null, city: f.city.trim(), google_place_id: gid,
-      status: "live", listed_until: until.toISOString().slice(0, 10),
+      status: "live",
     }).select("id").single();
     if (error) { toast(errorText(error)); return; }
     const newId = (data as { id: string }).id;
@@ -183,7 +187,8 @@ function Places({ onChange }: { onChange: () => void }) {
     toast("Place added"); setAdding(false); setF({ name: "", category: "", area: "", city: "", google_place_id: "" }); setCoords(""); load(); onChange();
   }
 
-  const soon = (d: string | null) => d && new Date(d).getTime() - Date.now() < 30 * 86400000;
+  const soon = (d: string | null) => d && new Date(d).getTime() - Date.now() < 14 * 86400000;
+  const subOf = (p: PlaceRow) => (Array.isArray(p.subscriptions) ? p.subscriptions[0] : p.subscriptions) ?? null;
   const shown = rows || [];
 
   return (
@@ -207,7 +212,7 @@ function Places({ onChange }: { onChange: () => void }) {
         <button className={`chip ${show === "renewals" ? "on" : ""}`} onClick={() => setShow("renewals")}>Renewals due</button>
       </div>
       <div className="search"><Icon name="search" color="var(--muted)" /><input aria-label="Find a place" placeholder="Find a place" value={find} onChange={(e) => setFind(e.target.value)} /></div>
-      {rows === null ? <div className="skeleton" /> : shown.length === 0 ? <div className="empty"><p>{show === "renewals" ? "No renewals due in the next 30 days." : "No places found."}</p></div> : (
+      {rows === null ? <div className="skeleton" /> : shown.length === 0 ? <div className="empty"><p>{show === "renewals" ? "No paid plans end in the next 14 days." : "No places found."}</p></div> : (
         <div className="list">
           {shown.map((p) => (
             <Link key={p.id} to={`/admin/place/${p.id}`} className="list-item">
@@ -219,7 +224,12 @@ function Places({ onChange }: { onChange: () => void }) {
               <span className="stack tight" style={{ alignItems: "flex-end" }}>
                 <span className={`badge ${p.status === "live" ? "" : p.status === "lapsed" ? "warn" : "red"}`}>{p.status}</span>
                 {noPin.has(p.id) && <span className="badge warn"><Icon name="pin" size={11} />No pin</span>}
-                {p.listed_until && <span className={`tiny ${soon(p.listed_until) ? "strong" : "muted"}`} style={soon(p.listed_until) ? { color: "#7a5410" } : undefined}>until {p.listed_until}</span>}
+                {(() => {
+                  const sub = subOf(p);
+                  if (!sub || sub.plan === "trial" || sub.status === "expired") return null;
+                  const end = sub.period_end;
+                  return <span className={`tiny ${soon(end) ? "strong" : "muted"}`} style={soon(end) ? { color: "#7a5410" } : undefined}>{sub.plan} until {new Date(end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>;
+                })()}
               </span>
             </Link>
           ))}
@@ -479,6 +489,7 @@ function Payments() {
   return (
     <div className="stack">
       {err && <div className="notice err">{err}</div>}
+      <BillingAlerts />
       {rows && !err && <div className="card row"><span className="icon-chip"><Icon name="rupee" size={18} /></span><span className="grow stack tight"><span className="strong">₹{total.toLocaleString("en-IN")}</span><span className="tiny muted">{paid.length} Razorpay payments</span></span></div>}
       {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>No Razorpay payments yet.</p></div> :
         rows.map((r) => (
@@ -491,6 +502,51 @@ function Payments() {
             <span className="strong">₹{(r.amount_minor / 100).toLocaleString("en-IN")}</span>
           </div>
         ))}
+    </div>
+  );
+}
+
+interface BillingAlert { id: string; kind: string; place_id: string | null; provider_order_id: string | null; provider_payment_id: string | null; amount_minor: number | null; expected_minor: number | null; created_at: string; places: { name: string } | null }
+const ALERT_TEXT: Record<string, string> = {
+  second_payment: "Paid twice: a second payment came in for an order that was already paid",
+  amount_mismatch: "Wrong amount: the payment didn't match the order, so the plan didn't start",
+  closed_order: "Paid after the order was closed (failed or refunded)",
+  unknown_order: "Payment for an order we don't have",
+  no_shop: "Paid order with no shop attached",
+};
+
+/** Money Razorpay captured that didn't simply start a plan. Nothing is refunded automatically: check in Razorpay. */
+function BillingAlerts() {
+  const toast = useToast();
+  const [rows, setRows] = useState<BillingAlert[]>([]);
+  const load = () => {
+    supabase.from("billing_alerts").select("id, kind, place_id, provider_order_id, provider_payment_id, amount_minor, expected_minor, created_at, places(name)")
+      .is("resolved_at", null).order("created_at", { ascending: false }).limit(50)
+      .then(({ data, error }) => { if (!error) setRows((data as unknown as BillingAlert[]) || []); });
+  };
+  useEffect(load, []);
+  async function done(id: string) {
+    const { error } = await supabase.from("billing_alerts").update({ resolved_at: new Date().toISOString() }).eq("id", id);
+    if (error) toast(errorText(error)); else setRows((r) => r.filter((x) => x.id !== id));
+  }
+  if (rows.length === 0) return null;
+  const inr = (m: number | null) => (m == null ? "?" : `₹${(m / 100).toLocaleString("en-IN")}`);
+  return (
+    <div className="mg-section" style={{ gap: 10 }}>
+      <div className="mg-section-head"><span className="icon-chip sm coral"><Icon name="alert" size={16} /></span><span className="grow">Payments needing attention</span><span className="badge red">{rows.length}</span></div>
+      <p className="tiny muted">Nothing was refunded automatically. Check each one in Razorpay, refund there if needed, then mark it done.</p>
+      {rows.map((r) => (
+        <div key={r.id} className="list-item" style={{ gap: 10 }}>
+          <span className="grow stack tight" style={{ minWidth: 0 }}>
+            <span className="small strong">{ALERT_TEXT[r.kind] || r.kind}</span>
+            <span className="tiny muted" style={{ overflowWrap: "anywhere" }}>
+              {r.place_id ? <Link to={`/admin/place/${r.place_id}`}>{r.places?.name || "Shop"}</Link> : "No shop"} · {inr(r.amount_minor)}{r.kind === "amount_mismatch" ? ` (order ${inr(r.expected_minor)})` : ""} · {timeAgo(r.created_at)}
+              {r.provider_payment_id ? ` · ${r.provider_payment_id}` : ""}{r.provider_order_id ? ` · ${r.provider_order_id}` : ""}
+            </span>
+          </span>
+          <button type="button" className="btn small ghost" onClick={() => done(r.id)}><Icon name="check" size={15} />Done</button>
+        </div>
+      ))}
     </div>
   );
 }

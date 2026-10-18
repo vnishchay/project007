@@ -13,16 +13,18 @@ export function placeMediaUrl(path: string | null | undefined, w = 800): string 
   return supabase.storage.from("place-media").getPublicUrl(path).data.publicUrl;
 }
 
-/** Shrinks a photo to at most `max` px on its longest side and returns a JPEG. */
-export async function shrinkImage(file: File, max = 1400, quality = 0.82): Promise<Blob> {
+/** Shrinks a photo to at most `max` px on its longest side and returns a JPEG (re-encoded, so no EXIF/GPS).
+ * Throws when the browser can't decode it, rather than passing the original file through. */
+export async function shrinkImage(file: Blob, max = 1400, quality = 0.82): Promise<Blob> {
   const bmp = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => null);
-  if (!bmp) return file;
+  if (!bmp) throw new Error("Couldn't read that photo. Try a JPEG or PNG.");
   const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bmp.width * scale);
   canvas.height = Math.round(bmp.height * scale);
   canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  return new Promise((res) => canvas.toBlob((b) => res(b || file), "image/jpeg", quality));
+  bmp.close();
+  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("Couldn't process that photo."))), "image/jpeg", quality));
 }
 
 /** Uploads a shop photo; returns its storage path. */

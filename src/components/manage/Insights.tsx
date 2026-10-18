@@ -7,7 +7,7 @@ import { MediaImg } from "./MediaImg";
 import { GoogleMark } from "./Google";
 import { assist } from "../../lib/assist";
 
-interface ShopStats { reviews: number; avg_rating: number | null; reviews_30d: number; verified: number; google_handoffs: number; google_handoffs_30d: number; scans_30d: number; saves: number; items_rated: number }
+interface ShopStats { reviews: number; avg_rating: number | null; reviews_30d: number; verified: number; google_handoffs: number; google_handoffs_30d: number; scans_30d: number; saves: number; items_rated: number; link_visits_30d?: number }
 interface ItemStat { item_id: string; name: string; image_path: string | null; reviews: number; avg_rating: number; low_ratings: number }
 
 export type ManageTab = "insights" | "products" | "links" | "updates" | "details" | "qr" | "plan";
@@ -61,17 +61,17 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
     <div className="stack" style={{ gap: 14 }}>
       <div className="in-hero">
         <span className="in-hero-art" aria-hidden="true"><Icon name="send" size={120} width={1.4} /></span>
-        <span className="row tiny strong" style={{ gap: 6, opacity: 0.95 }}><Icon name="star" size={14} fill="#fff" />Reviews sent to Google</span>
+        <span className="row tiny strong" style={{ gap: 6, opacity: 0.95 }}><Icon name="star" size={14} fill="#fff" />Opened Google to post</span>
         <span className="in-hero-n">{n(s.google_handoffs)}</span>
         <span className="small" style={{ opacity: 0.92 }}>
-          {s.google_handoffs_30d > 0 ? <><b>+{n(s.google_handoffs_30d)}</b> in the last 30 days</> : "Happy customers pass their review on to Google"}
+          {s.google_handoffs_30d > 0 ? <><b>+{n(s.google_handoffs_30d)}</b> in the last 30 days</> : "Happy customers can post their review on Google too"}
         </span>
       </div>
 
       <div className="in-tiles">
         <Tile icon="star" cls="amber" value={n(s.reviews)} label="reviews" sub={s.avg_rating != null ? <span className="row" style={{ gap: 4 }}><b>{Number(s.avg_rating).toFixed(1)}</b><Stars value={Number(s.avg_rating)} size={10} /></span> : s.reviews_30d ? `+${s.reviews_30d} this month` : null} />
-        <Tile icon="verified" cls="" value={n(s.verified)} label="verified visits" sub="scanned at a table" />
-        <Tile icon="scan" cls="violet" value={n(s.scans_30d)} label="QR scans" sub="last 30 days" />
+        <Tile icon="verified" cls="" value={n(s.verified)} label="visits with a review" sub="from a table QR or review link" />
+        <Tile icon="scan" cls="violet" value={n(s.scans_30d)} label="table QR scans" sub={s.link_visits_30d ? `last 30 days · +${n(s.link_visits_30d)} via links` : "last 30 days"} />
         <Tile icon="bookmark" cls="sky" value={n(s.saves)} label="saves" sub="get your updates" />
       </div>
 

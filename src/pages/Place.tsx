@@ -1,4 +1,4 @@
-import { focusShop } from "../lib/focus";
+import { focusCode, focusShop } from "../lib/focus";
 import { goBack } from "../lib/nav";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -25,7 +25,7 @@ import "../styles/night.css";
 
 export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
 
-interface Stat { sum: number; count: number }
+interface Stat { avg: number; count: number }
 type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}`;
 
 /** Newest columns first; older databases lack kind, then links, then cover/logo. */
@@ -67,6 +67,8 @@ export default function PlacePage() {
   const me = session?.user.id;
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
   const [items, setItems] = useState<ShopItem[]>([]);
+  // Per-item averages and counts over every review, kept by the database (not just the reviews loaded here).
+  const [itemStats, setItemStats] = useState<Map<string, Stat> | null>(null);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const REVIEW_PAGE = 30;
   const [moreReviews, setMoreReviews] = useState(false);
@@ -111,16 +113,19 @@ export default function PlacePage() {
       setPlace(pl);
       if (!pl) return;
       // The Google rating is billed per lookup, so it loads only when someone taps "See on Google".
-      const [it, r, sc] = await Promise.all([
+      const [it, r, sc, ist] = await Promise.all([
         loadShopItems(id),
         supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", id).eq("status", "published").order("created_at", { ascending: false }).order("id", { ascending: false }).limit(REVIEW_PAGE + 1),
         // Same score as Discover: one formula, computed in the database.
         searchPlaces({ p_place: id, p_limit: 1 }),
+        supabase.from("item_stats").select("item_id, avg_rating, review_count").eq("place_id", id),
       ]);
       if (!alive) return;
       const firstErr = it.error || r.error || sc.error;
       if (firstErr) setLoadErr(errorText(firstErr));
       setItems(it.items);
+      setItemStats(ist.error ? null : new Map(((ist.data || []) as { item_id: string; avg_rating: number | string; review_count: number }[])
+        .filter((x) => x.review_count > 0).map((x) => [x.item_id, { avg: Number(x.avg_rating), count: x.review_count }])));
       const all = (r.data as unknown as ReviewRow[]) || [];
       const rows = all.slice(0, REVIEW_PAGE);
       setMoreReviews(all.length > REVIEW_PAGE);
@@ -170,14 +175,16 @@ export default function PlacePage() {
 
   const look = shopLook(place?.category, place?.kind);
   const stats = useMemo(() => {
-    const m = new Map<string, Stat>();
+    if (itemStats) return itemStats;
+    // Older database without item_stats readable: fall back to the reviews loaded here.
+    const m = new Map<string, { sum: number; count: number }>();
     for (const r of reviews) {
       const s = m.get(r.item_id) || { sum: 0, count: 0 };
       s.sum += r.rating; s.count += 1;
       m.set(r.item_id, s);
     }
-    return m;
-  }, [reviews]);
+    return new Map([...m].map(([k, v]) => [k, { avg: v.sum / v.count, count: v.count }]));
+  }, [reviews, itemStats]);
   const products = useMemo(() => sortShopItems(items, (i) => stats.get(i.id)?.count ?? 0), [items, stats]);
   const imageOf = useMemo(() => new Map(items.map((i) => [i.id, i.image_path])), [items]);
   const isFriend = (r: ReviewRow) => Boolean(r.user_id && friends.has(r.user_id));
@@ -227,6 +234,10 @@ export default function PlacePage() {
   // they posted with their name, so an anonymous review never points to a friend.
   const friendLiked = reviews.filter((r) => isFriend(r) && r.rating >= 4 && r.author_name && r.is_public).slice(0, 6);
   const rateUrl = `/review/${place.id}`;
+  // Shop mode (came in through a table QR or review link): no other pages, but a way back to that code to rate.
+  const shopMode = Boolean(focusShop());
+  const code = focusCode(place.id);
+  const backToCode = !canRate && code ? code : null;
   // A newly listed shop's links stay hidden until the team has checked they are genuine.
   const unchecked = place.verification === "pending" || place.verification === "rejected";
   const links = unchecked && !canManage ? [] : cleanLinks((place as Place & { links?: unknown }).links);
@@ -246,13 +257,13 @@ export default function PlacePage() {
   if (find("whatsapp")) dock.push({ icon: "message", label: "WhatsApp", href: find("whatsapp")! });
   if (find("website")) dock.push({ icon: "globe", label: "Website", href: find("website")! });
   // Items people rate highly, for the big cards at the top.
-  const signature = products.filter((p) => { const st = stats.get(p.id); return st && st.sum / st.count >= 3.5; })
-    .sort((a, b) => { const x = stats.get(a.id)!, y = stats.get(b.id)!; return y.sum / y.count - x.sum / x.count || y.count - x.count; }).slice(0, 5);
+  const signature = products.filter((p) => { const st = stats.get(p.id); return st && st.avg >= 3.5; })
+    .sort((a, b) => { const x = stats.get(a.id)!, y = stats.get(b.id)!; return y.avg - x.avg || y.count - x.count; }).slice(0, 5);
   const ticker = reviews.filter((r) => r.author_name && r.is_public && r.rating >= 4).slice(0, 6)
     .map((r) => `${r.author_name!.split(" ")[0]} rated ${r.items?.name || "it"} ${r.rating}★`);
   const photos = reviews.filter((r) => r.photo_path);
   const tabs: { id: typeof tab; label: string; n?: number }[] = [
-    { id: "reviews", label: "Reviews", n: reviews.length || undefined },
+    { id: "reviews", label: "Reviews", n: reviewCount || undefined },
     { id: "menu", label: look.menu, n: products.length || undefined },
     { id: "photos", label: "Photos", n: photos.length || undefined },
     { id: "about", label: "About" },
@@ -268,7 +279,7 @@ export default function PlacePage() {
         )}
         <div className="pn-fade" />
         <div className="pn-bar">
-          {!focusShop() && <button className="pn-glass" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
+          {!shopMode && <button className="pn-glass" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
           {logo && <span className="pn-logo"><Img src={logo} alt={`${place.name} logo`} /></span>}
           <span className="grow" />
           {canManage && <Link to={`/manage/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}
@@ -352,7 +363,7 @@ export default function PlacePage() {
                       <button key={p.id} type="button" className="pn-sig-card" style={{ animationDelay: `${0.1 + i * 0.1}s` }} onClick={() => (canRate ? nav(`${rateUrl}?item=${p.id}`) : openReviews(`item:${p.id}`))}>
                         <span className="pn-sig-img"><ItemThumb path={p.image_path} icon={look.icon} /></span>
                         <span className="pn-sig-name">{p.name}</span>
-                        <span className="pn-sig-foot"><b>{priceLabel(p.price_inr) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{(st.sum / st.count).toFixed(1)} · {st.count}</span></span>
+                        <span className="pn-sig-foot"><b>{priceLabel(p.price_inr) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{st.avg.toFixed(1)} · {st.count}</span></span>
                       </button>
                     );
                   })}
@@ -381,7 +392,7 @@ export default function PlacePage() {
                   onClick={canRate ? undefined : (e) => { e.preventDefault(); if (s) { openReviews(`item:${p.id}`); } }}>
                   <span className="pl-product-img">
                     <ItemThumb path={p.image_path} icon={look.icon} />
-                    {s && <span className="pl-product-rate"><Icon name="star" size={12} fill="currentColor" />{(s.sum / s.count).toFixed(1)}<span>· {s.count}</span></span>}
+                    {s && <span className="pl-product-rate"><Icon name="star" size={12} fill="currentColor" />{s.avg.toFixed(1)}<span>· {s.count}</span></span>}
                   </span>
                   <span className="pl-product-body">
                     <span className="pl-product-name">{p.name}</span>
@@ -408,7 +419,9 @@ export default function PlacePage() {
         )}
         {tab === "reviews" && (
           <>
-      <section className="stack" style={{ gap: 12 }} id="reviews">
+      {/* Profiles aren't open in shop mode, so a reviewer's name there goes nowhere instead of bouncing back here. */}
+      <section className="stack" style={{ gap: 12 }} id="reviews"
+        onClickCapture={shopMode ? (e) => { const a = (e.target as HTMLElement).closest("a[href^='/u/']"); if (a) e.preventDefault(); } : undefined}>
         {aiSummary && (
           <div className="pl-summary">
             <span className="row tiny strong" style={{ gap: 6 }}><Icon name="spark" size={14} />What people say</span>
@@ -420,14 +433,15 @@ export default function PlacePage() {
         <div className="section-title">
           <span className="icon-chip sm amber"><Icon name="message" size={16} /></span>
           <span className="grow">Reviews</span>
-          {reviews.length > 0 && <span className="muted">{reviews.length}</span>}
+          {reviewCount > 0 && <span className="muted">{reviewCount}</span>}
         </div>
         {reviews.length > 0 && (
           <div className="rs" aria-label="Review summary">
+            {/* The headline numbers are the server's, same as the header; the bars and tags below come from what's loaded. */}
             <div className="rs-avg">
-              <b>{sum.average.toFixed(1)}</b>
-              <Stars value={Math.round(sum.average)} size={14} />
-              <span className="tiny muted">{sum.count} review{sum.count === 1 ? "" : "s"}</span>
+              <b>{score != null ? score.toFixed(1) : reviewCount}</b>
+              {score != null ? <Stars value={Math.round(score)} size={14} /> : null}
+              <span className="tiny muted">{score != null ? `${reviewCount} review${reviewCount === 1 ? "" : "s"}` : `review${reviewCount === 1 ? "" : "s"}`}</span>
             </div>
             <div className="rs-bars" role="group" aria-label="Filter by stars">
               {[5, 4, 3, 2, 1].map((n) => {
@@ -441,6 +455,7 @@ export default function PlacePage() {
                 );
               })}
             </div>
+            {sum.count < reviewCount && <span className="tiny muted" style={{ gridColumn: "1 / -1" }}>Stars and tags from the latest {sum.count} reviews</span>}
             {(sum.liked.length > 0 || sum.better.length > 0) && (
               <div className="rs-tags">
                 {sum.liked.length > 0 && <div><span className="lbl row" style={{ gap: 4 }}><Icon name="thumbs" size={13} />Liked</span>{sum.liked.map(([l, n]) => <span key={l} className="rc-tag">{l}<span>{n}</span></span>)}</div>}
@@ -476,10 +491,10 @@ export default function PlacePage() {
           </div>
         )}
         {reviews.length === 0 ? (
-          <Link to={canRate ? rateUrl : "#"} className="pl-empty-reviews" onClick={canRate ? undefined : (e) => e.preventDefault()}>
+          <Link to={canRate ? rateUrl : backToCode || "#"} replace={Boolean(backToCode)} className="pl-empty-reviews" onClick={canRate || backToCode ? undefined : (e) => e.preventDefault()}>
             <span className="icon-chip lg amber"><Icon name="star" size={26} fill="currentColor" /></span>
             <b>No reviews yet</b>
-            <span className="small muted">{canRate ? "Be the first" : "Customers review by scanning the QR at the shop"}</span>
+            <span className="small muted">{canRate || shopMode ? "Be the first to rate what you had" : "Customers review by scanning the QR at the shop"}</span>
           </Link>
         ) : shown.length === 0 ? <div className="empty"><Icon name="filter" size={28} /><p className="small">Nothing here</p></div> :
           shown.map((r) => (
@@ -540,11 +555,15 @@ export default function PlacePage() {
         </section>
       )}
 
-      {!focusShop() && <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>}
+      {!shopMode && <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>}
 
-      {canRate && (
+      {canRate ? (
         <div className="pn-foot">
           <Link to={rateUrl} className="pn-foot-btn"><span className="pn-pulse"><Icon name="star" size={22} fill="currentColor" /></span><span className="grow"><b>Rate what you had</b><br />Takes under a minute</span><Icon name="chev" /></Link>
+        </div>
+      ) : backToCode && (
+        <div className="pn-foot">
+          <Link to={backToCode} replace className="pn-foot-btn"><span className="pn-pulse"><Icon name="star" size={22} fill="currentColor" /></span><span className="grow"><b>Rate what you had</b><br />Takes under a minute</span><Icon name="chev" /></Link>
         </div>
       )}
     </div>
