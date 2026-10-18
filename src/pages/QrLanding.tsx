@@ -263,6 +263,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         <div className="rvx-meta">
           {peek.table_label && <span className="rvx-pill"><Icon name="qr" size={14} />{peek.table_label}</span>}
           {visit && !refused && <span className="rvx-verified"><Icon name="verified" size={15} />Verified visit</span>}
+          <Link to={`/p/${peek.place_id}`} className="rvx-pill" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <Icon name="store" size={14} />View profile & ratings ↗
+          </Link>
         </div>
       </header>
 

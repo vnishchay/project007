@@ -12,11 +12,11 @@ export const LINK_KINDS: LinkKindDef[] = [
   { kind: "facebook", label: "Facebook", match: /facebook\.com|fb\.(com|me)/i, color: "#1877f2", icon: Facebook },
   { kind: "youtube", label: "YouTube", match: /youtube\.com|youtu\.be/i, color: "#ff0000", icon: Youtube },
   { kind: "whatsapp", label: "WhatsApp", match: /wa\.me|whatsapp\.com/i, color: "#25d366", icon: MessageCircle },
-  { kind: "maps", label: "Directions", match: /maps\.app\.goo\.gl|goo\.gl\/maps|google\.[a-z.]+\/maps|maps\.google\./i, color: "#34a853", icon: MapPin },
+  { kind: "maps", label: "Google Maps", match: /maps\.app\.goo\.gl|goo\.gl\/maps|google\.[a-z.]+\/maps|maps\.google\./i, color: "#34a853", icon: MapPin },
   { kind: "justdial", label: "Justdial", match: /justdial\.com/i, color: "#0f6fc6", letter: "Jd" },
   { kind: "phone", label: "Call", match: /^tel:/i, color: "#0e9f6e", icon: Phone },
   { kind: "email", label: "Email", match: /^mailto:/i, color: "#6b7280", icon: Mail },
-  { kind: "website", label: "Website", match: /^https?:\/\//i, color: "#3b5bdb", icon: Globe },
+  { kind: "website", label: "Official Website", match: /^https?:\/\//i, color: "#3b5bdb", icon: Globe },
   { kind: "other", label: "Link", match: /.^/, color: "#64748b", icon: LinkGlyph },
 ];
 

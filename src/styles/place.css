@@ -242,3 +242,32 @@ a.gg-name:hover { color: var(--ink); text-decoration: underline; }
 .pl-claim { justify-content: center; gap: 6px; padding: 8px; color: var(--muted); }
 .pl-fliked { display: grid; gap: 6px; padding: 12px; border-radius: 16px; background: var(--coral-soft); }
 .pl-fliked-row { display: flex; align-items: center; gap: 10px; border: 0; background: var(--card); border-radius: 12px; padding: 7px 10px; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+
+/* ---------- Multi-Platform Ratings & Amenities ---------- */
+.pl-multiplatform { gap: 10px; }
+.pl-platforms-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
+@media (max-width: 480px) {
+  .pl-platforms-grid { grid-template-columns: 1fr; }
+}
+.pl-plat-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 16px;
+  background: var(--surface); color: var(--ink); border: 0.5px solid var(--line-soft);
+  text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+a.pl-plat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); color: var(--ink); }
+a.pl-plat-card:active { transform: scale(0.98); }
+.pl-plat-header { display: flex; align-items: center; gap: 8px; }
+.pl-plat-name { font-size: 13.5px; font-weight: 700; color: var(--ink); flex: 1; }
+.pl-plat-body { display: flex; flex-direction: column; gap: 2px; }
+.pl-plat-rate { font-size: 18px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 4px; line-height: 1.1; }
+.pl-plat-sub { font-size: 12px; color: var(--muted); font-weight: 600; line-height: 1.35; }
+
+.pl-amenities-box { gap: 10px; }
+.pl-amenities-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.pl-amenity-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 600; border: 0.5px solid var(--line-soft);
+}
+.pl-amenity-spark { color: var(--green); font-weight: 800; font-size: 12px; }
+.pl-fssai-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: var(--surface); margin-top: 8px; }
+

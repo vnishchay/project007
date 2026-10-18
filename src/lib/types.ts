@@ -34,6 +34,7 @@ export interface Place {
   verification?: "pending" | "verified" | "rejected";
   /** business type, see src/lib/modes.ts */
   kind?: string;
+  contact_phone?: string | null;
 }
 
 /** A product or dish at a place. Shops add their own with photos (is_listed). */

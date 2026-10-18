@@ -17,6 +17,7 @@ import { DietDot, loadShopItems, missingColumn, priceLabel, shopLook, sortShopIt
 import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
+import { parsePlaceAbout, PlatformRatingsCard, AmenitiesCard } from "../components/place/PlatformRatings";
 import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
 import { olderThan, sortReviews, summarize, type ReviewSort } from "../lib/reviews";
@@ -31,7 +32,8 @@ type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}
 /** Newest columns first; older databases lack kind, then links, then cover/logo. */
 async function loadPlace(id: string) {
   if (!isUuid(id)) return { data: null, error: null };
-  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification`).eq("id", id).maybeSingle();
+  let r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification, contact_phone`).eq("id", id).maybeSingle();
+  if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind, verification`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links, kind`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path, links`).eq("id", id).maybeSingle();
   if (missingColumn(r.error)) r = await supabase.from("places").select(`${PLACE_COLS}, cover_path, logo_path`).eq("id", id).maybeSingle();
@@ -243,6 +245,7 @@ export default function PlacePage() {
   // A newly listed shop's links stay hidden until the team has checked they are genuine.
   const unchecked = place.verification === "pending" || place.verification === "rejected";
   const links = unchecked && !canManage ? [] : cleanLinks((place as Place & { links?: unknown }).links);
+  const parsedAbout = useMemo(() => parsePlaceAbout(place.about, links), [place.about, links]);
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
 
   const openReviews = (f: Filter) => {
@@ -255,7 +258,8 @@ export default function PlacePage() {
   type DockItem = { icon: "navigate" | "phone" | "message" | "globe"; label: string; href: string; hot?: boolean };
   const dock: DockItem[] = [];
   if (directions) dock.push({ icon: "navigate", label: "Directions", href: directions, hot: true });
-  if (find("phone")) dock.push({ icon: "phone", label: "Call", href: find("phone")! });
+  const phoneUrl = place.contact_phone ? `tel:${place.contact_phone.replace(/\s+/g, "")}` : find("phone");
+  if (phoneUrl) dock.push({ icon: "phone", label: "Call", href: phoneUrl });
   if (find("whatsapp")) dock.push({ icon: "message", label: "WhatsApp", href: find("whatsapp")! });
   if (find("website")) dock.push({ icon: "globe", label: "Website", href: find("website")! });
   // Items people rate highly, for the big cards at the top.
@@ -291,12 +295,17 @@ export default function PlacePage() {
         <div className="pn-title">
           <div className="pn-eyebrow"><span />{[place.category, place.area || place.city].filter(Boolean).join(" · ")}</div>
           <h1>{first}{restWords.length > 0 && <><br /><i>{restWords.join(" ")}</i></>}</h1>
-          {place.about && <p className="pn-tag">{place.about.length > 120 ? `${place.about.slice(0, 117)}…` : place.about}</p>}
+          {parsedAbout.story && <p className="pn-tag">{parsedAbout.story.length > 130 ? `${parsedAbout.story.slice(0, 127)}…` : parsedAbout.story}</p>}
           <div className="pn-chips">
             {score != null
               ? <span className="pn-chip" aria-label={`Trust score ${score.toFixed(1)} of 5`}><Icon name="star" size={15} fill="currentColor" color="#d9a441" /><b>{score.toFixed(1)}</b><span>{reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span></span>
               : <span className="pn-chip"><Icon name="spark" size={15} color="#d9a441" /><b>New</b><span>on Trusted Picks</span></span>}
             {today && <button type="button" className="pn-chip" onClick={() => { pickTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }}><span className="pn-dot" />{today}</button>}
+            {parsedAbout.platformRatings.length > 0 && (
+              <button type="button" className="pn-chip" onClick={() => { pickTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }} aria-label="Verified across platforms">
+                <Icon name="globe" size={15} color="#34a853" /><b>{parsedAbout.platformRatings.length} Platforms</b><span>Verified</span>
+              </button>
+            )}
             {verified > 0 && <span className="pn-chip"><Icon name="verified" size={15} color="#e5c78f" />{verified} verified</span>}
             {priceText(place.price_level) && <span className="pn-chip gold">{priceText(place.price_level)}</span>}
           </div>
@@ -517,26 +526,41 @@ export default function PlacePage() {
         )}
         {tab === "about" && (
           <>
-      {(place.about || (!onGoogle && (place.google_place_id || google))) && (
-        <section className="pl-about">
-          <div className="section-title">
-            <span className="icon-chip sm sky"><Icon name="info" size={16} /></span>
-            <span className="grow">About</span>
-          </div>
-          {place.about && <p>{place.about}</p>}
-          {!onGoogle && google && (
-            <div className="row small" style={{ gap: 8 }}>
-              <Icon name="globe" size={16} color="var(--muted)" /><b>{google.rating.toFixed(1)}</b><Stars value={google.rating} size={13} /><span className="muted">{google.count.toLocaleString("en-IN")} on Google</span>
-            </div>
-          )}
-          {!onGoogle && place.google_place_id && (
-            <a className="btn small ghost" href={googleMapsUrl(place.google_place_id, place.name)} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
-              <Icon name="map" size={16} />Open in Maps<Icon name="external" size={14} />
-            </a>
-          )}
-          {!onGoogle && google && <span className="tiny muted">Google rating shown live from Google Maps.</span>}
-        </section>
-      )}
+            <PlatformRatingsCard
+              ratings={parsedAbout.platformRatings}
+              links={links}
+              googlePlaceId={place.google_place_id}
+              placeName={place.name}
+            />
+
+            <AmenitiesCard amenities={parsedAbout.amenities} />
+
+            {(parsedAbout.story || (!onGoogle && (place.google_place_id || google))) && (
+              <section className="pl-about">
+                <div className="section-title">
+                  <span className="icon-chip sm sky"><Icon name="info" size={16} /></span>
+                  <span className="grow">Heritage & Story</span>
+                </div>
+                {parsedAbout.story && <p style={{ whiteSpace: "pre-line", fontSize: 15, lineHeight: 1.6 }}>{parsedAbout.story}</p>}
+                {parsedAbout.fssai && (
+                  <div className="pl-fssai-row">
+                    <Icon name="verified" size={15} color="var(--green)" />
+                    <span className="tiny muted">FSSAI Central Food Safety License: <b style={{ color: "var(--ink)" }}>{parsedAbout.fssai}</b></span>
+                  </div>
+                )}
+                {!onGoogle && google && (
+                  <div className="row small" style={{ gap: 8, marginTop: 8 }}>
+                    <Icon name="globe" size={16} color="var(--muted)" /><b>{google.rating.toFixed(1)}</b><Stars value={google.rating} size={13} /><span className="muted">{google.count.toLocaleString("en-IN")} on Google</span>
+                  </div>
+                )}
+                {!onGoogle && place.google_place_id && (
+                  <a className="btn small ghost" href={googleMapsUrl(place.google_place_id, place.name)} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start", marginTop: 8 }}>
+                    <Icon name="map" size={16} />Open in Maps<Icon name="external" size={14} />
+                  </a>
+                )}
+                {!onGoogle && google && <span className="tiny muted">Google rating shown live from Google Maps.</span>}
+              </section>
+            )}
 
             {place.hours && Object.keys(place.hours).length > 0 && (
               <section className="pl-about">
@@ -544,7 +568,7 @@ export default function PlacePage() {
                 <div className="pl-hours-all">{Object.entries(place.hours).map(([d, h]) => <div key={d}><b>{d}</b><span>{h}</span></div>)}</div>
               </section>
             )}
-      {onGoogle && <OnGoogle key={place.google_place_id!} googlePlaceId={place.google_place_id!} />}
+            {onGoogle && <OnGoogle key={place.google_place_id!} googlePlaceId={place.google_place_id!} />}
 
           </>
         )}
