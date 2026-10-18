@@ -177,7 +177,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           <span className="premeal-name"><DietDot diet={item.diet} />{item.name}</span>
           {item.price_inr != null && <span className="tiny">₹{item.price_inr}</span>}
           <span className="premeal-cta-pill">
-            {isSelected ? "✓ Having this" : "+ Having this"}
+            <Icon name={isSelected ? "checkCircle" : "plus"} size={15} />{isSelected ? "Having this" : "I'm having this"}
           </span>
         </div>
       </button>
@@ -269,25 +269,28 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     <div className="rvx" data-stage="landing">
       {bar}
       <header className="rvx-hero">
-        {visit && <span className="rvx-verified"><Icon name="verified" size={14} />{peek.table_label ? `${peek.table_label} · verified visit` : "Verified visit"}</span>}
+        <div className="rvx-kicker">{[link ? "Review link" : "Welcome", peek.area].filter(Boolean).join(" · ")}</div>
         <h1>{peek.place_name}</h1>
-        <div className="rvx-kicker">{[link ? "Review link from the shop" : !visit ? peek.table_label : null, peek.area].filter(Boolean).join(" · ") || "Welcome"}</div>
+        <div className="rvx-meta">
+          {peek.table_label && <span className="rvx-pill"><Icon name="qr" size={14} />{peek.table_label}</span>}
+          {visit && !refused && <span className="rvx-verified"><Icon name="verified" size={15} />Verified visit</span>}
+        </div>
       </header>
 
       {specials.length > 0 && (
         <section className="rvx-sec" aria-label="Special picks">
-          <div className="rvx-row"><h3>Special picks</h3><span>Tap what you're having</span></div>
+          <div className="rvx-row"><h3>Special picks</h3><span>Chosen by the shop</span></div>
           <div className="premeal-grid">{specials.map((it) => renderCard(it))}</div>
         </section>
       )}
 
       {topItems.length > 0 && (
         <section className="rvx-sec" aria-label="Loved here">
-          <div className="rvx-row"><h3>Loved here</h3><span>By people who ate here</span></div>
+          <div className="rvx-row"><h3>Loved here</h3><span>Top rated by visitors</span></div>
           <div className="rvx-loved">
             {topItems.map((it) => (
               <button key={it.id} type="button" className={selectedIds.includes(it.id) ? "on" : ""} aria-pressed={selectedIds.includes(it.id)} onClick={() => toggleSelected(it)}>
-                {it.name} · {it.lovedPct != null ? `${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`}
+                {selectedIds.includes(it.id) ? <Icon name="check" size={14} width={2.6} /> : <Icon name="heart" size={14} />}{it.name}<span>{it.lovedPct != null ? `${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`}</span>
               </button>
             ))}
           </div>
@@ -300,25 +303,25 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         const shown = q || menuAll ? found : found.slice(0, MENU_FIRST);
         return (
           <section className="rvx-sec" aria-label="Menu">
-            <div className="rvx-row"><h3>Menu</h3><span aria-live="polite">{selectedIds.length ? `${selectedIds.length} tagged${selectedIds.length >= MAX_TAGGED ? " (most you can rate at once)" : ""}` : "Tap anything you're having"}</span></div>
+            <div className="rvx-row"><h3>Menu</h3><span aria-live="polite">{selectedIds.length ? `${selectedIds.length} of ${MAX_TAGGED} picked` : "Tap what you're having"}</span></div>
             {menu.length > 8 && (
               <label className="rvx-msearch">
-                <Icon name="search" size={16} />
-                <input className="input" type="search" value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder="Find on the menu" aria-label="Find on the menu" autoComplete="off" />
+                <Icon name="search" size={18} />
+                <input type="search" value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder="Find on the menu" aria-label="Find on the menu" autoComplete="off" />
               </label>
             )}
             <div className="rvx-menu">
-              {shown.map((it, i) => {
+              {shown.map((it) => {
                 const on = selectedIds.includes(it.id);
                 return (
-                  <button key={it.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }} aria-pressed={on} onClick={() => toggleSelected(it)}>
-                    <span className="th"><ItemThumb path={it.image_path} size={56} /></span>
+                  <button key={it.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} aria-pressed={on} aria-label={`${it.name}${on ? ", picked" : ""}`} onClick={() => toggleSelected(it)}>
+                    <span className="th"><ItemThumb path={it.image_path} size={48} /></span>
                     <span className="tx"><b><DietDot diet={it.diet} />{it.name}</b>{(it.price_inr != null || it.description) && <small>{[it.price_inr != null ? `₹${it.price_inr}` : "", it.description || ""].filter(Boolean).join(" · ")}</small>}</span>
-                    <span className="rvx-mpill">{on ? "✓ Having" : "+ Having"}</span>
+                    <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>
                   </button>
                 );
               })}
-              {q && !found.length && <p className="rvx-hint">Nothing called "{menuQ.trim()}". You can add it on the next screen.</p>}
+              {q && !found.length && <p className="rvx-mrow" style={{ cursor: "default", color: "var(--muted)" }}>No match for "{menuQ.trim()}". You can type it in later.</p>}
             </div>
             {!q && !menuAll && found.length > MENU_FIRST && (
               <button type="button" className="rvx-more" onClick={() => setMenuAll(true)}><Icon name="down" size={16} />Show all {found.length}</button>
@@ -351,14 +354,14 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
             ) : null
           ) : (
             <div className="rvx-perks">
-              <div className="rvx-perk"><span className="ci"><Icon name="star" size={17} /></span>No account needed</div>
-              <div className="rvx-perk"><span className="ci"><Icon name="eyeOff" size={17} /></span>Anonymous by default</div>
-              <div className="rvx-perk"><span className="ci"><Icon name="verified" size={17} /></span>Gets a verified visit badge</div>
+              <div className="rvx-perk"><span className="ci"><Icon name="user" size={17} /></span>No account needed</div>
+              <div className="rvx-perk"><span className="ci"><Icon name="eyeOff" size={17} /></span>Anonymous unless you choose otherwise</div>
+              <div className="rvx-perk"><span className="ci"><Icon name="verified" size={17} /></span>Marked as a verified visit</div>
             </div>
           )}
         </div>
         {guestErr && <div className="notice err" role="alert">{guestErr}</div>}
-        <Link to={`/p/${peek.place_id}`} className="rvx-more"><Icon name="eye" size={16} />See what others loved first</Link>
+        <Link to={`/p/${peek.place_id}`} className="rvx-more"><Icon name="eye" size={18} />See all reviews</Link>
       </section>
 
       {!loading && !scanErr && (
@@ -375,7 +378,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 playHapticTap(950);
               }}
             >
-              <span>{selectedIds.length > 0 ? `Rate your visit · ${selectedIds.length} tagged` : "Rate your visit"}</span>
+              <span>{selectedIds.length > 0 ? `Rate your visit · ${selectedIds.length} picked` : "Rate your visit"}</span>
             </Link>
           ) : (
             <button
@@ -387,7 +390,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 rateAsGuest();
               }}
             >
-              <span>{starting ? "Opening…" : selectedIds.length > 0 ? `Rate your visit · ${selectedIds.length} tagged` : "Rate your visit"}</span>
+              <span>{starting ? "Opening…" : selectedIds.length > 0 ? `Rate your visit · ${selectedIds.length} picked` : "Rate your visit"}</span>
             </button>
           )}
         </div>

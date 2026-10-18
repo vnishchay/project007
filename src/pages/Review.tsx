@@ -56,9 +56,9 @@ const VERDICTS: { key: Verdict; label: string; rating: number }[] = [
 const verdictOf = (r: number): Verdict | undefined => (!r ? undefined : r >= 5 ? "love" : r >= 4 ? "good" : "meh");
 const labelOf = (r: number) => VERDICTS.find((v) => v.key === verdictOf(r))?.label ?? "";
 
-function Face({ v }: { v: Verdict }) {
+function Face({ v, size = 26 }: { v: Verdict; size?: number }) {
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
       {v === "love" ? <path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z" /> : <>
         <circle cx="12" cy="12" r="9" />
         <path d={v === "meh" ? "M8.5 16c1-1.2 2.2-1.8 3.5-1.8s2.5.6 3.5 1.8M9 10h.01M15 10h.01" : "M8.5 14.5c1 .9 2.2 1.3 3.5 1.3s2.5-.4 3.5-1.3M9 10h.01M15 10h.01"} />
@@ -791,6 +791,7 @@ function ReviewForm() {
         return (
           <button key={v.key} type="button" role="radio" aria-checked={on} className={`rvx-face-btn ${v.key} ${on ? "on" : ""}`}
             onClick={() => { try { if (v.key === "love") playWaxStamp(); else playHapticTap(700 + v.rating * 60); } catch { /* no audio */ } pick(v.rating); }}>
+            {on && <span className="mark" aria-hidden="true"><Icon name="check" size={12} width={3} /></span>}
             <Face v={v.key} />{v.label}
           </button>
         );
@@ -802,7 +803,7 @@ function ReviewForm() {
     const typing = ai[key]?.stage === "typing";
     return (
       <div className="rvx-write">
-        <b id={`w-${key}`}>{label}</b>
+        <b id={`w-${key}`}>{label}<small>Optional</small></b>
         <span className="box">
           <textarea className={`textarea rvx-text ${small ? "sm" : ""} ${typing ? "typing" : ""}`} aria-labelledby={`w-${key}`} placeholder={placeholder}
             value={bodyOf(key)} readOnly={typing} maxLength={MAX_BODY}
@@ -823,21 +824,21 @@ function ReviewForm() {
     const st = a?.stage ?? "idle";
     const hasText = bodyOf(key).trim().length > 0;
     const qs = AI_QUESTIONS[isFood ? "food" : "other"];
-    const label = !enabled ? "Pick a face, then AI can help" : st === "typing" ? "Writing…" : st === "ask" ? "Close" : st === "done" ? "Rewrite with AI" : hasText ? "Polish my words with AI" : "Write it with AI";
+    const label = !enabled ? "Choose how it went to use AI" : st === "typing" ? "Writing…" : st === "ask" ? "Not now" : st === "done" ? "Write again" : hasText ? "Improve my words with AI" : "Write it with AI";
     const refines: { k: "short" | "long" | "casual" | "polite" | "undo"; label: string; on: boolean }[] = [
       { k: "short", label: "Shorter", on: a?.len === "short" }, { k: "long", label: "More detail", on: a?.len === "long" },
       { k: "casual", label: "Casual", on: a?.tone !== "polite" }, { k: "polite", label: "Polite", on: a?.tone === "polite" },
-      { k: "undo", label: "Undo", on: false },
+      { k: "undo", label: "Undo AI", on: false },
     ];
     return (
       <div className="rvx-aiwrap">
         <button type="button" className="rvx-aibtn" disabled={!enabled || st === "typing" || busy} onClick={() => startAi(key)}>
-          {st === "ask" ? <Icon name="close" size={16} /> : <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z" /><path d="M18.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" /></svg>}
+          {st === "typing" ? <span className="spin" aria-hidden="true" /> : st === "ask" ? <Icon name="close" size={16} /> : <Icon name="spark" size={17} />}
           {label}
         </button>
         {st === "ask" && a && (
           <div className="rvx-aiask">
-            <b>Two quick taps so it sounds like you</b>
+            <b>Two quick questions, so it sounds like you</b>
             {qs.map((q, qi) => (
               <div key={q.q} className="rvx-q" role="group" aria-label={q.q}>
                 <span>{q.q}</span>
@@ -845,23 +846,23 @@ function ReviewForm() {
                   {q.opts.map((o) => {
                     const on = a.answers[qi] === o;
                     return <button key={o} type="button" className={`rvx-opt ${on ? "on" : ""}`} aria-pressed={on}
-                      onClick={() => { const ans = [...a.answers]; ans[qi] = on ? null : o; setAiFor(key, { answers: ans }); }}>{o}</button>;
+                      onClick={() => { const ans = [...a.answers]; ans[qi] = on ? null : o; setAiFor(key, { answers: ans }); }}>{on && <Icon name="check" size={14} width={2.6} />}{o}</button>;
                   })}
                 </div>
               </div>
             ))}
             <div className="rvx-aigo">
               <button type="button" className="go" onClick={() => void generate(key)}>Write it</button>
-              <button type="button" className="skip" onClick={() => void generate(key, { answers: [] })}>Skip questions</button>
+              <button type="button" className="skip" onClick={() => void generate(key, { answers: [] })}>Skip</button>
             </div>
           </div>
         )}
         {st === "done" && a && (
           <div className="rvx-refine">
             <div className="rvx-opts">
-              {refines.map((r) => <button key={r.k} type="button" className={`rvx-opt ${r.on ? "on" : ""}`} aria-pressed={r.k === "undo" ? undefined : r.on} onClick={() => refine(key, r.k)}>{r.label}</button>)}
+              {refines.map((r) => <button key={r.k} type="button" className={`rvx-opt ${r.on ? "on" : ""}`} aria-pressed={r.k === "undo" ? undefined : r.on} onClick={() => refine(key, r.k)}>{r.on && <Icon name="check" size={14} width={2.6} />}{r.label}</button>)}
             </div>
-            <span className="rvx-aifine">Written only from what you told us. Edit anything before posting.</span>
+            <span className="rvx-aifine"><Icon name="info" size={14} />Written by AI from your choices and words. Check it before you post.</span>
           </div>
         )}
       </div>
@@ -874,36 +875,38 @@ function ReviewForm() {
     const set = VISIT_TAGS[isFood ? "food" : "other"];
     const tagged = dishes.length;
     return (
-      <div className="rvx" data-stage="visit" data-verdict={vv}>
+      <div className="rvx" data-stage="visit">
         <div className="rvx-bar"><RvxBack fallback={`/p/${placeId}`} /><span className="rvx-brand">Trusted Picks</span><span className="grow" />{who}</div>
-        <header className={`rvx-hero ${vv ? "compact" : ""}`}>
-          <span className="rvx-verified"><Icon name="verified" size={14} />Verified visit</span>
+        <header className="rvx-hero">
+          {(place.category || place.area) && <div className="rvx-kicker">{[place.category, place.area].filter(Boolean).join(" · ")}</div>}
           <h1>{place.name}</h1>
-          <div className="rvx-kicker">{[place.category, place.area].filter(Boolean).join(" · ")}</div>
-          {googleLive?.rating != null && <div className="rvx-meta"><span className="rvx-pill"><Icon name="star" size={13} fill="#FFD23F" color="#FFD23F" />{googleLive.rating.toFixed(1)} on Google</span></div>}
+          <div className="rvx-meta">
+            <span className="rvx-verified"><Icon name="verified" size={15} />Verified visit</span>
+            {googleLive?.rating != null && <span className="rvx-pill"><Icon name="star" size={14} fill="var(--star)" color="var(--star)" />{googleLive.rating.toFixed(1)} on Google</span>}
+          </div>
         </header>
         <section className="rvx-sec">
-          <h2 ref={head} tabIndex={-1}>How was your <i>visit?</i></h2>
+          <h2 ref={head} tabIndex={-1}>How was your visit?</h2>
           {faces(visit.rating, (r) => setVisit((v) => ({ ...v, rating: r, tags: verdictOf(v.rating) === verdictOf(r) ? v.tags : [] })))}
           {vv && (
             <div className="rvx-group" key={vv}>
-              <span className="rvx-gtitle">{set[vv].title}</span>
+              <span className="rvx-gtitle"><Icon name={vv === "meh" ? "thumbsDown" : "thumbs"} size={16} />{set[vv].title}</span>
               <div className="rvx-chips">
                 {set[vv].tags.map((t) => {
                   const on = visit.tags.includes(t);
                   return <button key={t} type="button" className={`rvx-chip ${on ? "on" : ""}`} aria-pressed={on}
-                    onClick={() => setVisit((v) => ({ ...v, tags: on ? v.tags.filter((x) => x !== t) : [...v.tags, t] }))}>{t}</button>;
+                    onClick={() => setVisit((v) => ({ ...v, tags: on ? v.tags.filter((x) => x !== t) : [...v.tags, t] }))}>{on && <Icon name="check" size={14} width={2.6} />}{t}</button>;
                 })}
               </div>
             </div>
           )}
-          {writeBox("visit", "Your review", "Tell others what it was like. Or jot a few words and let AI write it…")}
+          {writeBox("visit", "Your review", "What should others know? A few words is enough, and AI can help.")}
           {aiPanel("visit", Boolean(visit.rating))}
         </section>
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot">
-          <button type="button" className={`rvx-cta ${visit.rating ? "" : "idle"}`} onClick={postVisit}>{visit.rating ? "Post review" : "Pick a face to post"}</button>
-          <button type="button" className="rvx-link" onClick={toDishes}><Icon name="plus" size={16} width={2.6} />{tagged ? `Also rate your ${things(tagged)}` : `Rate a ${mode.item} too (optional)`}</button>
+          <button type="button" className={`rvx-cta ${visit.rating ? "" : "idle"}`} onClick={postVisit}>{visit.rating ? "Continue" : "Choose how it went"}</button>
+          <button type="button" className="rvx-link" onClick={toDishes}><Icon name={look.icon} size={16} />{tagged ? `Rate the ${things(tagged)} you picked` : `Rate a ${mode.item} too`}</button>
         </div>
       </div>
     );
@@ -917,8 +920,8 @@ function ReviewForm() {
       <div className="rvx" data-stage="pick">
         <div className="rvx-bar">{backBtn}<span className="rvx-where">{place.name}</span>{who}</div>
         <section className="rvx-sec">
-          <h2 ref={head} tabIndex={-1}>Which <i>{mode.itemPlural}?</i></h2>
-          <p className="rvx-hint">{mode.ratePrompt} Tap everything you tried, up to {MAX_DISHES}.</p>
+          <h2 ref={head} tabIndex={-1}>{mode.ratePrompt}</h2>
+          <p className="rvx-hint">Pick up to {MAX_DISHES}. You'll rate each one next, and can skip any.</p>
           <div className="rvx-tiles">
             {items.map((i, n) => {
               const k = dishes.findIndex((d) => d.itemId === i.id);
@@ -936,7 +939,7 @@ function ReviewForm() {
               );
             })}
             <button type="button" className={`rvx-tile rvx-other ${other ? "on" : ""}`} aria-pressed={other} onClick={() => setOther(!other)}>
-              <span className="rvx-img"><Icon name="plus" size={28} /></span>
+              <span className="rvx-img"><Icon name="plus" size={26} /></span>
               <span className="rvx-nm">Something else</span>
             </button>
           </div>
@@ -968,7 +971,7 @@ function ReviewForm() {
         : dv === "good" ? [{ title: "What stood out?", list: goodTags, own: true }, { title: "Anything that could be better?", list: badTags, bad: true, opt: true }]
           : dv === "meh" ? [{ title: "What went wrong?", list: badTags, bad: true, own: true }, { title: "Anything good?", list: goodTags, opt: true }] : [];
     return (
-      <div className="rvx" data-stage="dish" data-verdict={dv}>
+      <div className="rvx" data-stage="dish">
         <div className="rvx-bar">
           {backBtn}
           <div className="rvx-dots" role="img" aria-label={`${at + 1} of ${dishes.length}`}>
@@ -976,21 +979,21 @@ function ReviewForm() {
           </div>
           {who}
         </div>
-        <div className={`rvx-dhero ${dv ? "compact" : ""}`}>
-          <ItemThumb path={item?.image_path} icon={look.icon} />
-          <div className="cap"><small>{place.name} · {at + 1} of {dishes.length}</small><b>{dish.name}</b></div>
+        <div className="rvx-dhero" key={`h-${dish.key}`}>
+          <span className="th"><ItemThumb path={item?.image_path} icon={look.icon} /></span>
+          <div className="cap"><small>{at + 1} of {dishes.length}</small><b>{dish.name}</b></div>
         </div>
         <section className="rvx-sec" key={dish.key}>
           <h2 ref={head} tabIndex={-1} className="sr-only">How was the {dish.name}?</h2>
           {faces(dish.rating, (r) => patch(at, { rating: r }))}
           {groups.map((g, gi) => g.list.length > 0 || g.own ? (
             <div className="rvx-group" key={`${dv}-${gi}`}>
-              <span className="rvx-gtitle">{g.title}{g.opt && <span className="opt">optional</span>}</span>
+              <span className="rvx-gtitle"><Icon name={g.bad ? "thumbsDown" : "thumbs"} size={16} />{g.title}{g.opt && <span className="opt">Optional</span>}</span>
               <div className="rvx-chips" role="group" aria-label={g.title}>
-                {g.list.map((t) => <button key={t.id} type="button" aria-pressed={dish.picked.includes(t.id)} className={`rvx-chip ${g.bad ? "bad" : ""} ${dish.picked.includes(t.id) ? "on" : ""}`} onClick={() => toggleTag(t.id)}>{t.label}</button>)}
+                {g.list.map((t) => <button key={t.id} type="button" aria-pressed={dish.picked.includes(t.id)} className={`rvx-chip ${g.bad ? "bad" : ""} ${dish.picked.includes(t.id) ? "on" : ""}`} onClick={() => toggleTag(t.id)}>{dish.picked.includes(t.id) && <Icon name="check" size={14} width={2.6} />}{t.label}</button>)}
                 {g.own && dish.custom.map((t) => <button key={`c-${t}`} type="button" className="rvx-chip on" aria-label={`Remove tag ${t}`} onClick={() => patch(at, { custom: dish.custom.filter((x) => x !== t) })}>{t} <Icon name="close" size={12} /></button>)}
                 {g.own && (tagDraft === null ? (
-                  dish.custom.length < MAX_CUSTOM_TAGS && <button type="button" className="rvx-chip dash" aria-label="Add your own tag" onClick={() => setTagDraft("")}><Icon name="plus" size={13} />tag</button>
+                  dish.custom.length < MAX_CUSTOM_TAGS && <button type="button" className="rvx-chip dash" aria-label="Add your own tag" onClick={() => setTagDraft("")}><Icon name="plus" size={14} />Add your own</button>
                 ) : (
                   <input className="input rvx-tagin" value={tagDraft} maxLength={30} autoFocus aria-label="Your own tag" placeholder="e.g. Crispy"
                     onChange={(e) => setTagDraft(e.target.value)}
@@ -1000,7 +1003,7 @@ function ReviewForm() {
               </div>
             </div>
           ) : null)}
-          {writeBox(dish.key, "Say it your way", isFood ? "Taste, portion, how it arrived…" : "What was it like?", true)}
+          {writeBox(dish.key, `About the ${dish.name}`, isFood ? "Taste, portion, how it arrived…" : "What was it like?", true)}
           {aiPanel(dish.key, Boolean(dish.rating))}
           <div className="rvx-media">
             <ReviewPhotoPicker value={dish.photo} onChange={(b) => patch(at, { photo: b })} disabled={busy} />
@@ -1010,7 +1013,7 @@ function ReviewForm() {
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot">
           <button type="button" className={`rvx-cta ${dish.rating ? "" : "idle"}`} disabled={recording} onClick={next}>
-            {!dish.rating ? `Skip this ${mode.item}` : last ? "Review it all" : <>Next · {dishes[at + 1]!.name}</>}
+            {!dish.rating ? `Skip this ${mode.item}` : last ? "Continue" : <>Next: {dishes[at + 1]!.name}</>}
           </button>
         </div>
       </div>
@@ -1020,21 +1023,22 @@ function ReviewForm() {
   /* ---------- preview + sending ---------- */
   if (stage === "preview" || stage === "sending") {
     const sending = stage === "sending";
-    const quote = (t: string) => `“${t.length > 90 ? `${t.slice(0, 90)}…` : t}”`;
+    const quote = (t: string) => (t.length > 140 ? `${t.slice(0, 140)}…` : t);
+    const badge = (r: number) => { const v = verdictOf(r); return v ? <span className={`rvx-badge ${v}`}><Face v={v} size={14} />{labelOf(r)}</span> : null; };
     return (
       <div className="rvx" data-stage={stage}>
         <div className="rvx-bar">{!sending && backBtn}<span className="rvx-where">{place.name}</span>{who}</div>
         <section className="rvx-sec">
-          <h2 ref={head} tabIndex={-1}>Looks <i>good?</i></h2>
+          <h2 ref={head} tabIndex={-1}>Check your review</h2>
           <div className="rvx-cards">
             {visit.rating > 0 && (
               <article className="rvx-rcard">
                 <span className="rvx-rthumb"><Icon name={look.icon} size={26} /></span>
                 <div className="rvx-rbody">
-                  <div className="rvx-rhead"><b>Your visit</b><span className={`rvx-badge ${verdictOf(visit.rating)}`}>{labelOf(visit.rating)}</span></div>
-                  <p>{visit.body.trim() ? quote(visit.body.trim()) : visit.tags.length ? visit.tags.join(" · ") : "No words added"}</p>
+                  <div className="rvx-rhead"><b>Your visit</b>{badge(visit.rating)}</div>
+                  <p className={visit.body.trim() || visit.tags.length ? "" : "none"}>{visit.body.trim() ? quote(visit.body.trim()) : visit.tags.length ? visit.tags.join(" · ") : "No words added"}</p>
                   {visit.reviewId ? <span className="rvx-edit done"><Icon name="check" size={13} />Posted</span>
-                    : !sending && <button type="button" className="rvx-edit" onClick={() => { setErr(""); setStage("visit"); }}>Edit</button>}
+                    : !sending && <button type="button" className="rvx-edit" onClick={() => { setErr(""); setStage("visit"); }}><Icon name="edit" size={14} />Edit</button>}
                 </div>
               </article>
             )}
@@ -1045,10 +1049,10 @@ function ReviewForm() {
                 <article key={d.key} className="rvx-rcard">
                   <span className="rvx-rthumb"><ItemThumb path={item?.image_path} icon={look.icon} /></span>
                   <div className="rvx-rbody">
-                    <div className="rvx-rhead"><b>{d.name}</b><span className={`rvx-badge ${verdictOf(d.rating)}`}>{labelOf(d.rating)}</span></div>
-                    <p>{d.body.trim() ? quote(d.body.trim()) : labels.length ? labels.join(" · ") : "No tags added"}</p>
+                    <div className="rvx-rhead"><b>{d.name}</b>{badge(d.rating)}</div>
+                    <p className={d.body.trim() || labels.length ? "" : "none"}>{d.body.trim() ? quote(d.body.trim()) : labels.length ? labels.join(" · ") : "No words added"}</p>
                     {d.reviewId ? <span className="rvx-edit done"><Icon name="check" size={13} />Posted</span>
-                      : !sending && <button type="button" className="rvx-edit" onClick={() => goDish(dishes.indexOf(d))}>Edit</button>}
+                      : !sending && <button type="button" className="rvx-edit" onClick={() => goDish(dishes.indexOf(d))}><Icon name="edit" size={14} />Edit</button>}
                   </div>
                 </article>
               );
@@ -1063,12 +1067,13 @@ function ReviewForm() {
           <p className="rvx-anon"><Icon name="eyeOff" size={16} />Posted anonymously. No one can see it was you.</p>
         ) : (
           <fieldset className="rvx-whoseg" disabled={sending}>
-            <legend>Post it as</legend>
+            <legend>Post as</legend>
             <div className={`track ${isPublic ? "named" : ""}`}>
               <span className="thumb" aria-hidden="true" />
-              <label className={!isPublic ? "on" : ""}><input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} /><b>Anonymous</b><i>No name shown</i></label>
-              <label className={isPublic ? "on" : ""}><input type="radio" name="visibility" checked={isPublic} onChange={() => setIsPublic(true)} /><b>Show my name</b><i>Friends see it</i></label>
+              <label className={!isPublic ? "on" : ""}><input type="radio" name="visibility" checked={!isPublic} onChange={() => setIsPublic(false)} /><Icon name="eyeOff" size={16} />Anonymous</label>
+              <label className={isPublic ? "on" : ""}><input type="radio" name="visibility" checked={isPublic} onChange={() => setIsPublic(true)} /><Icon name="user" size={16} />With my name</label>
             </div>
+            <p className="rvx-whonote">{isPublic ? "Your name shows on the review, and friends see you were here." : "It counts the same, but no one sees it was you."}</p>
           </fieldset>
         )}
 
@@ -1078,11 +1083,11 @@ function ReviewForm() {
           {sending ? (
             <div className="rvx-pipe" role="status" aria-live="polite">
               <span className="spin" aria-hidden="true" />
-              <b>{saving || "Almost there…"}</b>
+              {saving || "Posting…"}
             </div>
           ) : <>
             <button type="button" className="rvx-cta" onClick={() => void post()}>Post review</button>
-            <span className="rvx-hint c">Next, you can paste it on Google too.</span>
+            <span className="rvx-hint c">After posting, you can add it to Google too.</span>
           </>}
         </div>
       </div>
@@ -1091,82 +1096,73 @@ function ReviewForm() {
 
   /* ---------- done ---------- */
   const n = done.length;
-  const count = visit.reviewId ? (n ? `Visit + ${things(n)}` : "Visit rated") : `${things(n)} rated`;
+  const count = visit.reviewId ? (n ? `Visit and ${things(n)}` : "Your visit") : things(n);
 
   return (
     <div className="rvx" data-stage="done">
       <section className="rvx-sec center">
         <div className="rvx-stampwrap" aria-hidden="true">
-          <span className="ring" />
-          <span className="stamp"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>
-          <span className="land">{count}</span>
+          <span className="stamp"><Icon name="check" size={40} width={2.6} /></span>
         </div>
-        <h2 ref={head} tabIndex={-1}>Thank you!</h2>
-        <p className="rvx-hint c">Your review helps the next {isFood ? "table order well" : "person choose well"} at {place.name}. {isGuest || !isPublic ? "It's posted anonymously." : "It shows your name."}</p>
+        <h2 ref={head} tabIndex={-1}>Review posted</h2>
+        <span className="rvx-count-pill"><Icon name={isGuest || !isPublic ? "eyeOff" : "user"} size={14} />{count} · {isGuest || !isPublic ? "anonymous" : "with your name"}</span>
+        <p className="rvx-hint c">Thank you. It helps the next {isFood ? "table order well" : "person choose well"} at {place.name}.</p>
       </section>
 
-      <section className="rvx-google">
-        <div className="rvx-ghead"><span className="rvx-g"><Icon name="star" size={16} fill="#fff" color="#fff" /></span><div className="grow"><b>Share it on Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish it there." : "Takes three taps"}</small></div></div>
+      <section className="rvx-card" aria-labelledby="g-h">
+        <div className="rvx-ghead"><span className="rvx-ico g"><Icon name="globe" size={20} /></span><div className="grow"><b id="g-h">Add it to Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish there." : "Optional, about 20 seconds"}</small></div></div>
         <ol className="rvx-coach">
-          <li><b>1</b>We copy your review text</li>
-          <li><b>2</b>Google opens. Tap <span className="rvx-gs">{"★".repeat(overall)}</span></li>
-          <li><b>3</b>Paste, then tap <span className="rvx-post">Post</span></li>
+          <li><b>1</b>We copy your review</li>
+          <li><b>2</b>On Google, tap <span className="rvx-gs" aria-label={`${overall} stars`}>{"★".repeat(overall)}</span></li>
+          <li><b>3</b>Paste it and tap Post</li>
         </ol>
-        {copied === false && <p className="rvx-warn">Couldn't copy by itself. Press Copy, then open Google.</p>}
+        {copied === false && <p className="rvx-warn">Couldn't copy automatically. Tap Copy, then open Google.</p>}
         <div className="rvx-two">
-          <button type="button" className="rvx-tool" onClick={openGoogle}><Icon name="external" size={16} />{googleOpened ? "Open again" : "Copy, open Google"}</button>
-          <button type="button" className="rvx-tool" onClick={copyAgain}><Icon name="copy" size={16} />{copied ? "Copied" : "Copy"}</button>
+          <button type="button" className="rvx-tool dark" onClick={openGoogle}><Icon name="external" size={16} />{googleOpened ? "Open again" : "Open Google"}</button>
+          <button type="button" className="rvx-tool" onClick={copyAgain}><Icon name={copied ? "check" : "copy"} size={16} />{copied ? "Copied" : "Copy"}</button>
         </div>
-        <p className="rvx-fine">Google only lets you post yourself, so the last tap is yours.</p>
+        <p className="rvx-fine">Google only lets you post it yourself, so the last tap is yours.</p>
       </section>
 
       {/* A private note is offered at every rating, next to Google, never instead of it. */}
-      <section className="rvx-shield-card" aria-labelledby="shield-h">
-        <div className="row" style={{ alignItems: "center", gap: 10 }}>
-          <span className="icon-chip sm coral"><Icon name="shield" size={18} /></span>
-          <div className="grow stack tight">
-            <strong id="shield-h" style={{ fontSize: 16 }}>Tell the owner privately</strong>
-            <span className="tiny muted">Only the shop owner reads this. Your name is never shown</span>
-          </div>
-        </div>
+      <section className="rvx-card" aria-labelledby="shield-h">
+        <div className="rvx-ghead"><span className="rvx-ico note"><Icon name="message" size={20} /></span><div className="grow"><b id="shield-h">Tell the owner privately</b><small>Only the owner reads it. Your name is never shown.</small></div></div>
         {!noteSent ? (
           !showPrivateForm ? (
-            <button type="button" className="rvx-more" onClick={() => { setShowPrivateForm(true); if (!privateNote) setPrivateNote((visit.reviewId && visit.body.trim()) || done.find((d) => d.body)?.body || ""); }}>
-              <Icon name="message" size={16} />Send a private note
+            <button type="button" className="rvx-tool" onClick={() => { setShowPrivateForm(true); if (!privateNote) setPrivateNote((visit.reviewId && visit.body.trim()) || done.find((d) => d.body)?.body || ""); }}>
+              <Icon name="edit" size={16} />Write a note
             </button>
           ) : (
-            <form className="stack tight" onSubmit={(e) => { e.preventDefault(); void sendPrivateFeedback(); }} style={{ marginTop: 4 }}>
+            <form className="stack" onSubmit={(e) => { e.preventDefault(); void sendPrivateFeedback(); }}>
               <label className="field">
-                <span className="tiny strong">What can they improve?</span>
-                <textarea className="textarea" rows={3} placeholder="Tell the owner what went wrong…" value={privateNote} onChange={(e) => setPrivateNote(e.target.value)} required />
+                <span className="tiny strong">Your note</span>
+                <textarea className="textarea" rows={3} placeholder="What could they do better?" value={privateNote} onChange={(e) => setPrivateNote(e.target.value)} required />
               </label>
               <label className="field">
-                <span className="tiny strong">Phone or email, only if you want a reply (optional)</span>
-                <input className="input" type="text" placeholder="e.g. name@email.com" value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} />
+                <span className="tiny strong">Phone or email, only if you want a reply</span>
+                <input className="input" type="text" inputMode="email" placeholder="Optional" value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} />
               </label>
-              <div className="row" style={{ gap: 8, marginTop: 4 }}>
-                <button type="submit" className="rvx-cta grow" disabled={sendingNote}><Icon name="send" size={14} />{sendingNote ? "Sending…" : "Send note"}</button>
+              <div className="row">
+                <button type="submit" className="rvx-tool dark grow" disabled={sendingNote}><Icon name="send" size={15} />{sendingNote ? "Sending…" : "Send note"}</button>
                 <button type="button" className="rvx-skip" onClick={() => setShowPrivateForm(false)}>Cancel</button>
               </div>
             </form>
           )
         ) : (
-          <span className="tiny strong row" style={{ gap: 6, background: "rgba(159, 216, 197, 0.18)", padding: "8px 12px", borderRadius: 10 }}>
-            <Icon name="check" size={14} color="#9FD8C5" />Private note sent to the owner
-          </span>
+          <p className="notice ok" style={{ margin: 0 }}><Icon name="check" size={14} /> Note sent to the owner</p>
         )}
       </section>
 
       <div className="rvx-after">
-        <button type="button" className="rvx-more" onClick={() => void share()} disabled={sharingStory}><Icon name="share" size={16} />{sharingStory ? "Making your story card…" : "Share a story card"}</button>
-        <div className="row" style={{ gap: 10 }}>
-          <button type="button" className="rvx-more grow" onClick={another}>Rate another {mode.item}</button>
-          <Link to={`/p/${placeId}`} className="rvx-more grow" style={{ background: "rgba(255,255,255,0.12)", borderColor: "transparent" }}>Back to shop</Link>
+        <button type="button" className="rvx-more" onClick={() => void share()} disabled={sharingStory}><Icon name="share" size={18} />{sharingStory ? "Making your card…" : "Share with friends"}</button>
+        <div className="two">
+          <button type="button" className="rvx-more" onClick={another}><Icon name="plus" size={16} />Rate another {mode.item}</button>
+          <Link to={`/p/${placeId}`} className="rvx-more"><Icon name="store" size={16} />Back to shop</Link>
         </div>
       </div>
       {isGuest && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${placeId}`)}`} className="rvx-nudge">
-          <Icon name="lock" size={18} /><span className="grow"><b>Keep your reviews? (optional)</b><small>Sign in to see them on any phone. Nothing changes if you don't.</small></span><Icon name="chev" size={18} />
+          <span className="rvx-ico"><Icon name="lock" size={18} /></span><span className="grow"><b>Keep your reviews</b><small>Sign in to see them on any phone. Optional.</small></span><Icon name="chev" size={18} />
         </Link>
       )}
     </div>
