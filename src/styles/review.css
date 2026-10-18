@@ -195,3 +195,47 @@ a.rvx-cta[aria-disabled="true"] { opacity: 0.5; }
 .wax-stamp.bad { border-color: #ff9a78; color: #ffb9a0; }
 @keyframes stamp-in { from { transform: scale(1.6) rotate(-12deg); opacity: 0; } to { transform: rotate(-4deg); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .wax-stamp { animation: none; } }
+
+/* ---------- Pre-Meal Hook (What to Order) ---------- */
+.premeal-guide {
+  background: rgba(255, 255, 255, 0.06); border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  margin: 0 20px;
+}
+.premeal-head { display: flex; align-items: center; justify-content: space-between; }
+.premeal-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px;
+  background: var(--good-soft); color: var(--good-dark); font-size: 11px; font-weight: 700;
+}
+.premeal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.premeal-card {
+  position: relative; border-radius: 14px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex; flex-direction: column; cursor: pointer; text-align: left;
+  transition: transform 0.18s var(--ease), border-color 0.18s ease;
+}
+.premeal-card:hover { border-color: var(--champ); }
+.premeal-card:active { transform: scale(0.97); }
+.premeal-card.selected {
+  border-color: var(--champ); background: rgba(229, 199, 143, 0.12);
+}
+.premeal-rank {
+  position: absolute; top: 6px; left: 6px; z-index: 2;
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72); color: #fff;
+}
+.premeal-rank.gold { color: var(--champ); }
+.premeal-thumb-wrap { position: relative; aspect-ratio: 4/3; width: 100%; overflow: hidden; background: #1c1c1e; }
+.premeal-info { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.premeal-name { font-size: 13px; font-weight: 600; color: #fff; overflow-wrap: anywhere; line-height: 1.25; }
+.premeal-meta { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.premeal-star { color: var(--gold); font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+.premeal-cta-pill {
+  margin-top: 4px; padding: 3px 6px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  background: rgba(255, 255, 255, 0.1); color: var(--champ); text-align: center;
+}
+.premeal-card.selected .premeal-cta-pill {
+  background: var(--champ); color: #000;
+}
+
+button.premeal-card { font: inherit; color: inherit; padding: 0; width: 100%; }
