@@ -18,52 +18,13 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthState | null>(null);
-
 /** Why the last guest sign-in failed (Supabase's own wording), for the console and the page to show. */
 export let lastGuestError = "";
 
 /** One in-flight guest sign-in at a time, so two components (or React's double effect) never create two guests. */
 let guestInFlight: Promise<boolean> | null = null;
 
-interface TurnstileWindow extends Window {
-  turnstile?: {
-    render: (container: string | HTMLElement, options: Record<string, unknown>) => string;
-    reset: (widgetId: string) => void;
-  };
-}
-
-async function getTurnstileToken(): Promise<string | undefined> {
-  const siteKey = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_TURNSTILE_SITE_KEY;
-  if (!siteKey || typeof window === "undefined") return undefined;
-  const w = window as unknown as TurnstileWindow;
-  if (!w.turnstile) {
-    // Loaded only when a site key is set, so apps without CAPTCHA never contact Cloudflare.
-    await new Promise<void>((done) => {
-      const el = document.createElement("script");
-      el.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-      el.async = true;
-      el.onload = () => done();
-      el.onerror = () => done();
-      document.head.appendChild(el);
-    });
-    if (!w.turnstile) return undefined;
-  }
-  return new Promise((resolve) => {
-    try {
-      const div = document.createElement("div");
-      div.style.display = "none";
-      document.body.appendChild(div);
-      w.turnstile!.render(div, {
-        sitekey: siteKey,
-        callback: (token: string) => { div.remove(); resolve(token); },
-        "error-callback": () => { div.remove(); resolve(undefined); },
-      });
-    } catch {
-      resolve(undefined);
-    }
-  });
-}
+const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -139,10 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         guestInFlight = (async () => {
           try {
             if ((await supabase.auth.getSession()).data.session) return true;
-            const captchaToken = await getTurnstileToken();
-            const { error } = await supabase.auth.signInAnonymously(
-              captchaToken ? { options: { captchaToken } } : undefined
-            );
+            const { error } = await supabase.auth.signInAnonymously();
             if (error) { lastGuestError = error.message; console.warn("Guest sign-in failed:", error.message); setAuthError(null); return false; }
             lastGuestError = "";
             return true;
