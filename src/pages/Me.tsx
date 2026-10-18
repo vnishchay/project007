@@ -2,7 +2,7 @@ import { InviteCard } from "../components/home/InviteCard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
-import { olderThan } from "../lib/reviews";
+import { itemLabel, olderThan } from "../lib/reviews";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { placeMediaUrl, shrinkImage } from "../lib/media";
@@ -296,7 +296,7 @@ export default function Me() {
           <div className="stack">
             {reviews.map((r) => {
               const editingThis = draft?.id === r.id;
-              const what = r.items?.name || "this item";
+              const what = itemLabel(r.items?.name) || "this item";
               return (
                 <ReviewCard key={r.id} r={editingThis ? { ...r, rating: draft.rating, body: "" } : r} mine showPlace>
                   {editingThis ? (

@@ -289,3 +289,4 @@ a.rvx-cta[aria-disabled="true"] { opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) {
   .rvx *, .rvx *::before, .rvx *::after { animation: none !important; transition: none !important; }
 }
+.rvx-face-btn:disabled { opacity: 0.6; cursor: default; }

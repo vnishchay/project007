@@ -1,5 +1,6 @@
 import { MODES, type Kind } from "../../lib/modes";
 import { supabase } from "../../lib/supabase";
+import { isVisitItem } from "../../lib/reviews";
 import type { IconName } from "../ui";
 
 /** A product at a shop. Before the shop columns exist, only id, name and topic_id are filled. */
@@ -80,10 +81,12 @@ export async function loadShopItems(placeId: string): Promise<{ items: ShopItem[
   if (missingColumn(r.error)) {
     r = await supabase.from("items").select(ITEM_COLS_LEGACY).eq("place_id", placeId).eq("is_hidden", false) as any;
   }
-  if (!r.error) return { items: (r.data || []).map(toItem), error: null };
+  // The whole-visit review hangs on a hidden item of its own; it is never a product.
+  const real = (rows: Record<string, unknown>[] | null) => (rows || []).filter((x) => !isVisitItem(x.name as string)).map(toItem);
+  if (!r.error) return { items: real(r.data), error: null };
   if (!missingColumn(r.error)) return { items: [], error: r.error };
   const old = await supabase.from("items").select("id, name, topic_id").eq("place_id", placeId);
-  return { items: (old.data || []).map(toItem), error: old.error };
+  return { items: real(old.data), error: old.error };
 }
 
 function toItem(x: Record<string, unknown>): ShopItem {

@@ -5,9 +5,16 @@ export const NEGATIVE_TAGS = new Set([
   "Too pricey", "Slow service", "Crowded",
   "Small portion", "Not fresh", "Served cold", "Too oily", "Rude staff", "Not clean", "Long wait",
   "Poor quality", "Damaged item", "Pushy selling", "Late", "Overcharged", "Rushed", "Old equipment",
+  "Poor food", "Poor service", "Noisy", "Unhelpful staff",
 ]);
 
 export const isNegativeTag = (label: string) => NEGATIVE_TAGS.has(label);
+
+/** The hidden item a review of the whole visit is filed under, so it works like any other review (migration 36). */
+export const VISIT_ITEM = "Overall visit";
+export const isVisitItem = (name?: string | null) => name === VISIT_ITEM;
+/** What to call an item in the app: the whole-visit review reads "Whole visit". */
+export const itemLabel = (name?: string | null) => (isVisitItem(name) ? "Whole visit" : name || "");
 
 export function tagLabels(r: ReviewRow): string[] {
   return (r.review_tags || []).map((t) => t.tags?.label).filter(Boolean) as string[];

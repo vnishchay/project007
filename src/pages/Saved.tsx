@@ -9,6 +9,7 @@ import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
 import { deviceId } from "../lib/device";
 import { generateStoryCard } from "../lib/story";
+import { itemLabel } from "../lib/reviews";
 import { Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
 import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
@@ -110,7 +111,7 @@ export default function Saved() {
   const placeName = r.places?.name || "";
   const googleUrl = gid ? googleReviewUrl(gid) : mapsSearchUrl([placeName, r.places?.area, city].filter(Boolean).join(" "));
   // Just the words: Google has its own stars, and a short text pastes cleanly.
-  const text = (r.body || "").trim() || `${r.items?.name}`;
+  const text = (r.body || "").trim() || itemLabel(r.items?.name);
   const stars = `${r.rating} star${r.rating === 1 ? "" : "s"}`;
   const steps: [GlyphName, string][] = gid
     ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Long-press the box, Paste, Post"]]
@@ -162,9 +163,9 @@ export default function Saved() {
     setSharingStory(true);
     try {
       const url = await shareLink(`/p/${r!.place_id}`, "review");
-      const msg = `${r!.items?.name} at ${r!.places?.name}: ${"★".repeat(r!.rating)}\n${r!.body}`.trim();
+      const msg = `${itemLabel(r!.items?.name)} at ${r!.places?.name}: ${"★".repeat(r!.rating)}\n${r!.body}`.trim();
       const file = await generateStoryCard({
-        itemName: r!.items?.name || "",
+        itemName: itemLabel(r!.items?.name),
         placeName: r!.places?.name || "",
         rating: r!.rating,
         body: r!.body,
@@ -233,7 +234,7 @@ export default function Saved() {
         <div className="row" style={{ alignItems: "flex-start" }}>
           <Chip icon={r.verified ? "verified" : "star"} tone={r.verified ? "sky" : "amber"} />
           <div className="grow stack tight" style={{ minWidth: 0 }}>
-            <span className="strong" style={{ overflowWrap: "anywhere" }}>{r.items?.name}</span>
+            <span className="strong" style={{ overflowWrap: "anywhere" }}>{itemLabel(r.items?.name)}</span>
             <span className="small muted row" style={{ gap: 4 }}><Icon name="store" size={13} />{placeName}</span>
           </div>
           <Stars value={r.rating} />
