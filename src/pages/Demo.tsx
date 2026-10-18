@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Icon, useToast } from "../components/ui";
+import { Icon, RvxBack, useToast } from "../components/ui";
 import { generateStoryCard } from "../lib/story";
 import "../styles/place.css";
 import "../styles/review.css";
@@ -139,9 +139,7 @@ export default function Demo() {
       <p className="tiny muted center" role="note" style={{ margin: "8px 16px 0" }}>Sample shop with made-up dishes and prices, to try the review flow. Nothing here is a real business or is saved.</p>
       {/* Clean Apple-style top navigation bar */}
       <nav className="rvx-bar" style={{ justifyContent: "space-between" }}>
-        <Link to="/" className="rvx-back" aria-label="Back to home">
-          <Icon name="back" size={18} />
-        </Link>
+        <RvxBack />
         <div className="stack tight center">
           <span className="strong" style={{ fontSize: 15, color: "var(--ink)" }}>Tabletop Experience</span>
           <span className="tiny muted">{demoData.name}</span>

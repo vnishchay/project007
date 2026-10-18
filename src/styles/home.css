@@ -17,7 +17,7 @@
 .topbar.on-sunset { background: #6b2e14; }
 .topbar.on-hero .icon-btn, .topbar.on-sunset .icon-btn { background: rgba(255, 255, 255, 0.14); color: #fff; }
 .topbar.on-hero .muted, .topbar.on-sunset .muted { color: rgba(255, 255, 255, 0.7); }
-.topbar.on-hero + .hero, .topbar.on-sunset + .hero { border-top-left-radius: 0; border-top-right-radius: 0; }
+.topbar.on-hero + .hero, .topbar.on-sunset + .hero { border-top-left-radius: 0; border-top-right-radius: 0; margin-top: -18px; }
 .hero.sky { background: #17375e; }
 .hero.compact { padding-bottom: 22px; gap: 10px; }
 
