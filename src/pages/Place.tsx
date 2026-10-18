@@ -244,7 +244,7 @@ export default function PlacePage() {
   // A newly listed shop's links stay hidden until the team has checked they are genuine.
   const unchecked = place.verification === "pending" || place.verification === "rejected";
   const links = unchecked && !canManage ? [] : cleanLinks((place as Place & { links?: unknown }).links);
-  const parsedAbout = useMemo(() => parsePlaceAbout(place.about, links), [place.about, links]);
+  const parsedAbout = parsePlaceAbout(place.about, links);
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
 
   const openReviews = (f: Filter) => {

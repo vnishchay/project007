@@ -85,10 +85,12 @@ export function PlatformRatingsCard({
   googlePlaceId?: string | null;
   placeName: string;
 }) {
-  if (!ratings.length) return null;
+  const list = ratings || [];
+  if (!list.length) return null;
+  const safeLinks = links || [];
   const findUrl = (kind: string) => {
     if (kind === "maps" && googlePlaceId) return googleMapsUrl(googlePlaceId, placeName);
-    return links.find((l) => l.kind === kind)?.url;
+    return safeLinks.find((l) => l && l.kind === kind)?.url;
   };
 
   return (
@@ -96,13 +98,13 @@ export function PlatformRatingsCard({
       <div className="section-title">
         <span className="icon-chip sm emerald"><Icon name="verified" size={16} /></span>
         <span className="grow">Verified Across Platforms</span>
-        <span className="muted tiny">{ratings.length} networks</span>
+        <span className="muted tiny">{list.length} networks</span>
       </div>
       <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>
         Aggregated real-world ratings, verified diner counts, and digital footprints across major discovery networks.
       </p>
       <div className="pl-platforms-grid">
-        {ratings.map((p, idx) => {
+        {list.map((p, idx) => {
           const url = findUrl(p.kind);
           const Content = (
             <>
@@ -140,16 +142,17 @@ export function PlatformRatingsCard({
 }
 
 export function AmenitiesCard({ amenities }: { amenities: string[] }) {
-  if (!amenities.length) return null;
+  const list = amenities || [];
+  if (!list.length) return null;
   return (
     <section className="pl-about pl-amenities-box" aria-label="Services and amenities">
       <div className="section-title">
         <span className="icon-chip sm amber"><Icon name="spark" size={16} /></span>
         <span className="grow">Services & Highlights</span>
-        <span className="muted tiny">{amenities.length} verified</span>
+        <span className="muted tiny">{list.length} verified</span>
       </div>
       <div className="pl-amenities-chips">
-        {amenities.map((item, i) => (
+        {list.map((item, i) => (
           <span key={i} className="pl-amenity-chip">
             <span className="pl-amenity-spark" aria-hidden="true">✓</span>
             {item}
