@@ -5,3 +5,4 @@ dist
 .vercel
 *.tsbuildinfo
 deno.lock
+graphify-out/
