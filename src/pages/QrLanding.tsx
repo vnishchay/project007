@@ -51,6 +51,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   // Unlocking can work while reviewing is still refused (a guest who already reviewed from this phone).
   const [refused, setRefused] = useState<Refusal | null>(null);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
+  // The whole menu, shown when there are no top picks yet so people can still mark what they are having.
+  const [menuItems, setMenuItems] = useState<TopItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -115,6 +117,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       if (pk?.place_id) {
         loadShopItems(pk.place_id).then(async ({ items }) => {
           if (!alive || !items.length) return;
+          setMenuItems(items.map((it) => ({ ...it, reviewCount: 0 })));
           try {
             const { data: revs } = await supabase.from("review_feed").select("item_id, rating").eq("place_id", pk.place_id).order("created_at", { ascending: false }).limit(500);
             const counts: Record<string, { sum: number; count: number; fourPlus: number }> = {};
@@ -305,6 +308,23 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 {selectedIds.length} {selectedIds.length === 1 ? "dish" : "dishes"} pre-selected! Ready for your 10s review after dining.
               </span>
             )}
+          </div>
+        </section>
+      )}
+
+      {topItems.length === 0 && menuItems.length > 0 && (
+        <section className="rvx-sec" aria-label="Menu">
+          <h2>What are you <i>having?</i></h2>
+          <p className="rvx-hint">Tap your picks now, they'll be ready when you rate after the meal.</p>
+          <div className="rvx-chips">
+            {menuItems.map((item) => {
+              const on = selectedIds.includes(item.id);
+              return (
+                <button key={item.id} type="button" className={`rvx-chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => toggleSelected(item)}>
+                  <DietDot diet={item.diet} />{item.name}{on && <Icon name="check" size={12} width={3} />}
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
