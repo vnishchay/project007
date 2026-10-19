@@ -28,10 +28,25 @@ export function placeUrl(id: string): string {
   return `${window.location.origin}/p/${id}`;
 }
 
+/** Miles where people use them (US, UK, Liberia, Myanmar), else kilometres. From the phone's region. */
+export const usesMiles = (): boolean => {
+  try { return /-(US|GB|LR|MM)\b/i.test(new Intl.Locale(navigator.language).maximize().toString()); } catch { return false; }
+};
+const MILE = 1609.344;
+
 export function distanceText(m: number | null | undefined): string {
   if (m == null) return "";
+  if (usesMiles()) return m < 400 ? `${Math.round(m * 3.28084 / 10) * 10} ft` : `${(m / MILE).toFixed(1)} mi`;
   return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`;
 }
+
+/** Choices for how far "Near you" reaches, in metres, with their labels. */
+export function radiusChoices(): { m: number; label: string }[] {
+  return usesMiles()
+    ? [1, 3, 5, 10, 25].map((n) => ({ m: Math.round(n * MILE), label: `${n} mi` }))
+    : [2, 5, 10, 25, 50].map((n) => ({ m: n * 1000, label: `${n} km` }));
+}
+export const defaultRadius = () => (usesMiles() ? Math.round(3 * MILE) : 5000);
 
 export function priceText(level: number | null | undefined): string {
   return level ? "₹".repeat(level) : "";
