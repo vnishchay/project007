@@ -74,8 +74,8 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
 
       <div className="in-tiles">
         <Tile icon="star" cls="amber" value={n(s.reviews)} label="reviews" sub={s.avg_rating != null ? <span className="row" style={{ gap: 4 }}><b>{Number(s.avg_rating).toFixed(1)}</b><Stars value={Number(s.avg_rating)} size={10} /></span> : s.reviews_30d ? `+${s.reviews_30d} this month` : null} />
-        <Tile icon="verified" cls="" value={n(s.verified)} label="visits with a review" sub="from a table QR or review link" />
-        <Tile icon="scan" cls="violet" value={n(s.scans_30d)} label="table QR scans" sub={s.link_visits_30d ? `last 30 days · +${n(s.link_visits_30d)} via links` : "last 30 days"} />
+        <Tile icon="verified" cls="" value={n(s.verified)} label="visits with a review" sub="from a QR code or review link" />
+        <Tile icon="scan" cls="violet" value={n(s.scans_30d)} label="QR scans" sub={s.link_visits_30d ? `last 30 days · +${n(s.link_visits_30d)} via links` : "last 30 days"} />
         <Tile icon="bookmark" cls="sky" value={n(s.saves)} label="saves" sub="get your updates" />
       </div>
 
@@ -122,8 +122,8 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
               <div className="callout violet" style={{ margin: "10px 0", alignItems: "flex-start" }}>
                 <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
                 <div className="grow stack tight">
-                  <strong>Dish-Level Ratings & Insights</strong>
-                  <span className="tiny">Standard and Growth Pro plans unlock detailed ratings for every dish, low-rating warnings, and sentiment ranking.</span>
+                  <strong>Item-Level Ratings & Insights</strong>
+                  <span className="tiny">Standard and Growth Pro plans unlock detailed ratings for every item, low-rating warnings, and sentiment ranking.</span>
                   <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
                     <Icon name="crown" size={14} />See plans
                   </button>
@@ -216,8 +216,8 @@ function AiTips({ placeId, isPro, onGo }: { placeId: string; isPro: boolean; onG
         <div className="callout violet" style={{ margin: "4px 0", alignItems: "flex-start" }}>
           <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
           <div className="grow stack tight">
-            <strong style={{ fontSize: 14 }}>AI Review Analysis & Recipe Tips</strong>
-            <span className="tiny">AI reads your customer reviews to highlight what diners love and what to fix first on Pro and Growth Pro plans.</span>
+            <strong style={{ fontSize: 14 }}>AI Review Analysis & Tips</strong>
+            <span className="tiny">AI reads your customer reviews to highlight what customers love and what to fix first on Pro and Growth Pro plans.</span>
             <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
               <Icon name="crown" size={14} />See plans
             </button>

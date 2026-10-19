@@ -165,7 +165,7 @@ export function Setup() {
           <p className="small muted">{outcome === "unpaid"
             ? `${payErr ? payErr + " " : ""}You're on the free trial QR for now. Pay from your shop's Plan tab whenever you're ready.`
             : outcome === "pending"
-            ? "We're confirming your payment with Razorpay; your plan turns on in a few minutes, so there's no need to pay again. Then add your table QRs from the QR tab."
+            ? "We're confirming your payment with Razorpay; your plan turns on in a few minutes, so there's no need to pay again. Then add your QR codes from the QR tab."
             : qrCount == null
             ? "Your shop is live, but the QR codes didn't get made. Open your shop and add them from the QR tab."
             : `${qrCount} QR code${qrCount === 1 ? " is" : "s are"} ready to print. We'll check your Google page and links, usually within a day, then show your links on your page.`}</p>
@@ -234,7 +234,7 @@ export function Setup() {
     </>,
     <>
       <span className="icon-chip lg amber" style={{ margin: "0 auto" }}><Icon name="qr" size={26} /></span>
-      <h2>How many tables or counters need a QR?</h2>
+      <h2>How many counters, desks or tables need a QR?</h2>
       <p className="small muted">Customers scan it to review. You can add more later.</p>
       <div className="row wrap" style={{ gap: 8, justifyContent: "center" }}>
         {TABLE_CHOICES.map((n) => <button key={n} type="button" className={`chip ${tables === n ? "on" : ""}`} aria-pressed={tables === n} onClick={() => setTables(n)}>{n}</button>)}

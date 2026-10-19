@@ -156,7 +156,7 @@ export function Products({ placeId, isAdmin, mode, links = [], onCount }: { plac
               <span className="grow">Add {mode.item}</span>
             </button>
             <button className="mg-add-menu" onClick={() => setImporting(onlineMenu ? "text" : "photo")}>
-              <span className="icon-chip coral sm"><Icon name="camera" size={17} /></span>{onlineMenu ? "Import menu" : "From a menu photo"}
+              <span className="icon-chip coral sm"><Icon name="camera" size={17} /></span>{onlineMenu ? "Import menu" : mode.kind === "food" ? "From a menu photo" : "From a price list photo"}
             </button>
           </div>
           <div className="mg-list">

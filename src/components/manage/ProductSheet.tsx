@@ -92,9 +92,9 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
       const blob = await res.blob();
       const dinerFile = new File([blob], "diner-dish-photo.jpg", { type: "image/jpeg" });
       pick(dinerFile);
-      toast("Diner photo selected for this dish!");
+      toast(`Customer photo selected for this ${mode.item}!`);
     } catch {
-      toast("Could not use diner photo");
+      toast("Could not use customer photo");
     } finally {
       setBusy(false);
     }
@@ -194,15 +194,15 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
         {dinerPhotos.length > 0 && (
           <div className="stack tight" style={{ marginTop: 4, marginBottom: 6 }}>
             <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 10 }}>
-              <Icon name="camera" size={11} color="var(--ink-2)" /> Photos shared by diners
+              <Icon name="camera" size={11} color="var(--ink-2)" /> Photos shared by customers
             </span>
             <div className="row" style={{ gap: 8, overflowX: "auto", paddingBottom: 4 }}>
               {dinerPhotos.map((dp) => (
                 <button
                   key={dp.path}
                   type="button"
-                  title="Use as dish picture"
-                  aria-label="Use diner photo as dish picture"
+                  title={`Use as ${mode.item} picture`}
+                  aria-label={`Use customer photo as ${mode.item} picture`}
                   onClick={() => useDinerPhoto(dp)}
                   style={{
                     border: "1.5px solid var(--line)",
@@ -216,7 +216,7 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
                     position: "relative",
                   }}
                 >
-                  <img src={dp.url} alt="Diner dish" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src={dp.url} alt="Customer photo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </button>
               ))}
             </div>

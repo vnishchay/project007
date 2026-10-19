@@ -180,7 +180,7 @@ export default function Saved() {
       } else if (file) {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(file);
-        a.download = "verified-food-story.png";
+        a.download = "verified-story.png";
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
         toast("Story card downloaded for Instagram / WhatsApp!");

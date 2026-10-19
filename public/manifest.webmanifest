@@ -2,14 +2,14 @@
   "id": "/",
   "name": "Trusted Picks",
   "short_name": "Trusted Picks",
-  "description": "What to eat and where, ranked by people who ate there.",
+  "description": "The best things near you, ranked by people who went there.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f2f2f7",
   "theme_color": "#f2f2f7",
-  "categories": ["food", "lifestyle", "travel"],
+  "categories": ["lifestyle", "shopping", "travel"],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
@@ -17,6 +17,6 @@
     { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
   "shortcuts": [
-    { "name": "Food diary", "url": "/me?source=pwa", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Your picks", "url": "/me?source=pwa", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }

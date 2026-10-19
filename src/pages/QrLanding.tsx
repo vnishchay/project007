@@ -9,6 +9,7 @@ import { Icon, Spinner } from "../components/ui";
 import { DietDot, loadShopItems, type ShopItem } from "../components/place/shop";
 import { ItemThumb } from "../components/place/ItemThumb";
 import { playHapticTap } from "../lib/haptics";
+import { MODES, modeOf, type Mode } from "../lib/modes";
 import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
@@ -19,7 +20,7 @@ const REFUSED: Record<Refusal, [string, string]> = {
   guest_used: ["You've reviewed here from this phone", "Without signing in, each phone gets one visit per place. Sign in to rate more of what you had."],
   owner: ["This is your shop", "Owners can't review their own shop."],
   paused: ["Reviews are paused here for now", "You can still see what people loved at this shop."],
-  scan: ["Couldn't unlock your review", "Scan the table code again, or ask the staff for a new one."],
+  scan: ["Couldn't unlock your review", "Scan the QR code again, or ask the staff for a new one."],
 };
 
 /** How diners rated one thing on the menu. */
@@ -66,6 +67,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const [topItems, setTopItems] = useState<TopItem[]>([]);
   // What diners said about each menu item, so the menu itself answers "what should I order?".
   const [said, setSaid] = useState<Record<string, Said>>({});
+  // The shop's business type, for its words ("Menu" or "Services").
+  const [mode, setMode] = useState<Mode | null>(null);
   const [lovedFirst, setLovedFirst] = useState(false);
   // The shop's own special picks (products it chose to list), shown like a mini shop page.
   const [specials, setSpecials] = useState<ShopItem[]>([]);
@@ -105,6 +108,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       if (error) { setPeekErr(friendly(error)); return; }
       const pk = ((data as Peek[]) || [])[0] ?? null;
       if (pk?.place_id) {
+        supabase.from("places").select("kind, category").eq("id", pk.place_id).maybeSingle()
+          .then(({ data: pl }) => { if (alive && pl) setMode(modeOf(pl.kind as string | null, pl.category as string | null)); }, () => {});
         try {
           const raw = localStorage.getItem(`tp-plan:${pk.place_id}`) || sessionStorage.getItem(`tp_preselected_${pk.place_id}`);
           if (raw) {
@@ -203,6 +208,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     }, (e: unknown) => { setScanning(false); setScanErr(friendly(e)); });
   }, [loading, uid, peek, token, scanTry]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isFood = mode?.kind === "food";
+  const catalog = (mode ?? MODES.other).catalog;
+  const lovedTitle = isFood ? "What to order here" : "Most loved here";
+  const findLabel = isFood ? "Find on the menu" : `Find in ${catalog.toLowerCase()}`;
   const dead = peek === undefined ? null : !peek ? (link ? "This review link doesn't work" : "This code isn't active")
     : peek.status === "expired" ? "This review link has expired"
     : peek.status === "used" && !session ? "This review link was already used" : null;
@@ -216,7 +225,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       {bar}
       <div className="rvx-gate">
         <span className="ico"><Icon name="alert" size={28} /></span>
-        <h2>Couldn't check this {link ? "review link" : "table code"}</h2>
+        <h2>Couldn't check this {link ? "review link" : "QR code"}</h2>
         <p>{peekErr}</p>
         <button type="button" className="rvx-cta" onClick={() => setPeekTry((n) => n + 1)}><span>Try again</span><Icon name="chev" size={20} /></button>
       </div>
@@ -229,7 +238,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       <div className="rvx-gate">
         <span className="ico"><Icon name={link ? "link" : "qr"} size={28} /></span>
         <h2>{dead}</h2>
-        <p>{link ? "Ask the shop to send you a new link." : "Ask the staff for a new table card."}</p>
+        <p>{link ? "Ask the shop to send you a new link." : "Ask the staff for a new QR card."}</p>
         <Link className="rvx-more" to="/" onClick={() => clearFocusShop()}><Icon name="search" size={16} />Search places</Link>
       </div>
     </div>
@@ -289,8 +298,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       )}
 
       {topItems.length > 0 && (
-        <section className="rvx-sec" aria-label="What to order here">
-          <div className="rvx-row"><h3>What to order here</h3><span>Most loved by diners</span></div>
+        <section className="rvx-sec" aria-label={lovedTitle}>
+          <div className="rvx-row"><h3>{lovedTitle}</h3><span>Most loved by customers</span></div>
           <div className="rvx-scroll rvx-loved">
             {topItems.map((it) => (
               <button key={it.id} type="button" className={selectedIds.includes(it.id) ? "on" : ""} aria-pressed={selectedIds.includes(it.id)} onClick={() => toggleSelected(it)}>
@@ -311,12 +320,12 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           : matched;
         const shown = q || menuAll ? found : found.slice(0, MENU_FIRST);
         return (
-          <section className="rvx-sec" aria-label="Menu">
-            <div className="rvx-row"><h3>Menu</h3><span aria-live="polite">{selectedIds.length ? `${selectedIds.length} of ${MAX_TAGGED} picked` : "Tap what you're having"}</span></div>
+          <section className="rvx-sec" aria-label={catalog}>
+            <div className="rvx-row"><h3>{catalog}</h3><span aria-live="polite">{selectedIds.length ? `${selectedIds.length} of ${MAX_TAGGED} picked` : isFood ? "Tap what you're having" : "Tap what you got"}</span></div>
             {menu.length > 8 && (
               <label className="rvx-msearch">
                 <Icon name="search" size={18} />
-                <input type="search" value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder="Find on the menu" aria-label="Find on the menu" autoComplete="off" />
+                <input type="search" value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder={findLabel} aria-label={findLabel} autoComplete="off" />
               </label>
             )}
             {hasSaid && (

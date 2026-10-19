@@ -83,7 +83,7 @@ export function Updates({ placeId, live }: { placeId: string; live: boolean }) {
         <p className="tiny muted row" style={{ gap: 6, marginTop: -6 }}><Icon name="lock" size={13} />People who saved or reviewed you see it. You never see who they are.</p>
         <div className="up-box">
           <textarea className="textarea" style={{ minHeight: 96, border: 0, padding: 0 }} value={body} maxLength={LIMIT + 20} aria-label="Update"
-            onChange={(e) => { setBody(e.target.value); setErr(""); }} placeholder="New this week: wood-fired calzone. 20% off till Sunday!" />
+            onChange={(e) => { setBody(e.target.value); setErr(""); }} placeholder="New this week: something special. 20% off till Sunday!" />
           <div className="row" style={{ gap: 8 }}>
             {!showLink && <button type="button" className="link-btn small" onClick={() => setShowLink(true)}><Icon name="link" size={15} />Add link</button>}
             <button type="button" className="link-btn small" disabled={writing || !body.trim()} onClick={polish} title="Type a few words, then tap"><Icon name="spark" size={15} />{writing ? "Writing…" : "Polish"}</button>
@@ -106,7 +106,7 @@ export function Updates({ placeId, live }: { placeId: string; live: boolean }) {
       <div className="stack" style={{ gap: 10 }}>
         <div className="mg-group-title"><span className="icon-chip sm sky"><Icon name="clock" size={16} /></span><span className="grow">Past updates</span>{list && list.length > 0 && <span className="badge gray">{list.length}</span>}</div>
         {list === null ? <div className="skeleton" style={{ height: 72 }} /> : list.length === 0 ? (
-          <p className="small muted">Nothing yet. Share a new dish, an offer or your festive hours.</p>
+          <p className="small muted">Nothing yet. Share something new, an offer or your festive hours.</p>
         ) : list.map((u) => (
           <div key={u.id} className="up-item">
             <div className="row" style={{ alignItems: "flex-start" }}>

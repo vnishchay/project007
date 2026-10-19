@@ -61,7 +61,7 @@ export async function generateStoryCard({
     g.stroke();
     g.fillStyle = "#4ADE80";
     g.font = "700 23px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    g.fillText("✓ VERIFIED AT TABLE", 648, 213);
+    g.fillText("✓ VERIFIED VISIT", 648, 213);
 
     let curY = 270;
 
@@ -131,7 +131,7 @@ export async function generateStoryCard({
     // Bottom Watermark
     g.fillStyle = "#64748B";
     g.font = "600 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    wrap(g, `See what to order at ${placeName || "this place"} on Trusted Picks`, 120, 1730, 840, 32, 1);
+    wrap(g, `See what people love at ${placeName || "this place"} on Trusted Picks`, 120, 1730, 840, 32, 1);
 
     const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
     return blob ? new File([blob], "verified-dish-story.png", { type: "image/png" }) : null;

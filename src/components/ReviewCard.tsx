@@ -85,7 +85,7 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
       {good.length > 0 && <div className="rc-tags" aria-label="Liked"><Icon name="thumbs" size={14} color="var(--green)" />{good.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
       {bad.length > 0 && <div className="rc-tags" aria-label="Could be better"><Icon name="thumbsDown" size={14} color="var(--coral)" />{bad.map((t) => <span key={t} className="rc-tag bad">{t}</span>)}</div>}
       {r.body && <p className="rc-body">{r.body}</p>}
-      {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${isVisitItem(r.items?.name) ? "the visit" : r.items?.name || "the order"}`} />}
+      {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${isVisitItem(r.items?.name) ? "the visit" : r.items?.name || "the visit"}`} />}
       {r.voice_path && <VoiceNote path={r.voice_path} />}
       <div className="rc-foot">
         {r.source && <span className="tiny muted row" style={{ gap: 4 }}><Icon name={r.source === "link" ? "link" : "qr"} size={12} />{r.source === "link" ? "From the shop's review link" : "Scanned at the shop"}</span>}

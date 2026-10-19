@@ -129,7 +129,7 @@ export default function AdminPlace() {
 
         <Link to={`/manage/${p.id}`} className="ad-manage-link">
           <span className="icon-chip lg"><Icon name="box" size={24} /></span>
-          <span className="grow stack tight"><span className="strong" style={{ fontSize: 16 }}>Products and photos</span><span className="small" style={{ opacity: 0.9 }}>Cover, logo, menu, hours</span></span>
+          <span className="grow stack tight"><span className="strong" style={{ fontSize: 16 }}>Products and photos</span><span className="small" style={{ opacity: 0.9 }}>Cover, logo, products, hours</span></span>
           <Icon name="chev" size={22} />
         </Link>
 

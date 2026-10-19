@@ -40,7 +40,7 @@ export default function BestDish() {
   async function share() {
     const url = window.location.href;
     const top = rows?.[0];
-    const text = top ? `${title}: ${top.place_name} leads, ${lovedPct(top)}% of ${top.review_count} diners loved it.` : title;
+    const text = top ? `${title}: ${top.place_name} leads, ${lovedPct(top)}% of ${top.review_count} people loved it.` : title;
     if (navigator.share) { try { await navigator.share({ title, text, url }); } catch { /* dismissed */ } return; }
     toast(await copyText(`${text}\n${url}`) ? "Link copied" : "Couldn't copy the link");
   }
@@ -51,7 +51,7 @@ export default function BestDish() {
       <TopBar title={title} right={<button type="button" className="icon-btn" aria-label="Share this list" onClick={share}><Icon name="share" /></button>} />
       <header className="stack tight">
         <h1 style={{ fontSize: 26 }}>{title}</h1>
-        <span className="small muted row" style={{ gap: 6 }}><Icon name="verified" size={15} />Ranked by people who ate it there</span>
+        <span className="small muted row" style={{ gap: 6 }}><Icon name="verified" size={15} />Ranked by people who tried it there</span>
       </header>
       <div className="row" style={{ gap: 8 }}>
         <button type="button" className={`chip ${openOnly ? "on" : ""}`} aria-pressed={openOnly} onClick={() => setOpenOnly((v) => !v)}><Icon name="clock" size={14} />Open now</button>

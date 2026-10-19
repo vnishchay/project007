@@ -58,7 +58,7 @@ function Img({ src, className, alt = "" }: { src: string | null; className?: str
 function PhotoTile({ path, name, delay }: { path: string; name?: string; delay: number }) {
   const [broken, setBroken] = useState(false);
   if (broken) return null;
-  return <figure style={{ animationDelay: `${delay}s` }}><img src={reviewPhotoUrl(path)!} alt={`Photo of ${name || "the order"}`} loading="lazy" onError={() => setBroken(true)} /><figcaption>{name}</figcaption></figure>;
+  return <figure style={{ animationDelay: `${delay}s` }}><img src={reviewPhotoUrl(path)!} alt={`Photo of ${name || "the visit"}`} loading="lazy" onError={() => setBroken(true)} /><figcaption>{name}</figcaption></figure>;
 }
 
 export default function PlacePage() {

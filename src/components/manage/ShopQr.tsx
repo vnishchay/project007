@@ -25,7 +25,7 @@ export function QrPrintSheet({ place, codes, topItem }: { place: Pick<Place, "na
             <span className="small strong" style={{ opacity: 0.7 }}>{[c.table_label, place.area].filter(Boolean).join(" · ")}</span>
             <span style={{ fontWeight: 800, fontSize: 28, letterSpacing: "-0.02em" }}>{place.name}</span>
             <QrImage text={qrUrl(c.token)} size={200} dark={col.dark} light={col.light} />
-            <span className="strong">Scan to see what to order</span>
+            <span className="strong">Scan to see what people love here</span>
             <span className="small" style={{ opacity: 0.7 }}>and rate what you had</span>
             {topItem && <span className="small" style={{ opacity: 0.7 }}>{topItem}</span>}
             <span className="small strong" style={{ color: c.style === "paper" ? "var(--green)" : col.dark }}>● Trusted Picks</span>
