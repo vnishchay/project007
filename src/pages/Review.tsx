@@ -16,6 +16,7 @@ import { callAi } from "../lib/assist";
 import { modeOf, tagFits } from "../lib/modes";
 import { fetchGoogleRating } from "../lib/google";
 import { copyText, googleReviewUrl } from "../lib/util";
+import { bumpStat } from "../lib/stats";
 import { shareLink } from "../lib/invite";
 import { generateStoryCard } from "../lib/story";
 import { lovedPct, topDishes, type TopDish } from "../lib/dishes";
@@ -332,6 +333,7 @@ function ReviewForm() {
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
         setGate(g.gate);
+        if (g.gate === "ok") bumpStat("review_started", `review_started:${placeId}`);
         setVisitKey(g.visitKey);
       } catch (e) {
         if (alive) setLoadErr(errorText(e) === "Failed to fetch" ? "You seem to be offline." : errorText(e));

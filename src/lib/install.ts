@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { bumpStat } from "./stats";
 
 // Installing the app to the home screen (PWA).
 // Android/desktop Chrome and Edge give us an install prompt we can open from our own button.
@@ -22,7 +23,7 @@ function store(k: string, v?: string): string | null {
 if (typeof window !== "undefined") {
   deferred = (window as Window & { __installPrompt?: InstallPrompt }).__installPrompt ?? null;
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e as InstallPrompt; notify(); });
-  window.addEventListener("appinstalled", () => { deferred = null; store(DONE, "1"); notify(); });
+  window.addEventListener("appinstalled", () => { deferred = null; store(DONE, "1"); bumpStat("installed"); notify(); });
   // Count visits (one per tab session), so we only ask people who came back.
   try {
     if (!sessionStorage.getItem(SEEN)) { sessionStorage.setItem(SEEN, "1"); store(SEEN, String(Number(store(SEEN) || 0) + 1)); }
