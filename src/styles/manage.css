@@ -116,7 +116,7 @@
 .mg-section { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .mg-section-head { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
 .mg-seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.mg-seg button { height: 42px; border-radius: 12px; border: 0.5px solid var(--line); background: var(--card); font-weight: 700; cursor: pointer; color: var(--ink-2); font-size: 14px; }
+.mg-seg button { height: 42px; border-radius: 12px; border: 0.5px solid var(--line); background: var(--card); font-weight: 700; cursor: pointer; color: var(--ink-2); font-size: 14px; padding: 0 4px; white-space: nowrap; overflow: hidden; }
 .mg-seg button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .mg-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .mg-kind { display: flex; align-items: center; gap: 8px; line-height: 1.2; min-height: 46px; padding: 6px 8px 6px 6px; border-radius: 14px; border: 0.5px solid var(--line); background: var(--card); font-weight: 700; font-size: 13px; cursor: pointer; text-align: left; min-width: 0; color: var(--ink-2); }
@@ -221,6 +221,12 @@
 .in-item .bar { height: 6px; }
 .bar.low > span { background: var(--coral); }
 .rating-pill.low { background: var(--coral); }
+/* Reviews with the owner's replies */
+.mg-review { padding: 12px; gap: 6px; }
+.mg-review .stars, .mg-review-quote .stars { flex: none; }
+.mg-review-body { margin: 0; color: var(--ink-2); line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.mg-review-quote { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 14px; background: var(--bg); }
+.mg-review-quote p { margin: 0; color: var(--ink-2); line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; max-height: 7.5em; overflow-y: auto; }
 
 /* ---------- Google ---------- */
 .g-mark { font-weight: 700; letter-spacing: -0.01em; font-family: Arial, Helvetica, sans-serif; }

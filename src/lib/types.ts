@@ -35,6 +35,8 @@ export interface Place {
   /** business type, see src/lib/modes.ts */
   kind?: string;
   contact_phone?: string | null;
+  /** ISO 4217 code of the shop's prices (INR before migration 40); see src/lib/money.ts */
+  currency?: string | null;
 }
 
 /** A product or dish at a place. Shops add their own with photos (is_listed). */
@@ -102,6 +104,9 @@ export interface ReviewRow {
   voice_path?: string | null;
   status: "published" | "hidden";
   created_at: string;
+  /** the shop owner's public answer, if any */
+  owner_reply?: string | null;
+  owner_reply_at?: string | null;
   items?: { name: string } | null;
   places?: { name: string; google_place_id: string | null; area: string | null } | null;
   review_tags?: { tags: { label: string } | null }[];

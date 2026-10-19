@@ -5,6 +5,7 @@ import type { Item, Topic } from "../../lib/types";
 import type { Mode } from "../../lib/modes";
 import { Icon, useToast } from "../ui";
 import { DIET_OPTIONS } from "../place/shop";
+import { currencyCode, currencyIcon } from "../../lib/money";
 
 export function friendlyItemError(e: unknown): string {
   const t = errorText(e);
@@ -15,11 +16,13 @@ export function friendlyItemError(e: unknown): string {
 /** Add or edit one product: photo, name, price, topic and a short line. */
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
-export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, defaultTopic, canRename, taken, onClose, onSaved, onDeleted }: {
+export function ProductSheet({ placeId, item, topics, mode, currency, reviews, nextSort, defaultTopic, canRename, taken, onClose, onSaved, onDeleted }: {
   placeId: string;
   item: Item | null;
   topics: Topic[];
   mode: Mode;
+  /** the shop's currency: prices are whole amounts in it */
+  currency?: string | null;
   reviews: number;
   nextSort: number;
   defaultTopic: number | null;
@@ -230,9 +233,9 @@ export function ProductSheet({ placeId, item, topics, mode, reviews, nextSort, d
         </div>
 
         <div className="field">
-          <label className="mg-label" htmlFor="pp"><Icon name="rupee" size={15} />Price</label>
+          <label className="mg-label" htmlFor="pp"><Icon name={currencyIcon(currency)} size={15} />Price <span className="muted" style={{ fontWeight: 500 }}>({currencyCode(currency)})</span></label>
           <div className="mg-input-icon">
-            <Icon name="rupee" size={16} />
+            <Icon name={currencyIcon(currency)} size={16} />
             <input id="pp" className="input" inputMode="numeric" type="number" min={0} step={1} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Optional" />
           </div>
         </div>

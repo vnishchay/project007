@@ -5,6 +5,7 @@ import { deviceId } from "../lib/device";
 import { supabase, errorText } from "../lib/supabase";
 import { lastGuestError, useAuth } from "../lib/auth";
 import { getLocation } from "../lib/util";
+import { formatPrice } from "../lib/money";
 import { Icon, Spinner } from "../components/ui";
 import { DietDot, loadShopItems, type ShopItem } from "../components/place/shop";
 import { ItemThumb } from "../components/place/ItemThumb";
@@ -69,6 +70,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const [said, setSaid] = useState<Record<string, Said>>({});
   // The shop's business type, for its words ("Menu" or "Services").
   const [mode, setMode] = useState<Mode | null>(null);
+  const [currency, setCurrency] = useState<string | null>(null);
   const [lovedFirst, setLovedFirst] = useState(false);
   // The shop's own special picks (products it chose to list), shown like a mini shop page.
   const [specials, setSpecials] = useState<ShopItem[]>([]);
@@ -108,8 +110,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       if (error) { setPeekErr(friendly(error)); return; }
       const pk = ((data as Peek[]) || [])[0] ?? null;
       if (pk?.place_id) {
-        supabase.from("places").select("kind, category").eq("id", pk.place_id).maybeSingle()
-          .then(({ data: pl }) => { if (alive && pl) setMode(modeOf(pl.kind as string | null, pl.category as string | null)); }, () => {});
+        supabase.from("places").select("kind, category, currency").eq("id", pk.place_id).maybeSingle()
+          .then(({ data: pl }) => { if (alive && pl) { setMode(modeOf(pl.kind as string | null, pl.category as string | null)); setCurrency((pl as { currency?: string | null }).currency ?? null); } }, () => {});
         try {
           const raw = localStorage.getItem(`tp-plan:${pk.place_id}`) || sessionStorage.getItem(`tp_preselected_${pk.place_id}`);
           if (raw) {
@@ -185,7 +187,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         <span className="ph"><ItemThumb path={item.image_path} />
           <span className="rvx-add-btn" aria-hidden="true"><Icon name={isSelected ? "check" : "plus"} size={16} width={2.4} /></span>
         </span>
-        <span className="tx"><b><DietDot diet={item.diet} />{item.name}</b>{item.price_inr != null && <small>₹{item.price_inr}</small>}</span>
+        <span className="tx"><b><DietDot diet={item.diet} />{item.name}</b>{item.price_inr != null && <small>{formatPrice(item.price_inr, currency)}</small>}</span>
       </button>
     );
   };
@@ -339,7 +341,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 return (
                   <button key={it.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} aria-pressed={on} aria-label={`${it.name}${on ? ", picked" : ""}`} onClick={() => toggleSelected(it)}>
                     <span className="th"><ItemThumb path={it.image_path} size={48} /></span>
-                    <span className="tx"><b><DietDot diet={it.diet} />{it.name}</b>{(said[it.id] || it.price_inr != null || it.description) && <small>{said[it.id] && <span className="rvx-said"><Icon name="heart" size={12} fill="currentColor" />{said[it.id]!.lovedPct}% of {said[it.id]!.count}</span>}{[it.price_inr != null ? `₹${it.price_inr}` : "", it.description || ""].filter(Boolean).join(" · ")}</small>}</span>
+                    <span className="tx"><b><DietDot diet={it.diet} />{it.name}</b>{(said[it.id] || it.price_inr != null || it.description) && <small>{said[it.id] && <span className="rvx-said"><Icon name="heart" size={12} fill="currentColor" />{said[it.id]!.lovedPct}% of {said[it.id]!.count}</span>}{[formatPrice(it.price_inr, currency) || "", it.description || ""].filter(Boolean).join(" · ")}</small>}</span>
                     <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>
                   </button>
                 );

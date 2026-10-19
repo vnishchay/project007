@@ -11,7 +11,7 @@ import { deviceId } from "../lib/device";
 import { generateStoryCard } from "../lib/story";
 import { itemLabel } from "../lib/reviews";
 import { Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
-import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
+import { OwnerReply, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
 import "../styles/home.css";
 
@@ -240,6 +240,7 @@ export default function Saved() {
           <Stars value={r.rating} />
         </div>
         {r.body && <p style={{ lineHeight: 1.5, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.body}</p>}
+        {r.owner_reply && <OwnerReply text={r.owner_reply} at={r.owner_reply_at} shop={placeName} />}
         <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
           <button type="button" className="btn small green" onClick={share} disabled={sharingStory}>
             <Icon name="share" size={16} />{sharingStory ? "Preparing story…" : "Share Story Card"}

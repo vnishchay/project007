@@ -32,7 +32,7 @@ export function VoiceNote({ path }: { path: string }) {
 export const RATING_WORDS = ["", "Not good", "Okay", "Good", "Great", "Loved it"];
 
 // Anonymous reviews show only a rough date, so a time can't point to a person.
-function roughDate(iso: string): string {
+export function roughDate(iso: string): string {
   const days = (Date.now() - new Date(iso).getTime()) / 86400000;
   if (days < 7) return "this week";
   if (days < 31) return "this month";
@@ -87,6 +87,7 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
       {r.body && <p className="rc-body">{r.body}</p>}
       {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${isVisitItem(r.items?.name) ? "the visit" : r.items?.name || "the visit"}`} />}
       {r.voice_path && <VoiceNote path={r.voice_path} />}
+      {r.owner_reply && <OwnerReply text={r.owner_reply} at={r.owner_reply_at} shop={r.places?.name} rough={anon && !mine} />}
       <div className="rc-foot">
         {r.source && <span className="tiny muted row" style={{ gap: 4 }}><Icon name={r.source === "link" ? "link" : "qr"} size={12} />{r.source === "link" ? "From the shop's review link" : "Scanned at the shop"}</span>}
         <span className="grow" />
@@ -94,6 +95,26 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
       </div>
       {children}
     </article>
+  );
+}
+
+/**
+ * The shop owner's public answer, as a quiet indented card under the review. Dated the way the review
+ * is (`rough` for someone else's anonymous review), so the reply's date can't pin down when it was written.
+ */
+export function OwnerReply({ text, at, shop, rough = false }: { text: string; at?: string | null; shop?: string | null; rough?: boolean }) {
+  const when = at ? (rough ? roughDate(at) : timeAgo(at)) : "";
+  return (
+    <div className="rc-reply" role="group" aria-label="Reply from the owner">
+      <div className="rc-reply-head">
+        <span className="rc-reply-ico" aria-hidden="true"><Icon name="store" size={14} /></span>
+        <span className="grow stack" style={{ gap: 1, minWidth: 0 }}>
+          <span className="small strong">Reply from the owner</span>
+          {(shop || when) && <span className="tiny muted ellipsis">{[shop, when].filter(Boolean).join(" · ")}</span>}
+        </span>
+      </div>
+      <p className="rc-reply-body">{text}</p>
+    </div>
   );
 }
 
@@ -127,4 +148,4 @@ function ReportButton({ reviewId }: { reviewId: string }) {
 // Reviews are read through the review_feed view, which hides who wrote anonymous ones.
 export const REVIEW_FEED = "review_feed";
 export const REVIEW_SELECT =
-  "id, user_id, place_id, item_id, rating, body, ai_drafted, verified, is_public, photo_path, voice_path, status, created_at, author_name, author_avatar, source, items(name), places(name, google_place_id, area), review_tags(tags(label))";
+  "id, user_id, place_id, item_id, rating, body, ai_drafted, verified, is_public, photo_path, voice_path, status, created_at, author_name, author_avatar, source, owner_reply, owner_reply_at, items(name), places(name, google_place_id, area), review_tags(tags(label))";

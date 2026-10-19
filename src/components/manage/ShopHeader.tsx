@@ -4,7 +4,8 @@ import { supabase, errorText } from "../../lib/supabase";
 import { removePlaceMedia, uploadPlaceMedia } from "../../lib/media";
 import { MediaImg } from "./MediaImg";
 import type { Place } from "../../lib/types";
-import { priceText, todaysHours } from "../../lib/util";
+import { todaysHours } from "../../lib/util";
+import { priceLevelText } from "../../lib/money";
 import { Icon, Spinner, useToast } from "../ui";
 
 /** How the shop page looks, with camera buttons to change the cover and logo. */
@@ -54,7 +55,7 @@ export function ShopHeader({ place, onChange }: { place: Place; onChange: (p: Pa
         <h1 className="ellipsis">{place.name}</h1>
         <div className="mg-meta">
           <span>{[place.category, place.area || place.city].filter(Boolean).join(" · ")}</span>
-          {place.price_level ? <span className="strong" style={{ color: "var(--ink-2)" }}>{priceText(place.price_level)}</span> : null}
+          {place.price_level ? <span className="strong" style={{ color: "var(--ink-2)" }}>{priceLevelText(place.price_level, place.currency)}</span> : null}
         </div>
         <div className="mg-meta">
           {today && <span className="row" style={{ gap: 4 }}><Icon name="clock" size={13} />{today}</span>}

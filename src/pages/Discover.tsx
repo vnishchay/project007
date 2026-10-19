@@ -88,8 +88,8 @@ export default function Discover() {
     const ids = [...new Set(rows.flatMap((r) => r.friend_ids || []))].slice(0, 100);
     const [ps, pm] = await Promise.all([
       ids.length ? supabase.from("profiles").select(PROFILE_COLS).in("id", ids) : null,
-      // Older databases have no cover photos yet: just show the icon tiles.
-      placeIds.length ? supabase.from("places").select("id, cover_path, logo_path").in("id", placeIds) : null,
+      // Older databases have no cover photos yet: just show the icon tiles. currency: the sign of the price level.
+      placeIds.length ? supabase.from("places").select("id, cover_path, logo_path, currency").in("id", placeIds) : null,
     ]);
     if (isCancelled()) return;
     if (ps && !ps.error) setPeople((prev) => ({ ...prev, ...Object.fromEntries(((ps.data as Profile[]) || []).map((p) => [p.id, p])) }));
@@ -325,7 +325,7 @@ export default function Discover() {
         ) : (
           <div className="stack" style={{ gap: 12 }}>
             {nearYou && wider && results.length < 6 && <button type="button" className="notice small row" style={{ border: 0, font: "inherit", textAlign: "left", cursor: "pointer", gap: 6 }} onClick={() => setRadius(wider.m)}><Icon name="navigate" size={14} /><span className="grow">Only {results.length} within {radiusLabel}.</span><b>Show {wider.label}</b></button>}
-            {results.map((r) => <PlaceCard key={r.place_id} r={r} people={people} coverUrl={cover(r.place_id)} />)}
+            {results.map((r) => <PlaceCard key={r.place_id} r={r} people={people} coverUrl={cover(r.place_id)} currency={media[r.place_id]?.currency} />)}
             {hasMore && <button type="button" className="btn ghost block" disabled={loadingMore} onClick={loadMore}><Icon name="down" size={18} />{loadingMore ? "Loading…" : "Show more places"}</button>}
           </div>
         )}

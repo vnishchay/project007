@@ -7,6 +7,7 @@ import type { PlaceLink } from "./place/ShopLinks";
 import type { Mode } from "../lib/modes";
 import { Icon, Spinner, useToast } from "./ui";
 import { DietDot, DIET_OPTIONS } from "./place/shop";
+import { currencySymbol } from "../lib/money";
 
 interface Row { name: string; price_inr: number | null; section: string; description: string; diet?: string[]; keep: boolean }
 
@@ -21,8 +22,8 @@ async function toBase64(blob: Blob): Promise<string> {
  * AI Menu Onboarding: Vision OCR for photos & PDF, URL scraper for websites,
  * or raw menu text pasting. Parses dishes, prices, and categories in seconds.
  */
-export function MenuImport({ placeId, mode, nextSort, links: _links = [], start = "photo", onClose, onSaved }: {
-  placeId: string; mode: Mode; nextSort: number; links?: PlaceLink[]; start?: "photo" | "text" | "url"; onClose: () => void; onSaved: (count: number) => void;
+export function MenuImport({ placeId, mode, nextSort, links: _links = [], currency, start = "photo", onClose, onSaved }: {
+  placeId: string; mode: Mode; nextSort: number; links?: PlaceLink[]; currency?: string | null; start?: "photo" | "text" | "url"; onClose: () => void; onSaved: (count: number) => void;
 }) {
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
@@ -253,7 +254,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
                     )}
                   </span>
                   <span className="mi-price">
-                    <span className="tiny muted">$</span>
+                    <span className="tiny muted">{currencySymbol(currency)}</span>
                     <input
                       inputMode="numeric"
                       value={r.price_inr ?? ""}

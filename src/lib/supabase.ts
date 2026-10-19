@@ -24,20 +24,25 @@ function readUrlAuthError(): string | null {
 export const urlAuthError = readUrlAuthError();
 
 // While a newer app version runs against a database that hasn't had its latest update yet,
-// a read that names a brand-new column fails. For these optional columns, retry once without them
-// so the screen still loads (the extra detail just doesn't show).
-const OPTIONAL_COLS = ["source"];
+// a read that names a brand-new column fails. For these optional columns, retry without them
+// so the screen still loads (the extra detail just doesn't show). Reads only: a GET, or a function
+// call whose column list failed (the failed call changed nothing).
+const OPTIONAL_COLS = ["source", "owner_reply", "owner_reply_at", "currency"];
 async function tolerantFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const res = await fetch(input, init);
-  if (res.status !== 400 || (init?.method && init.method !== "GET")) return res;
-  const body = await res.clone().json().catch(() => null) as { code?: string; message?: string } | null;
-  const col = body?.code === "42703" && OPTIONAL_COLS.find((c) => body.message?.includes(`.${c} does not exist`));
-  if (!col) return res;
+  let res = await fetch(input, init);
+  if (res.status !== 400) return res;
   const u = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
-  const sel = u.searchParams.get("select");
-  if (!sel) return res;
-  u.searchParams.set("select", sel.split(",").filter((c) => c !== col).join(","));
-  return fetch(u.toString(), init);
+  const method = (init?.method || "GET").toUpperCase();
+  if (method !== "GET" && !(method === "POST" && u.pathname.includes("/rest/v1/rpc/"))) return res;
+  for (let tries = 0; tries < OPTIONAL_COLS.length && res.status === 400; tries++) {
+    const body = await res.clone().json().catch(() => null) as { code?: string; message?: string } | null;
+    const col = body?.code === "42703" && OPTIONAL_COLS.find((c) => body.message?.includes(`.${c} does not exist`));
+    const sel = u.searchParams.get("select");
+    if (!col || !sel) return res;
+    u.searchParams.set("select", sel.split(",").filter((c) => c !== col).join(","));
+    res = await fetch(u.toString(), init);
+  }
+  return res;
 }
 
 export const supabase = createClient(url || "http://localhost", key || "missing-key", {
