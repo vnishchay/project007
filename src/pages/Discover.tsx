@@ -192,8 +192,9 @@ export default function Discover() {
   };
   const setType = (k: string) => setParams({ ...(q ? { q } : {}), ...(k ? { type: k } : {}) }, { replace: true });
 
-  const label = locating ? "Finding you…" : whereLabel(effective);
   const nearYou = effective.kind === "near" && coords;
+  // One pill says it all: "Near you · 5 km", "Indiranagar, Bengaluru", or the fallback city when location is off.
+  const label = locating ? "Finding you…" : nearYou ? `Near you · ${radiusLabel}` : whereLabel(effective);
   const friendsHere = new Set((results || []).flatMap((r) => r.friend_ids || [])).size;
   const farthest = Math.max(0, ...(results || []).map((r) => r.distance_m ?? 0));
   const picks = (results || []).filter((r) => r.friend_count > 0);
@@ -212,7 +213,7 @@ export default function Discover() {
       <header className="dtop">
         <div className="row between">
           <button className="loc-btn" onClick={() => setPicking(true)} aria-haspopup="dialog" aria-label={`Location: ${label}. Change location`}>
-            <Icon name={effective.kind === "near" ? "locate" : "pin"} size={16} />
+            <Icon name={where.kind === "near" ? "locate" : "pin"} size={16} color={denied ? "var(--muted)" : undefined} />
             <span className="ellipsis" style={{ maxWidth: 190 }}>{label}</span>
             <Icon name="down" size={16} width={2.4} />
           </button>
@@ -232,23 +233,7 @@ export default function Discover() {
         </form>
       </header>
 
-      {denied && where.kind === "near" && (
-        <button type="button" className="callout amber" style={{ border: 0, textAlign: "left", cursor: "pointer", font: "inherit" }} onClick={() => setPicking(true)}>
-          <Chip icon="locate" tone="amber" size="sm" />
-          <span className="grow small">Location is off. Showing {whereLabel(effective)}.</span>
-          <span className="small strong row" style={{ gap: 4 }}><Icon name="pin" size={14} />Change</span>
-        </button>
-      )}
-      {nearYou && (
-        <nav className="chips scroll" aria-label="How far">
-          {choices.map((c) => (
-            <button key={c.m} type="button" className={`chip ${radius === c.m ? "on" : ""}`} aria-pressed={radius === c.m} onClick={() => setRadius(c.m)}>
-              {radius === c.m && <Icon name="navigate" size={13} />}{c.label}
-            </button>
-          ))}
-        </nav>
-      )}
-      {picking && <LocationPicker current={where} onPick={setWhere} onClose={() => setPicking(false)} />}
+      {picking && <LocationPicker current={where} onPick={setWhere} onClose={() => setPicking(false)} denied={denied} radius={radius} choices={choices} onRadius={setRadius} />}
 
       <nav className="chips scroll type-strip" aria-label="Type of business">
         <button type="button" className={`chip ${!type ? "on" : ""}`} aria-pressed={!type} onClick={() => setType("")}><Icon name="grid" size={15} />All</button>

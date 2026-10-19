@@ -6,7 +6,13 @@ import { Chip } from "./home/Kit";
 
 interface Spot { city: string; areas: string[] }
 
-export function LocationPicker({ current, onPick, onClose }: { current: Where; onPick: (w: Where) => void; onClose: () => void }) {
+interface Props {
+  current: Where; onPick: (w: Where) => void; onClose: () => void;
+  /** "Near me" distance choices, and whether the phone refused location. */
+  radius?: number; choices?: { m: number; label: string }[]; onRadius?: (m: number) => void; denied?: boolean;
+}
+
+export function LocationPicker({ current, onPick, onClose, radius, choices, onRadius, denied }: Props) {
   const [spots, setSpots] = useState<Spot[] | null>(null);
   const [text, setText] = useState("");
 
@@ -61,8 +67,18 @@ export function LocationPicker({ current, onPick, onClose }: { current: Where; o
         </div>
         <div className="list sheet-list">
           <button className={`list-item pick ${isOn({ kind: "near" }) ? "on" : ""}`} onClick={() => pick({ kind: "near" })}>
-            <Chip icon="locate" size="sm" /><span className="grow strong">Near me</span><Icon name="navigate" size={14} color="var(--muted)" />
+            <Chip icon="locate" size="sm" />
+            <span className="grow stack" style={{ gap: 0 }}><span className="strong">Near me</span>{denied && <span className="tiny muted">Location is off. Allow it in your browser to use this.</span>}</span>
+            <Icon name="navigate" size={14} color="var(--muted)" />
           </button>
+          {choices && onRadius && !t && (
+            <div className="chips scroll" role="group" aria-label="How far" style={{ margin: 0, padding: "4px 0 10px 52px" }}>
+              {choices.map((c) => {
+                const on = current.kind === "near" && radius === c.m;
+                return <button key={c.m} type="button" className={`chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { onRadius(c.m); pick({ kind: "near" }); }}>{c.label}</button>;
+              })}
+            </div>
+          )}
           <button className={`list-item pick ${isOn({ kind: "all" }) ? "on" : ""}`} onClick={() => pick({ kind: "all" })}>
             <Chip icon="globe" tone="sky" size="sm" /><span className="grow strong">Everywhere</span>
           </button>
