@@ -23,7 +23,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
     google_business_profile: {
       place_id: "ChIJZ6f8lM8CjTkRo0iG0i4K9sE",
       cid: "13943964177267156903",
-      maps_url: "https://maps.google.com/?cid=13943964177267156903",
+      maps_url: "https://www.google.com/maps/search/?api=1&query=Kashi+Chat+Bhandar+Godowlia+Varanasi&query_place_id=ChIJZ6f8lM8CjTkRo0iG0i4K9sE",
       plus_code: "87MJ+P9 Varanasi, Uttar Pradesh",
       coordinates: { lat: 25.309322, lng: 83.006245 },
       address: "D.37/49, Godowlia Road, near Girja Ghar Chauraha, Dashashwamedh, Varanasi, Uttar Pradesh 221001",
@@ -60,7 +60,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
       ]
     },
     zomato: {
-      url: "https://www.zomato.com/varanasi/kashi-chat-bhandar-godowlia",
+      url: "https://www.zomato.com/varanasi/restaurants?q=Kashi+Chat+Bhandar",
       dining_rating: 4.3,
       dining_reviews: 1280,
       delivery_rating: 4.2,
@@ -106,7 +106,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
     google_business_profile: {
       place_id: "ChIJ7fV40a0CjTkRuI1w5qUq5cM",
       cid: "14569830829102948293",
-      maps_url: "https://maps.google.com/?cid=14569830829102948293",
+      maps_url: "https://www.google.com/maps/search/?api=1&query=Pizzeria+Vaatika+Cafe+Assi+Ghat+Varanasi&query_place_id=ChIJ7fV40a0CjTkRuI1w5qUq5cM",
       plus_code: "77QX+7M Varanasi, Uttar Pradesh",
       coordinates: { lat: 25.288210, lng: 83.006730 },
       address: "B. 1/178, Assi Ghat Steps, Shivala, Varanasi, Uttar Pradesh 221005",
@@ -195,7 +195,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
     google_business_profile: {
       place_id: "ChIJ27wZqD8CjTkRv9h6q2T2u1w",
       cid: "7482910394857291029",
-      maps_url: "https://maps.google.com/?cid=7482910394857291029",
+      maps_url: "https://www.google.com/maps/search/?api=1&query=Baati+Chokha+Restaurant+Teliyabag+Varanasi&query_place_id=ChIJ27wZqD8CjTkRv9h6q2T2u1w",
       plus_code: "87VP+4J Varanasi, Uttar Pradesh",
       coordinates: { lat: 25.328450, lng: 82.991210 },
       address: "B-28/43, Near Anand Mandir Cinema, Teliyabag, Varanasi, Uttar Pradesh 221002",
@@ -232,7 +232,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
       ]
     },
     zomato: {
-      url: "https://www.zomato.com/varanasi/baati-chokha-teliyabag",
+      url: "https://www.zomato.com/varanasi/restaurants?q=Baati+Chokha",
       dining_rating: 4.3,
       dining_reviews: 1890,
       delivery_rating: 4.1,
@@ -283,7 +283,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
     google_business_profile: {
       place_id: "ChIJ8wF_6rMCjTkR9pLgQzF5vE4",
       cid: "1827364512938472910",
-      maps_url: "https://maps.google.com/?cid=1827364512938472910",
+      maps_url: "https://www.google.com/maps/search/?api=1&query=Blue+Lassi+Shop+Bangali+Tola+Varanasi&query_place_id=ChIJ8wF_6rMCjTkR9pLgQzF5vE4",
       plus_code: "87JP+6R Varanasi, Uttar Pradesh",
       coordinates: { lat: 25.305120, lng: 83.011850 },
       address: "D. 22/84, Kunj Gali, Bangali Tola, Near Manikarnika Ghat, Varanasi, Uttar Pradesh 221001",
@@ -319,7 +319,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
       ]
     },
     zomato: {
-      url: "https://www.zomato.com/varanasi/blue-lassi-bangali-tola",
+      url: "https://www.zomato.com/varanasi/restaurants?q=Blue+Lassi",
       dining_rating: 4.3,
       dining_reviews: 820,
       delivery_rating: 4.0,
@@ -363,7 +363,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
     google_business_profile: {
       place_id: "ChIJ_yXqWrsCjTkRSvT2i3V8l14",
       cid: "3847291029384729102",
-      maps_url: "https://maps.google.com/?cid=3847291029384729102",
+      maps_url: "https://www.google.com/maps/search/?api=1&query=Brown+Bread+Bakery+Sonarpura+Varanasi",
       plus_code: "77PX+3Q Varanasi, Uttar Pradesh",
       coordinates: { lat: 25.297420, lng: 83.007110 },
       address: "D. 25/42, Pandey Ghat, Bangali Tola, Sonarpura, Varanasi, Uttar Pradesh 221001",
@@ -396,7 +396,7 @@ export const COMBINED_VARANASI_BUSINESSES = [
       ]
     },
     zomato: {
-      url: "https://www.zomato.com/varanasi/brown-bread-bakery-sonarpura",
+      url: "https://www.zomato.com/varanasi/restaurants?q=Brown+Bread+Bakery",
       dining_rating: 4.2,
       dining_reviews: 640,
       delivery_rating: 4.0,

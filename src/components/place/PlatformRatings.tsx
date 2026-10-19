@@ -79,18 +79,54 @@ export function PlatformRatingsCard({
   links,
   googlePlaceId,
   placeName,
+  city,
+  area,
 }: {
   ratings: { platform: string; rating: string; details?: string; kind: string }[];
   links: PlaceLink[];
   googlePlaceId?: string | null;
   placeName: string;
+  city?: string | null;
+  area?: string | null;
 }) {
   const list = ratings || [];
   if (!list.length) return null;
   const safeLinks = links || [];
   const findUrl = (kind: string) => {
-    if (kind === "maps" && googlePlaceId) return googleMapsUrl(googlePlaceId, placeName);
-    return safeLinks.find((l) => l && l.kind === kind)?.url;
+    if (kind === "maps") {
+      return googleMapsUrl(googlePlaceId, placeName, [area, city].filter(Boolean).join(", "));
+    }
+    const existing = safeLinks.find((l) => l && l.kind === kind)?.url;
+
+    if (kind === "swiggy") {
+      if (existing && !/swiggy\.com\/restaurants\/\d+\/?$/i.test(existing)) {
+        return existing;
+      }
+      return `https://www.swiggy.com/city/${encodeURIComponent((city || "varanasi").toLowerCase())}/search?query=${encodeURIComponent(placeName)}`;
+    }
+
+    if (kind === "zomato") {
+      if (existing) {
+        const knownBrokenZomatoSlugs = [
+          "kashi-chat-bhandar",
+          "baati-chokha",
+          "blue-lassi",
+          "brown-bread-bakery",
+          "deena-chaat-bhandar"
+        ];
+        if (!knownBrokenZomatoSlugs.some((s) => existing.toLowerCase().includes(s))) {
+          return existing;
+        }
+      }
+      return `https://www.zomato.com/${encodeURIComponent((city || "varanasi").toLowerCase())}/restaurants?q=${encodeURIComponent(placeName)}`;
+    }
+
+    if (kind === "justdial") {
+      if (existing) return existing;
+      return `https://www.justdial.com/${encodeURIComponent(city || "Varanasi")}/${encodeURIComponent(placeName)}`;
+    }
+
+    return existing;
   };
 
   return (

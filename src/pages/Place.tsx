@@ -243,7 +243,12 @@ export default function PlacePage() {
   const backToCode = !canRate && code ? code : null;
   // A newly listed shop's links stay hidden until the team has checked they are genuine.
   const unchecked = place.verification === "pending" || place.verification === "rejected";
-  const links = unchecked && !canManage ? [] : cleanLinks((place as Place & { links?: unknown }).links);
+  const links = unchecked && !canManage ? [] : cleanLinks((place as Place & { links?: unknown }).links, {
+    name: place.name,
+    city: place.city,
+    area: place.area || undefined,
+    googlePlaceId: place.google_place_id,
+  });
   const parsedAbout = parsePlaceAbout(place.about, links);
   const onGoogle = Boolean(googleConfigured && place.google_place_id);
 
@@ -253,7 +258,7 @@ export default function PlacePage() {
   };
   const [first, ...restWords] = place.name.trim().split(/\s+/);
   const find = (k: string) => links.find((l) => l.kind === k)?.url;
-  const directions = place.google_place_id ? googleMapsUrl(place.google_place_id, place.name) : find("maps");
+  const directions = googleMapsUrl(place.google_place_id, place.name, [place.area, place.city].filter(Boolean).join(", "));
   type DockItem = { icon: "navigate" | "phone" | "message" | "globe"; label: string; href: string; hot?: boolean };
   const dock: DockItem[] = [];
   if (directions) dock.push({ icon: "navigate", label: "Directions", href: directions, hot: true });
@@ -530,6 +535,8 @@ export default function PlacePage() {
               links={links}
               googlePlaceId={place.google_place_id}
               placeName={place.name}
+              city={place.city}
+              area={place.area}
             />
 
             <AmenitiesCard amenities={parsedAbout.amenities} />
@@ -553,7 +560,7 @@ export default function PlacePage() {
                   </div>
                 )}
                 {!onGoogle && place.google_place_id && (
-                  <a className="btn small ghost" href={googleMapsUrl(place.google_place_id, place.name)} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start", marginTop: 8 }}>
+                  <a className="btn small ghost" href={googleMapsUrl(place.google_place_id, place.name, [place.area, place.city].filter(Boolean).join(", "))} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start", marginTop: 8 }}>
                     <Icon name="map" size={16} />Open in Maps<Icon name="external" size={14} />
                   </a>
                 )}

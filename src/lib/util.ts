@@ -2,8 +2,22 @@ export function googleReviewUrl(placeId: string): string {
   return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId)}`;
 }
 
-export function googleMapsUrl(placeId: string, name: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}&query_place_id=${encodeURIComponent(placeId)}`;
+export function googleMapsUrl(placeId?: string | null, name: string = "", location?: string): string {
+  const query = [name, location].filter(Boolean).join(" ");
+  if (placeId) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || name)}&query_place_id=${encodeURIComponent(placeId)}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || name)}`;
+}
+
+export function zomatoSearchUrl(name: string, city: string = "varanasi"): string {
+  const c = city.trim().toLowerCase() || "varanasi";
+  return `https://www.zomato.com/${encodeURIComponent(c)}/restaurants?q=${encodeURIComponent(name)}`;
+}
+
+export function swiggySearchUrl(name: string, city: string = "varanasi"): string {
+  const c = city.trim().toLowerCase() || "varanasi";
+  return `https://www.swiggy.com/city/${encodeURIComponent(c)}/search?query=${encodeURIComponent(name)}`;
 }
 
 export function qrUrl(token: string): string {
