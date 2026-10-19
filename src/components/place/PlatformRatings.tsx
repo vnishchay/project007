@@ -137,7 +137,7 @@ export function PlatformRatingsCard({
         <span className="muted tiny">{list.length} networks</span>
       </div>
       <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>
-        Aggregated real-world ratings, verified diner counts, and digital footprints across major discovery networks.
+        Aggregated real-world ratings, verified customer counts, and digital footprints across major discovery networks.
       </p>
       <div className="pl-platforms-grid">
         {list.map((p, idx) => {

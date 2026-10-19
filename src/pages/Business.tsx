@@ -32,7 +32,7 @@ export default function Business() {
         </div>
         <span className="biz-hero-pills"><span><Icon name="verified" size={13} />Friend-trusted</span><span><Icon name="box" size={13} />Item by item</span></span>
         <h1>Let friends find your best</h1>
-        <p>Customers rate the exact dish, cut or cake they had. Their friends see it first.</p>
+        <p>Customers rate the exact dish, haircut or product they had. Their friends see it first.</p>
         <Link to={startUrl} className="btn small"><Icon name="plus" size={17} />List my shop</Link>
       </div>
 
@@ -59,7 +59,7 @@ export default function Business() {
       <div className="biz-steps">
         {([
           ["store", "", "Your shop", "Details and links"],
-          ["qr", "amber", "Tables and QR", "On every table"],
+          ["qr", "amber", "QR codes", "On every counter or table"],
           ["wallet", "violet", "Plan and pay", "Reviews go live"],
         ] as [IconName, string, string, string][]).map(([icon, cls, t, s], i) => (
           <div key={t} className="biz-step">

@@ -204,7 +204,7 @@ export default function Discover() {
   const shownDishes = (dishes || []).filter((d) => !openOnly || openNow(d.hours) !== false);
   const dishCity = effective.kind === "city" || effective.kind === "area" ? effective.city : dishes?.[0]?.city;
   const kindMode = type && type in MODES ? MODES[type as Kind] : null;
-  const dishTitle = q ? `Best ${q}` : kindMode && type !== "food" ? `Most loved ${kindMode.itemPlural}` : `${mealNow()} picks ${nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}`.trim();
+  const dishTitle = q ? `Best ${q}` : kindMode && type !== "food" ? `Most loved ${kindMode.itemPlural}` : `${type === "food" ? mealNow() : "Top"} picks ${nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}`.trim();
   const extraTopics = topics.filter((t) => !CATS.some((c) => c.label.toLowerCase() === t.name.toLowerCase() || c.q === t.name.toLowerCase()));
 
   return (
@@ -222,7 +222,7 @@ export default function Discover() {
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="hero-sub"><Glyph name={hi.icon} size={16} />{hi.text}{firstName && signedIn ? `, ${firstName}` : ""}</span>
-          <h1>{q ? <>Best {q} {nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}</> : "What are you craving?"}</h1>
+          <h1>{q ? <>Best {q} {nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}</> : "What are you looking for?"}</h1>
         </div>
         <form className="search" onSubmit={submit} role="search">
           <Icon name="search" color="var(--muted)" />

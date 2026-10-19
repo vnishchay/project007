@@ -187,7 +187,7 @@ function ReviewGate({ placeId, name, reason }: { placeId: string; name?: string;
     </div>
   );
   if (reason === "paused") return shell("clock", "Reviews are paused here for now", "You can still see what people loved at this shop.", view);
-  if (reason === "owner") return shell("store", "This is your shop", "Owners can't review their own shop. Your customers rate it by scanning your table QR.", <>
+  if (reason === "owner") return shell("store", "This is your shop", "Owners can't review their own shop. Your customers rate it by scanning your QR code.", <>
     <Link to={`/manage/${placeId}`} className="rvx-cta"><span>Manage shop</span><Icon name="chev" size={20} /></Link>{view}
   </>);
   return shell(used ? "lock" : "qr",
@@ -378,7 +378,7 @@ function ReviewForm() {
     if (uid && place && stage !== "sending") writeDraft(placeId, uid, { visit, dishes: stage === "done" ? [] : dishes, done, isPublic, finished: stage === "done", googleOpened, visitKey });
   }, [visit, dishes, done, isPublic, stage, place, placeId, uid, googleOpened, visitKey]);
 
-  const isFood = ["food", "other"].includes(modeOf(place?.kind, place?.category).kind);
+  const isFood = modeOf(place?.kind, place?.category).kind === "food";
   const patch = (i: number, p: Partial<Dish>) => setDishes((all) => all.map((d, k) => (k === i ? { ...d, ...p } : d)));
   const postedKeys = new Set(done.map((d) => d.key));
   const rated = dishes.filter((d) => d.rating > 0);
@@ -788,7 +788,7 @@ function ReviewForm() {
       if (best?.itemId) {
         const { data } = await supabase.rpc("top_dishes", { p_place: placeId, p_limit: 50 }).then((x) => x, () => ({ data: null }));
         const row = ((data as TopDish[] | null) || []).find((d) => d.item_id === best.itemId);
-        if (row && row.review_count >= 3) crowd = `${lovedPct(row)}% of ${row.review_count} diners loved it`;
+        if (row && row.review_count >= 3) crowd = `${lovedPct(row)}% of ${row.review_count} people loved it`;
       }
       const cardFile = await generateStoryCard({
         itemName: best ? best.name : done.length ? done.map((d) => d.name).join(", ") : "My visit",
@@ -800,7 +800,7 @@ function ReviewForm() {
       });
       const lines = [visit.reviewId ? labelOf(visit.rating) : "", ...done.map((d) => `${d.name}: ${labelOf(d.rating).toLowerCase()}`)].filter(Boolean).join(", ");
       const msg = best
-        ? `Order the ${best.name} at ${place?.name}${crowd ? ` (${crowd})` : ""}. See what else is good there:\n${url}`
+        ? `${isFood ? "Order" : "Try"} the ${best.name} at ${place?.name}${crowd ? ` (${crowd})` : ""}. See what else is good there:\n${url}`
         : `${lines} at ${place?.name}\n${url}`;
 
       if (navigator.share) {
@@ -812,7 +812,7 @@ function ReviewForm() {
       } else if (cardFile) {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(cardFile);
-        a.download = "verified-food-story.png";
+        a.download = "verified-story.png";
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -1055,7 +1055,7 @@ function ReviewForm() {
                   </div>
                 </section>
               )}
-              <section className="rvx-sec" aria-label={popular.length > 1 ? "Everything else" : "Menu"}>
+              <section className="rvx-sec" aria-label={popular.length > 1 ? "Everything else" : mode.catalog}>
                 {(popular.length > 1 || q) && <div className="rvx-row"><h3>{q ? "Results" : "Everything else"}</h3><span>A to Z</span></div>}
                 <div className="rvx-menu">
                   {rest.map((i) => {
@@ -1307,10 +1307,10 @@ function ReviewForm() {
           <Link to={`/p/${placeId}`} className="rvx-more"><Icon name="store" size={16} />Back to shop</Link>
         </div>
       </div>
-      <InstallNudge look="rvx" title="Add Trusted Picks to your home screen" sub={`Your food diary and the best ${mode.itemPlural} nearby, one tap away.`} />
+      <InstallNudge look="rvx" title="Add Trusted Picks to your home screen" sub={`Your picks diary and the best ${mode.itemPlural} nearby, one tap away.`} />
       {isGuest && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${placeId}`)}`} className="rvx-nudge">
-          <span className="rvx-ico"><Icon name="lock" size={18} /></span><span className="grow"><b>Save your food diary</b><small>Every {mode.item} you rated and loved, on any phone. Optional.</small></span><Icon name="chev" size={18} />
+          <span className="rvx-ico"><Icon name="lock" size={18} /></span><span className="grow"><b>Save your picks diary</b><small>Every {mode.item} you rated and loved, on any phone. Optional.</small></span><Icon name="chev" size={18} />
         </Link>
       )}
     </div>

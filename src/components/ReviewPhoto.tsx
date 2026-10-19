@@ -77,7 +77,7 @@ export function ReviewPhotoPicker({ value, onChange, disabled }: { value: Blob |
       <input ref={input} id={inputId} type="file" accept="image/*" onChange={pick} hidden disabled={disabled || busy} />
       {preview ? (
         <div style={{ position: "relative" }}>
-          <img src={preview} alt="Your photo of the order" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 12, display: "block" }} />
+          <img src={preview} alt="Your photo" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 12, display: "block" }} />
           <button
             type="button"
             className="icon-btn"

@@ -2,7 +2,7 @@ import { copyText, placeUrl } from "../../lib/util";
 import { Icon, useToast } from "../ui";
 
 /**
- * The shop's own page is its best advert: what diners loved, updated as they rate.
+ * The shop's own page is its best advert: what customers loved, updated as they rate.
  * Ready-made lines for the places people already look before they visit.
  */
 export function ShareKit({ placeId, placeName, live }: { placeId: string; placeName: string; live: boolean }) {
@@ -10,8 +10,8 @@ export function ShareKit({ placeId, placeName, live }: { placeId: string; placeN
   const url = placeUrl(placeId);
   const spots: { icon: "camera" | "globe" | "send"; where: string; how: string; text: string }[] = [
     { icon: "camera", where: "Instagram bio", how: "Paste it as your bio link.", text: url },
-    { icon: "globe", where: "Google Business Profile", how: "Add it as your Menu or Website link.", text: url },
-    { icon: "send", where: "WhatsApp status or groups", how: "Share it with regulars.", text: `What to order at ${placeName}? See the dishes our diners loved most: ${url}` },
+    { icon: "globe", where: "Google Business Profile", how: "Add it as your Website link.", text: url },
+    { icon: "send", where: "WhatsApp status or groups", how: "Share it with regulars.", text: `Wondering what to get at ${placeName}? See what our customers loved most: ${url}` },
   ];
   const copy = async (t: string) => toast((await copyText(t)) ? "Copied, ready to paste" : "Couldn't copy");
   return (
@@ -19,8 +19,8 @@ export function ShareKit({ placeId, placeName, live }: { placeId: string; placeN
       <div className="row">
         <span className="icon-chip coral"><Icon name="heart" size={18} /></span>
         <span className="grow stack tight">
-          <span className="strong">Show people what to order</span>
-          <span className="tiny muted">Your page lists what diners loved most and updates as they rate.</span>
+          <span className="strong">Show people what's loved here</span>
+          <span className="tiny muted">Your page lists what customers loved most and updates as they rate.</span>
         </span>
       </div>
       <div className="rl-link"><Icon name="link" size={14} /><span className="ellipsis grow">{url}</span></div>

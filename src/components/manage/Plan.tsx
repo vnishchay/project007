@@ -29,7 +29,7 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
     setBusy(code);
     try {
       const r = await payForPlan(placeId, placeName, code, interval);
-      if (r === "paid") { toast("Paid. Your plan is on. Add table QRs from the QR tab."); await load(); }
+      if (r === "paid") { toast("Paid. Your plan is on. Add QR codes from the QR tab."); await load(); }
       else if (r === "pending") { toast("Payment received. Your plan turns on in a few minutes; no need to pay again."); await load(); }
     } catch (e) { toast(errorText(e)); }
     setBusy("");

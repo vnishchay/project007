@@ -36,16 +36,16 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
 
   async function read() {
     setErr("");
-    setBusy("Reading your menu with AI…");
+    setBusy("Reading your list with AI…");
     try {
       let payload: Record<string, unknown> = { placeId };
 
       if (method === "photo") {
-        if (!files.length) throw new Error("Add at least one photo or PDF of your menu.");
+        if (!files.length) throw new Error("Add at least one photo or PDF of your menu or price list.");
         const imagePayloads: { data: string; media_type: string }[] = [];
         for (const file of files) {
           if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-            setBusy("Rendering PDF menu pages…");
+            setBusy("Rendering PDF pages…");
             const pageBlobs = await renderPdfPages(file, 4);
             for (const b of pageBlobs) {
               imagePayloads.push({ data: await toBase64(b), media_type: "image/jpeg" });
@@ -59,17 +59,17 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
         }
         if (!imagePayloads.length) throw new Error("Could not process the selected files.");
         payload.images = imagePayloads.slice(0, 4);
-        setBusy("Analyzing menu with AI…");
+        setBusy("Analyzing your list with AI…");
       } else if (method === "url") {
         if (!urlInput.trim()) throw new Error("Enter your website or delivery URL.");
         payload.url = urlInput.trim();
       } else {
-        if (!rawText.trim()) throw new Error("Paste your menu text first.");
+        if (!rawText.trim()) throw new Error("Paste your menu or price list first.");
         payload.text = rawText.trim();
       }
 
       const j = await callAi<{ items?: Omit<Row, "keep">[] }>("menu", payload);
-      if (!j.items) throw new Error("Couldn't read the menu. Please check the input and try again.");
+      if (!j.items) throw new Error("Couldn't read the list. Please check the input and try again.");
       if (!j.items.length) throw new Error(`No ${mode.itemPlural} found. Try a clearer photo, direct website link, or paste text.`);
       setRows(j.items.map((i) => ({ ...i, keep: true })));
     } catch (e) {
@@ -82,7 +82,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
   async function save() {
     const keep = (rows || []).filter((r) => r.keep && r.name.trim());
     if (!keep.length) return;
-    setBusy(`Adding ${keep.length} dishes…`);
+    setBusy(`Adding ${keep.length} ${keep.length === 1 ? mode.item : mode.itemPlural}…`);
     const itemsToUpsert = keep.map((r, i) => ({
       place_id: placeId,
       name: r.name.trim(),
@@ -102,7 +102,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
     }
     setBusy(false);
     if (error) { setErr(errorText(error)); return; }
-    toast(`${keep.length} ${keep.length === 1 ? mode.item : mode.itemPlural} added to your menu!`);
+    toast(`${keep.length} ${keep.length === 1 ? mode.item : mode.itemPlural} added to your ${mode.catalog.toLowerCase()}!`);
     onSaved(keep.length);
   }
 
@@ -111,10 +111,10 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet mg-sheet" role="dialog" aria-modal="true" aria-label="Automated AI Menu Onboarding" onClick={(e) => e.stopPropagation()}>
+      <div className="sheet mg-sheet" role="dialog" aria-modal="true" aria-label={`Automated AI ${mode.catalog} Setup`} onClick={(e) => e.stopPropagation()}>
         <div className="mg-sheet-head">
           <span className="icon-chip coral"><Icon name="spark" size={20} /></span>
-          <h2>{rows ? `Verify Extracted ${mode.catalog}` : `Automated AI Menu Setup`}</h2>
+          <h2>{rows ? `Verify Extracted ${mode.catalog}` : `Automated AI ${mode.catalog} Setup`}</h2>
           <button className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" /></button>
         </div>
 
@@ -155,7 +155,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
             {method === "photo" && (
               <>
                 <p className="small muted">
-                  Take a photo of your printed menu or upload up to 4 pages. Our vision model extracts dishes, categories, and prices automatically.
+                  Take a photo of your printed menu or price list, or upload up to 4 pages. Our vision model extracts items, categories, and prices automatically.
                 </p>
                 <input
                   ref={input}
@@ -194,11 +194,11 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], start 
             {method === "url" && (
               <div className="stack" style={{ gap: 8 }}>
                 <p className="small muted">
-                  Paste your website menu, UberEats, DoorDash, or Yelp link. We'll scrape and organize your items in under 30 seconds.
+                  Paste your website link (menu, price list or services page). We'll scrape and organize your items in under 30 seconds.
                 </p>
                 <input
                   className="input"
-                  placeholder="e.g. https://www.ubereats.com/store/your-restaurant"
+                  placeholder="e.g. https://www.your-business.com"
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   autoFocus

@@ -177,7 +177,7 @@ export default function Me() {
             <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
             <div className="stat-tile"><span className="n"><Icon name="lock" size={16} /></span><span className="l">this device</span></div>
           </div>
-          <Link to="/signin" className="btn white block" style={{ color: "#9c4733" }}><Icon name="login" size={18} />Keep my food diary (optional)</Link>
+          <Link to="/signin" className="btn white block" style={{ color: "#9c4733" }}><Icon name="login" size={18} />Keep my picks diary (optional)</Link>
         </header>
       ) : (
         <>
@@ -401,10 +401,10 @@ function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: 
   ).slice(0, 4) as string[];
 
   async function sharePassport() {
-    const text = `My Dining Journal on Trusted Picks: ${reviews.length} dishes reviewed across ${placeCount} local spots.`;
+    const text = `My Picks Journal on Trusted Picks: ${reviews.length} things reviewed across ${placeCount} local spots.`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "My Dining Journal", text, url: window.location.href });
+        await navigator.share({ title: "My Picks Journal", text, url: window.location.href });
       } catch {
         /* dismissed */
       }
@@ -418,8 +418,8 @@ function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: 
     <div className="card" style={{ padding: 18 }}>
       <div className="row between" style={{ alignItems: "center" }}>
         <div className="stack tight">
-          <span className="strong" style={{ fontSize: 17 }}>Dining Journal</span>
-          <span className="tiny muted">{city ? `${city} Chapter` : "Verified Dining Activity"}</span>
+          <span className="strong" style={{ fontSize: 17 }}>Picks Journal</span>
+          <span className="tiny muted">{city ? `${city} Chapter` : "Verified Activity"}</span>
         </div>
         <span className="badge green">
           <Icon name="verified" size={13} />
@@ -430,7 +430,7 @@ function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: 
       <div className="stats" style={{ margin: "4px 0", borderTop: "0.5px solid var(--line-soft)", borderBottom: "0.5px solid var(--line-soft)" }}>
         <div className="stack tight center">
           <span className="n">{reviews.length}</span>
-          <span className="l">Dishes Rated</span>
+          <span className="l">Things Rated</span>
         </div>
         <div className="stack tight center">
           <span className="n">{placeCount}</span>
@@ -476,7 +476,7 @@ function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: 
         onClick={sharePassport}
       >
         <Icon name="share" size={15} />
-        <span>Share Dining Summary</span>
+        <span>Share Picks Summary</span>
       </button>
     </div>
   );
@@ -509,8 +509,8 @@ function FoodDiary({ reviews }: { reviews: ReviewRow[] }) {
   const current = counts[shelf] ? shelf : SHELVES.find((x) => counts[x.id])?.id ?? "loved";
   const shown = things.filter((r) => SHELVES.find((x) => x.id === current)!.fits(r.rating));
   return (
-    <section className="stack" style={{ gap: 10 }} aria-label="Your food diary">
-      <SectionTitle icon="heart" tone="coral" right={<span className="count-pill"><Icon name="star" size={13} />{things.length}</span>}>Your food diary</SectionTitle>
+    <section className="stack" style={{ gap: 10 }} aria-label="Your picks diary">
+      <SectionTitle icon="heart" tone="coral" right={<span className="count-pill"><Icon name="star" size={13} />{things.length}</span>}>Your picks diary</SectionTitle>
       <div className="chips scroll" role="tablist" aria-label="Diary shelves">
         {SHELVES.filter((x) => counts[x.id]).map((x) => (
           <button key={x.id} type="button" role="tab" aria-selected={current === x.id} className={`chip ${current === x.id ? "on" : ""}`} onClick={() => setShelf(x.id)}>

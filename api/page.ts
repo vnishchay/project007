@@ -43,11 +43,11 @@ async function placePage(id: string, origin: string): Promise<Page | null> {
   const top = (dishes || []).slice(0, 5);
   const loved = top.slice(0, 3).map((d) => `${d.item_name} (${pct(d)}% of ${d.review_count} loved it)`).join(", ");
   return {
-    title: `${p.name}, ${where}: what to order`,
-    description: loved ? `Most loved at ${p.name}: ${loved}. Rated by people who ate there.` : (p.about || `${p.category} in ${where}. See what people loved, rated by people who visited.`).slice(0, 200),
+    title: `${p.name}, ${where}: most loved picks`,
+    description: loved ? `Most loved at ${p.name}: ${loved}. Rated by people who went there.` : (p.about || `${p.category} in ${where}. See what people loved, rated by people who visited.`).slice(0, 200),
     canonical: `${origin}/p/${id}`,
     html: `<main style="padding:24px;font-family:system-ui,sans-serif"><h1>${esc(p.name)}</h1><p>${esc(p.category)} · ${esc(where)}</p>`
-      + (top.length ? `<h2>What to order</h2><ol>${top.map((d) => `<li>${esc(d.item_name)}: ★${Number(d.avg_rating).toFixed(1)}, ${pct(d)}% of ${d.review_count} loved it</li>`).join("")}</ol>` : "")
+      + (top.length ? `<h2>Most loved here</h2><ol>${top.map((d) => `<li>${esc(d.item_name)}: ★${Number(d.avg_rating).toFixed(1)}, ${pct(d)}% of ${d.review_count} loved it</li>`).join("")}</ol>` : "")
       + `</main>`,
     jsonLd: { "@context": "https://schema.org", "@type": "LocalBusiness", name: p.name, address: { "@type": "PostalAddress", addressLocality: p.city, streetAddress: p.area || undefined }, url: `${origin}/p/${id}` },
   };
@@ -64,9 +64,9 @@ async function bestPage(citySlug: string, dishSlug: string, origin: string): Pro
   const lead = rows.slice(0, 3).map((d, i) => `${i + 1}. ${d.place_name} (${pct(d)}% of ${d.review_count} loved it)`).join(", ");
   return {
     title: name,
-    description: rows.length ? `${lead}. Ranked by people who ate it there, not by ads.` : `No ratings for ${dish} in ${city} yet.`,
+    description: rows.length ? `${lead}. Ranked by people who tried it there, not by ads.` : `No ratings for ${dish} in ${city} yet.`,
     canonical: url,
-    html: `<main style="padding:24px;font-family:system-ui,sans-serif"><h1>${esc(name)}</h1><p>Ranked by people who ate it there.</p><ol>`
+    html: `<main style="padding:24px;font-family:system-ui,sans-serif"><h1>${esc(name)}</h1><p>Ranked by people who tried it there.</p><ol>`
       + rows.map((d) => `<li><a href="/p/${d.place_id}">${esc(d.place_name)}</a>${d.area ? `, ${esc(d.area)}` : ""}: ${esc(d.item_name)}, ★${Number(d.avg_rating).toFixed(1)}, ${pct(d)}% of ${d.review_count} loved it</li>`).join("")
       + `</ol></main>`,
     jsonLd: { "@context": "https://schema.org", "@type": "ItemList", name, itemListElement: rows.map((d, i) => ({ "@type": "ListItem", position: i + 1, name: `${d.item_name} at ${d.place_name}`, url: `${origin}/p/${d.place_id}` })) },
