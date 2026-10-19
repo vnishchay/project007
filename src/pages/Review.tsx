@@ -19,6 +19,7 @@ import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
 import { generateStoryCard } from "../lib/story";
 import { lovedPct, topDishes, type TopDish } from "../lib/dishes";
+import { InstallNudge } from "../components/Install";
 import "../styles/place.css";
 import "../styles/review.css";
 
@@ -1306,6 +1307,7 @@ function ReviewForm() {
           <Link to={`/p/${placeId}`} className="rvx-more"><Icon name="store" size={16} />Back to shop</Link>
         </div>
       </div>
+      <InstallNudge look="rvx" title="Add Trusted Picks to your home screen" sub={`Your food diary and the best ${mode.itemPlural} nearby, one tap away.`} />
       {isGuest && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${placeId}`)}`} className="rvx-nudge">
           <span className="rvx-ico"><Icon name="lock" size={18} /></span><span className="grow"><b>Save your food diary</b><small>Every {mode.item} you rated and loved, on any phone. Optional.</small></span><Icon name="chev" size={18} />

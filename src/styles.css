@@ -313,3 +313,11 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 
 /* Tinted chips sit on white so the tint reads clean on the grey page as well as on cards. */
 .pl-night .icon-chip, .rvx .icon-chip, .hero .icon-chip, .callout .icon-chip { background-color: transparent; }
+
+/* ---------- Install to home screen ---------- */
+.install-hit { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.install-hit small { display: block; }
+.install-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.install-steps li { display: flex; align-items: center; gap: 12px; font-size: 15px; line-height: 1.35; }
+.install-steps li svg { vertical-align: -2px; }
+.install-steps .n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); color: var(--green-dark); font-weight: 700; font-size: 14px; }
