@@ -232,6 +232,7 @@ a.list-item:active { background: var(--fill); }
 .sheet::before { content: ""; position: absolute; top: 8px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: rgba(60, 60, 67, 0.3); }
 @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }
 @keyframes fade-in { from { opacity: 0; } }
+.sheet-list > *, .sheet > :not(.sheet-list) { flex-shrink: 0; }
 .sheet-list { overflow-y: auto; margin: 0 -20px; padding: 0 20px; }
 button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5px solid var(--line); text-align: left; cursor: pointer; font-size: 15px; }
 .list-item.pick.sub { padding-left: 34px; color: var(--ink-2); }
