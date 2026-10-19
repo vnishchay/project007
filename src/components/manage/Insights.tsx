@@ -5,6 +5,7 @@ import type { Place } from "../../lib/types";
 import { Icon, Stars, type IconName } from "../ui";
 import { MediaImg } from "./MediaImg";
 import { GoogleMark } from "./Google";
+import { ShopReviews } from "./ShopReviews";
 import { assist } from "../../lib/assist";
 
 interface ShopStats { reviews: number; avg_rating: number | null; reviews_30d: number; verified: number; google_handoffs: number; google_handoffs_30d: number; scans_30d: number; saves: number; items_rated: number; link_visits_30d?: number }
@@ -132,10 +133,11 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
             </div>
           )}
           <PrivateNotes placeId={place.id} onGo={onGo} />
+          <ShopReviews placeId={place.id} shopName={place.name} />
           {s.reviews >= 3 && <AiTips placeId={place.id} isPro={isPro} onGo={onGo} />}
         </>
       )}
-      <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Counts only. Customers stay private.</p>
+      <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Customers stay private.</p>
     </div>
   );
 }

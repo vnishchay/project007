@@ -10,6 +10,8 @@ import type { QrStyle } from "../../lib/types";
 import { areaCityFromAddress, GoogleFind, GooglePreview, matchCategory } from "../manage/Google";
 import { Icon, QrImage, useToast } from "../ui";
 import { LinkIcon, guessLinkKind } from "../LinkIcon";
+import { CurrencyField } from "../manage/CurrencyField";
+import { DEFAULT_CURRENCY, localCurrency } from "../../lib/money";
 import "../../styles/setup.css";
 
 const EMPTY = { business_name: "", category: "", area: "", city: "", phone: "", google_place_id: "", note: "" };
@@ -51,6 +53,8 @@ export function Setup() {
   const [urls, setUrls] = useState<Record<LinkKey, string>>({ zomato: "", swiggy: "", instagram: "", website: "" });
   const [extras, setExtras] = useState<string[]>([]);
   const [form, setForm] = useState(EMPTY);
+  // What the shop's prices are in: the phone's region to start (India gives rupees).
+  const [currency, setCurrency] = useState(localCurrency);
   const [picked, setPicked] = useState<GoogleMatch | null>(null);
   const [tables, setTables] = useState(5);
   const [style, setStyle] = useState<QrStyle>("paper");
@@ -135,6 +139,8 @@ export function Setup() {
         if (ins.error) throw ins.error;
         id = (ins.data as { id: string }).id;
         setShopId(id);
+        // New shops start in rupees. Another currency is set straight after; if that fails, it can be changed in Details.
+        if (currency !== DEFAULT_CURRENCY) await supabase.from("places").update({ currency }).eq("id", id);
         // The free trial QR right away; paid tables come after payment.
         await makeQrs(id);
       }
@@ -207,6 +213,7 @@ export function Setup() {
           <div className="field"><label className="mg-label" htmlFor="ar"><Icon name="pin" size={15} />Area</label><input id="ar" className="input" value={form.area} onChange={set("area")} placeholder="Koregaon Park" /></div>
           <div className="field"><label className="mg-label" htmlFor="ct"><Icon name="map" size={15} />City</label><input id="ct" className="input" value={form.city} onChange={set("city")} placeholder="Pune" /></div>
         </div>
+        <CurrencyField id="cur" value={currency} onChange={setCurrency} />
       </div>
     </>,
     <>

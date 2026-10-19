@@ -6,14 +6,15 @@ import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type Place, type ReviewRow, type SearchResult } from "../lib/types";
 import { googleConfigured, type GoogleRating } from "../lib/google";
-import { googleMapsUrl, initials, priceText, todaysHours } from "../lib/util";
+import { googleMapsUrl, initials, todaysHours } from "../lib/util";
+import { formatPrice, priceLevelText } from "../lib/money";
 import { isStockPhoto, placeMediaUrl } from "../lib/media";
 import { isDemoPhoto } from "../lib/demoArt";
 import { shareLink, shareOrCopy } from "../lib/invite";
 import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { ItemThumb } from "../components/place/ItemThumb";
-import { DietDot, loadShopItems, missingColumn, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { DietDot, loadShopItems, missingColumn, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
 import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
@@ -24,7 +25,8 @@ import { isVisitItem, itemLabel, olderThan, sortReviews, summarize, type ReviewS
 import "../styles/place.css";
 import "../styles/night.css";
 
-export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at";
+// currency is dropped by the client's fetch on a database without migration 40 (prices then show in rupees).
+export const PLACE_COLS = "id, google_place_id, name, category, area, city, about, hours, price_level, status, listed_until, created_at, currency";
 
 interface Stat { avg: number; count: number }
 type Filter = "all" | "photos" | "friends" | `item:${string}` | `stars:${number}`;
@@ -311,7 +313,7 @@ export default function PlacePage() {
               </button>
             )}
             {verified > 0 && <span className="pn-chip"><Icon name="verified" size={15} color="#e5c78f" />{verified} verified</span>}
-            {priceText(place.price_level) && <span className="pn-chip gold">{priceText(place.price_level)}</span>}
+            {priceLevelText(place.price_level, place.currency) && <span className="pn-chip gold">{priceLevelText(place.price_level, place.currency)}</span>}
           </div>
         </div>
       </div>
@@ -378,7 +380,7 @@ export default function PlacePage() {
                       <button key={p.id} type="button" className="pn-sig-card" style={{ animationDelay: `${0.1 + i * 0.1}s` }} onClick={() => (canRate ? nav(`${rateUrl}?item=${p.id}`) : openReviews(`item:${p.id}`))}>
                         <span className="pn-sig-img"><ItemThumb path={p.image_path} icon={look.icon} /></span>
                         <span className="pn-sig-name"><DietDot diet={p.diet} />{p.name}</span>
-                        <span className="pn-sig-foot"><b>{priceLabel(p.price_inr) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{st.avg.toFixed(1)} · {st.count}</span></span>
+                        <span className="pn-sig-foot"><b>{formatPrice(p.price_inr, place.currency) ?? ""}</b><span className="pn-lime"><Icon name="star" size={12} fill="currentColor" />{st.avg.toFixed(1)} · {st.count}</span></span>
                       </button>
                     );
                   })}
@@ -412,7 +414,7 @@ export default function PlacePage() {
                   <span className="pl-product-body">
                     <span className="pl-product-name"><DietDot diet={p.diet} />{p.name}</span>
                     <span className="pl-product-foot">
-                      {priceLabel(p.price_inr) ? <span className="pl-price">{priceLabel(p.price_inr)}</span> : <span className="muted tiny">{s ? "" : "New"}</span>}
+                      {p.price_inr != null ? <span className="pl-price">{formatPrice(p.price_inr, place.currency)}</span> : <span className="muted tiny">{s ? "" : "New"}</span>}
                       {canRate && <span className="pl-rate-btn"><Icon name="star" size={14} /></span>}
                     </span>
                   </span>

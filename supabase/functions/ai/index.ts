@@ -240,10 +240,11 @@ calm complaint, high is warm. No hashtags, no emojis, no quotation marks. Reply 
     // A shop the team hasn't checked yet gets a few menu reads a day (12 = 4 reads), checked shops the usual allowance.
     await take(c, 3, checked || c.guest ? undefined : 12);
     const text = await aiFor(c, {
-      system: `You read photos of menus, price lists and rate cards from local shops in India
+      system: `You read photos of menus, price lists and rate cards from local shops, mostly in India
 (restaurants, cafes, bakeries, salons, stores, clinics, gyms, coaching classes, service providers) and list every product or service on them.
 Copy names as printed, fixing only obvious OCR-style mistakes; keep the original language if it isn't English.
-price_inr is the price in rupees as a whole number, or null if there's no clear price. If an item has several
+price_inr is the price in the menu's currency as a whole number (no currency sign, no decimals, rounded),
+or null if there's no clear price. If an item has several
 sizes or prices, use the smallest and put the others in the description (e.g. "Half 180, Full 320").
 section is the heading it appears under ("Starters", "Haircuts"), or "" if none. description is a short line
 printed with the item, or "".

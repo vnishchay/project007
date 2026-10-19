@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { lovedPct, openNow, titleCase, topDishes, unslug, type TopDish } from "../lib/dishes";
 import { copyText } from "../lib/util";
+import { formatPrice } from "../lib/money";
 import { Icon, Spinner, TopBar, useToast } from "../components/ui";
 import { EmptyArt, Retry } from "../components/home/Kit";
 import { OpenPill } from "../components/home/DishCard";
@@ -78,7 +79,7 @@ export default function BestDish() {
                     <span className="meta">
                       <span className="ellipsis">{d.item_name}</span>
                       {d.area && <span><Icon name="pin" size={12} />{d.area}</span>}
-                      {d.price_inr != null && <span>₹{d.price_inr}</span>}
+                      {d.price_inr != null && <span>{formatPrice(d.price_inr, d.currency)}</span>}
                     </span>
                     <span className="badges">
                       <span className="pill loved"><Icon name="heart" size={12} fill="currentColor" /><span>{lovedPct(d)}% of {d.review_count} loved it</span></span>

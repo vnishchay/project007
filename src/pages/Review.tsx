@@ -10,7 +10,8 @@ import { Icon, RvxBack, Spinner, useToast, type IconName } from "../components/u
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ItemThumb } from "../components/place/ItemThumb";
-import { loadShopItems, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { loadShopItems, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { formatPrice } from "../lib/money";
 import { deviceId } from "../lib/device";
 import { callAi } from "../lib/assist";
 import { modeOf, tagFits } from "../lib/modes";
@@ -287,7 +288,7 @@ function ReviewForm() {
     (async () => {
       try {
         const [p, it, st, tg, g] = await Promise.all([
-          supabase.from("places").select("id, name, area, category, city, google_place_id, status, kind").eq("id", placeId).maybeSingle()
+          supabase.from("places").select("id, name, area, category, city, google_place_id, status, kind, currency").eq("id", placeId).maybeSingle()
             .then((r) => r.error && /kind/.test(r.error.message) ? supabase.from("places").select("id, name, area, category, city, google_place_id, status").eq("id", placeId).maybeSingle() : r),
           loadShopItems(placeId),
           supabase.from("item_stats").select("item_id, review_count").eq("place_id", placeId),
@@ -1048,7 +1049,7 @@ function ReviewForm() {
                           <span className="ph"><ItemThumb path={i.image_path} icon={look.icon} />
                             {wasRated ? <span className="rvx-rated">Rated</span> : <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>}
                           </span>
-                          <span className="tx"><b>{i.name}</b>{priceLabel(i.price_inr) && <small>{priceLabel(i.price_inr)}</small>}</span>
+                          <span className="tx"><b>{i.name}</b>{i.price_inr != null && <small>{formatPrice(i.price_inr, place.currency)}</small>}</span>
                         </button>
                       );
                     })}
@@ -1063,7 +1064,7 @@ function ReviewForm() {
                     return (
                       <button key={i.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} aria-pressed={on} disabled={wasRated} onClick={() => toggleItem(i)}>
                         <span className="th"><ItemThumb path={i.image_path} icon={look.icon} size={48} /></span>
-                        <span className="tx"><b>{i.name}</b>{(wasRated || priceLabel(i.price_inr)) && <small>{wasRated ? "Rated" : priceLabel(i.price_inr)}</small>}</span>
+                        <span className="tx"><b>{i.name}</b>{(wasRated || i.price_inr != null) && <small>{wasRated ? "Rated" : formatPrice(i.price_inr, place.currency)}</small>}</span>
                         {!wasRated && <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>}
                       </button>
                     );

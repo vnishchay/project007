@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { Icon, type IconName } from "./ui";
 import { ItemThumb } from "./place/ItemThumb";
-import { priceLabel, type ShopItem } from "./place/shop";
+import type { ShopItem } from "./place/shop";
+import { formatPrice } from "../lib/money";
 import "../styles/place.css";
 
 /** One-tap product tiles: shop photos first, then other items, then "something else". */
-export function ProductPicker({ items, selected, other, onPick, onOther, icon = "food", labelledBy }: {
+export function ProductPicker({ items, selected, other, onPick, onOther, icon = "food", labelledBy, currency }: {
   items: ShopItem[];
   selected: string | null;
   other: boolean;
@@ -13,6 +14,8 @@ export function ProductPicker({ items, selected, other, onPick, onOther, icon = 
   onOther: () => void;
   icon?: IconName;
   labelledBy?: string;
+  /** the shop's currency, for prices */
+  currency?: string | null;
 }) {
   const row = useRef<HTMLDivElement>(null);
   // Bring a preselected product into view.
@@ -33,7 +36,7 @@ export function ProductPicker({ items, selected, other, onPick, onOther, icon = 
               {on && <span className="pp-check"><Icon name="check" size={14} color="#fff" width={3} /></span>}
             </span>
             <span className="pp-name">{i.name}</span>
-            {priceLabel(i.price_inr) && <span className="pp-price">{priceLabel(i.price_inr)}</span>}
+            {i.price_inr != null && <span className="pp-price">{formatPrice(i.price_inr, currency)}</span>}
           </button>
         );
       })}

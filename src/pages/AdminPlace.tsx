@@ -15,6 +15,7 @@ import { LinkIcon, linkLabel } from "../components/LinkIcon";
 import type { PlaceLink } from "../components/manage/LinksEditor";
 import type { PlaceUpdate } from "../components/manage/Updates";
 import { timeAgo } from "../lib/util";
+import { priceLevelText } from "../lib/money";
 import "../styles/manage.css";
 
 const STYLE_COLORS: Record<QrStyle, { dark: string; light: string }> = QR_STYLES;
@@ -142,7 +143,7 @@ export default function AdminPlace() {
             <div className="field"><label>City</label><input className="input" value={p.city} onChange={(e) => set("city", e.target.value)} /></div>
             <div className="field"><label>Price</label>
               <select className="select" value={p.price_level || ""} onChange={(e) => set("price_level", e.target.value ? Number(e.target.value) : null)}>
-                <option value="">Not set</option><option value="1">₹</option><option value="2">₹₹</option><option value="3">₹₹₹</option><option value="4">₹₹₹₹</option>
+                <option value="">Not set</option>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{priceLevelText(n, p.currency)}</option>)}
               </select>
             </div>
           </div>

@@ -334,6 +334,14 @@ function Reviews() {
     setRows((rs) => (rs || []).map((x) => (x.id === r.id ? { ...x, status } : x)).filter((x) => show !== "hidden" || x.status === "hidden"));
   }
 
+  /** The team can take down an owner's reply (only the owner can write one). */
+  async function removeReply(r: ReviewRow) {
+    const { error } = await supabase.rpc("reply_to_review", { p_review_id: r.id, p_text: "" });
+    if (error) { toast(errorText(error)); return; }
+    toast("Reply removed");
+    setRows((rs) => (rs || []).map((x) => (x.id === r.id ? { ...x, owner_reply: null, owner_reply_at: null } : x)));
+  }
+
   return (
     <div className="stack">
       <div className="chips">
@@ -346,9 +354,12 @@ function Reviews() {
           <ReviewCard key={r.id} r={r} showPlace reveal>
             <div className="row between">
               {r.status === "hidden" ? <span className="badge red">Hidden</span> : <span className="badge gray">Published</span>}
-              {r.status === "hidden"
-                ? <button className="btn small ghost" onClick={() => setStatus(r, "published")}>Restore</button>
-                : <button className="btn small danger" onClick={() => { if (confirm("Hide this review from everyone?")) setStatus(r, "hidden"); }}>Hide</button>}
+              <span className="row" style={{ gap: 8 }}>
+                {r.owner_reply && <button className="btn small ghost" onClick={() => { if (confirm("Remove the owner's reply?")) removeReply(r); }}><Icon name="trash" size={15} />Remove reply</button>}
+                {r.status === "hidden"
+                  ? <button className="btn small ghost" onClick={() => setStatus(r, "published")}>Restore</button>
+                  : <button className="btn small danger" onClick={() => { if (confirm("Hide this review from everyone?")) setStatus(r, "hidden"); }}>Hide</button>}
+              </span>
             </div>
           </ReviewCard>
         ))}
