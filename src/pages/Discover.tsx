@@ -14,6 +14,7 @@ import { NewsStrip } from "../components/home/NewsStrip";
 import { KINDS, MODES, type Kind } from "../lib/modes";
 import { bestPath, mealNow, openNow, topDishes, type TopDish } from "../lib/dishes";
 import { DishCard } from "../components/home/DishCard";
+import { defaultRadius, distanceText, radiusChoices } from "../lib/util";
 import { InstallNudge } from "../components/Install";
 import "../styles/home.css";
 
@@ -60,7 +61,12 @@ export default function Discover() {
   const PAGE = 30;
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [widened, setWidened] = useState(0);
+  // How far "Near you" reaches: the person's own choice, remembered on this phone. 5 km (3 mi) to start.
+  const [radius, setRadiusState] = useState<number>(() => { try { return Number(localStorage.getItem("tp-radius")) || defaultRadius(); } catch { return defaultRadius(); } });
+  const setRadius = (m: number) => { try { localStorage.setItem("tp-radius", String(m)); } catch { /* storage blocked */ } setRadiusState(m); };
+  const choices = radiusChoices();
+  const radiusLabel = choices.find((c) => c.m === radius)?.label ?? distanceText(radius);
+  const wider = choices.find((c) => c.m > radius);
 
   const near = effective.kind === "near" && coords;
   const searchArgs = (radius: number, offset: number) => ({
@@ -95,19 +101,12 @@ export default function Discover() {
   useEffect(() => {
     let cancelled = false;
     gen.current += 1;
-    setResults(null); setErr(""); setHasMore(false); setWidened(0);
+    setResults(null); setErr(""); setHasMore(false);
     (async () => {
-      let radius = 15000;
-      let res = await searchPlaces(searchArgs(radius, 0));
-      // Few places close by: look further out, and say so.
-      if (!cancelled && near && !res.error && ((res.data as SearchResult[]) || []).length < 6) {
-        const wide = await searchPlaces(searchArgs(60000, 0));
-        if (!wide.error && ((wide.data as SearchResult[]) || []).length > ((res.data as SearchResult[]) || []).length) { res = wide; radius = 60000; }
-      }
+      const res = await searchPlaces(searchArgs(radius, 0));
       if (cancelled) return;
       if (res.error) { setErr(errorText(res.error)); setResults([]); return; }
       const all = (res.data as SearchResult[]) || [];
-      setWidened(radius > 15000 ? radius / 1000 : 0);
       setHasMore(all.length > PAGE);
       const rows = all.slice(0, PAGE);
       setResults(rows);
@@ -115,13 +114,13 @@ export default function Discover() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, type, whereKey, coords, session?.user.id]);
+  }, [q, type, whereKey, coords, session?.user.id, radius]);
 
   async function loadMore() {
     if (!results || loadingMore) return;
     setLoadingMore(true);
     const mine = gen.current;
-    const res = await searchPlaces(searchArgs(widened ? widened * 1000 : 15000, results.length));
+    const res = await searchPlaces(searchArgs(radius, results.length));
     setLoadingMore(false);
     if (mine !== gen.current) return;
     if (res.error) { setErr(errorText(res.error)); return; }
@@ -146,17 +145,10 @@ export default function Discover() {
       city: effective.kind === "city" || effective.kind === "area" ? effective.city : null,
       area: effective.kind === "area" ? effective.area : null, kind: type || null, limit: 20,
     });
-    (async () => {
-      let r = await ask(15000);
-      if (alive && near && r.rows.length < 4) {
-        const wide = await ask(60000);
-        if (wide.rows.length > r.rows.length) r = wide;
-      }
-      if (alive) setDishes(r.rows);
-    })();
+    ask(radius).then((r) => { if (alive) setDishes(r.rows); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, type, whereKey, coords, session?.user.id]);
+  }, [q, type, whereKey, coords, session?.user.id, radius]);
 
   // Flag when Google's rating hides a weaker one from people you trust.
   const [gap, setGap] = useState<{ name: string; google: number; ours: number; item: string | null; id: string } | null>(null);
@@ -247,6 +239,15 @@ export default function Discover() {
           <span className="small strong row" style={{ gap: 4 }}><Icon name="pin" size={14} />Change</span>
         </button>
       )}
+      {nearYou && (
+        <nav className="chips scroll" aria-label="How far">
+          {choices.map((c) => (
+            <button key={c.m} type="button" className={`chip ${radius === c.m ? "on" : ""}`} aria-pressed={radius === c.m} onClick={() => setRadius(c.m)}>
+              {radius === c.m && <Icon name="navigate" size={13} />}{c.label}
+            </button>
+          ))}
+        </nav>
+      )}
       {picking && <LocationPicker current={where} onPick={setWhere} onClose={() => setPicking(false)} />}
 
       <nav className="chips scroll type-strip" aria-label="Type of business">
@@ -311,7 +312,7 @@ export default function Discover() {
 
       <section className="stack" style={{ gap: 12 }} aria-label="Places">
         <SectionTitle icon={q ? "trophy" : "flame"} tone={q ? "amber" : "coral"} right={results && results.length > 0 ? (
-          <span className="count-pill"><Icon name="store" size={13} />{results.length}{hasMore ? "+" : ""}{nearYou && farthest > 0 ? <> · <Icon name="navigate" size={11} />{Math.max(1, Math.ceil(farthest / 1000))} km</> : null}</span>
+          <span className="count-pill"><Icon name="store" size={13} />{results.length}{hasMore ? "+" : ""}{nearYou && farthest > 0 ? <> · <Icon name="navigate" size={11} />{distanceText(farthest)}</> : null}</span>
         ) : null}>
           {q ? "Ranked by people you trust" : "Top picks"}
         </SectionTitle>
@@ -338,7 +339,7 @@ export default function Discover() {
           </EmptyArt>
         ) : (
           <div className="stack" style={{ gap: 12 }}>
-            {widened > 0 && <div className="notice small">Not many places close by, so this reaches up to {widened} km.</div>}
+            {nearYou && wider && results.length < 6 && <button type="button" className="notice small row" style={{ border: 0, font: "inherit", textAlign: "left", cursor: "pointer", gap: 6 }} onClick={() => setRadius(wider.m)}><Icon name="navigate" size={14} /><span className="grow">Only {results.length} within {radiusLabel}.</span><b>Show {wider.label}</b></button>}
             {results.map((r) => <PlaceCard key={r.place_id} r={r} people={people} coverUrl={cover(r.place_id)} />)}
             {hasMore && <button type="button" className="btn ghost block" disabled={loadingMore} onClick={loadMore}><Icon name="down" size={18} />{loadingMore ? "Loading…" : "Show more places"}</button>}
           </div>
