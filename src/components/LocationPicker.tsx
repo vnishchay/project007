@@ -72,7 +72,7 @@ export function LocationPicker({ current, onPick, onClose, radius, choices, onRa
             <Icon name="navigate" size={14} color="var(--muted)" />
           </button>
           {choices && onRadius && !t && (
-            <div className="chips scroll" role="group" aria-label="How far" style={{ margin: 0, padding: "4px 0 10px 52px" }}>
+            <div className="chips scroll" role="group" aria-label="How far" style={{ margin: 0, padding: "4px 0 10px 52px", flex: "none" }}>
               {choices.map((c) => {
                 const on = current.kind === "near" && radius === c.m;
                 return <button key={c.m} type="button" className={`chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { onRadius(c.m); pick({ kind: "near" }); }}>{c.label}</button>;
