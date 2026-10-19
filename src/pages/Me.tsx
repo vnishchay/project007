@@ -2,7 +2,8 @@ import { InviteCard } from "../components/home/InviteCard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
-import { itemLabel, olderThan } from "../lib/reviews";
+import { isVisitItem, itemLabel, olderThan } from "../lib/reviews";
+import { ItemThumb } from "../components/place/ItemThumb";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { placeMediaUrl, shrinkImage } from "../lib/media";
@@ -175,7 +176,7 @@ export default function Me() {
             <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
             <div className="stat-tile"><span className="n"><Icon name="lock" size={16} /></span><span className="l">this device</span></div>
           </div>
-          <Link to="/signin" className="btn white block" style={{ color: "#9c4733" }}><Icon name="login" size={18} />Keep my reviews (optional)</Link>
+          <Link to="/signin" className="btn white block" style={{ color: "#9c4733" }}><Icon name="login" size={18} />Keep my food diary (optional)</Link>
         </header>
       ) : (
         <>
@@ -255,6 +256,8 @@ export default function Me() {
           </div>
         </>
       )}
+
+      {reviews && <FoodDiary reviews={reviews} />}
 
       {openVisits.length > 0 && (
         <section className="stack" style={{ gap: 10 }}>
@@ -473,5 +476,56 @@ function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: 
         <span>Share Dining Summary</span>
       </button>
     </div>
+  );
+}
+
+type DiaryShelf = "loved" | "liked" | "skip";
+const SHELVES: { id: DiaryShelf; label: string; icon: "heart" | "thumbs" | "thumbsDown"; fits: (r: number) => boolean }[] = [
+  { id: "loved", label: "Loved", icon: "heart", fits: (r) => r >= 5 },
+  { id: "liked", label: "Liked", icon: "thumbs", fits: (r) => r === 4 },
+  { id: "skip", label: "Skip next time", icon: "thumbsDown", fits: (r) => r <= 2 },
+];
+
+/** Everything you rated, sorted onto shelves, so "what did I love at that place?" has an answer. */
+function FoodDiary({ reviews }: { reviews: ReviewRow[] }) {
+  const things = reviews.filter((r) => !isVisitItem(r.items?.name) && r.status === "published");
+  const [shelf, setShelf] = useState<DiaryShelf>("loved");
+  const [photos, setPhotos] = useState<Record<string, string | null>>({});
+  const ids = [...new Set(things.map((r) => r.item_id))].slice(0, 200);
+  const idKey = ids.join(",");
+  useEffect(() => {
+    if (!ids.length) return;
+    let alive = true;
+    supabase.from("items").select("id, image_path").in("id", ids).then(({ data }) => {
+      if (alive && data) setPhotos(Object.fromEntries((data as { id: string; image_path: string | null }[]).map((i) => [i.id, i.image_path])));
+    });
+    return () => { alive = false; };
+  }, [idKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!things.length) return null;
+  const counts = Object.fromEntries(SHELVES.map((x) => [x.id, things.filter((r) => x.fits(r.rating)).length])) as Record<DiaryShelf, number>;
+  const current = counts[shelf] ? shelf : SHELVES.find((x) => counts[x.id])?.id ?? "loved";
+  const shown = things.filter((r) => SHELVES.find((x) => x.id === current)!.fits(r.rating));
+  return (
+    <section className="stack" style={{ gap: 10 }} aria-label="Your food diary">
+      <SectionTitle icon="heart" tone="coral" right={<span className="count-pill"><Icon name="star" size={13} />{things.length}</span>}>Your food diary</SectionTitle>
+      <div className="chips scroll" role="tablist" aria-label="Diary shelves">
+        {SHELVES.filter((x) => counts[x.id]).map((x) => (
+          <button key={x.id} type="button" role="tab" aria-selected={current === x.id} className={`chip ${current === x.id ? "on" : ""}`} onClick={() => setShelf(x.id)}>
+            <Icon name={x.icon} size={14} />{x.label} {counts[x.id]}
+          </button>
+        ))}
+      </div>
+      <div className="hscroll">
+        {shown.map((r) => (
+          <Link key={r.id} to={`/p/${r.place_id}`} className="pick-card dish-card diary-card">
+            <span className="thumb"><ItemThumb path={photos[r.item_id]} /></span>
+            <span className="pc-body">
+              <span className="strong ellipsis">{itemLabel(r.items?.name)}</span>
+              <span className="tiny muted ellipsis">{[r.places?.name, r.places?.area].filter(Boolean).join(" · ")}</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }

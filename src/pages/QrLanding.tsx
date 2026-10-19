@@ -22,11 +22,17 @@ const REFUSED: Record<Refusal, [string, string]> = {
   scan: ["Couldn't unlock your review", "Scan the table code again, or ask the staff for a new one."],
 };
 
+/** How diners rated one thing on the menu. */
+interface Said { count: number; loved: number; lovedPct: number; avg: number }
+
 interface TopItem extends ShopItem {
   reviewCount: number;
   ratingAvg?: number;
   lovedPct?: number;
 }
+
+/** Share who loved it, with three imaginary "loved" votes out of four so one lucky 5-star never tops forty great ones. */
+const lovedRank = (x?: { count: number; loved: number }) => (x ? (x.loved + 2.25) / (x.count + 3) : -1);
 
 /** The review rates up to this many things in one go. */
 const MAX_TAGGED = 5;
@@ -58,6 +64,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const [scanTry, setScanTry] = useState(0);
   const [refused, setRefused] = useState<Refusal | null>(null);
   const [topItems, setTopItems] = useState<TopItem[]>([]);
+  // What diners said about each menu item, so the menu itself answers "what should I order?".
+  const [said, setSaid] = useState<Record<string, Said>>({});
+  const [lovedFirst, setLovedFirst] = useState(false);
   // The shop's own special picks (products it chose to list), shown like a mini shop page.
   const [specials, setSpecials] = useState<ShopItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -123,6 +132,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
               counts[r.item_id].count++;
               if (r.rating >= 4) counts[r.item_id].fourPlus++;
             }
+            const byItem: Record<string, Said> = {};
+            for (const [id, c] of Object.entries(counts)) byItem[id] = { count: c.count, loved: c.fourPlus, lovedPct: Math.round((c.fourPlus / c.count) * 100), avg: c.sum / c.count };
+            if (alive) setSaid(byItem);
             const sorted = items
               .filter((it) => (counts[it.id]?.count || 0) >= 1)
               .map((it) => {
@@ -134,8 +146,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                   lovedPct: c.count ? Math.round((c.fourPlus / c.count) * 100) : 100,
                 };
               })
-              .sort((a, b) => (b.lovedPct ?? 0) - (a.lovedPct ?? 0) || b.reviewCount - a.reviewCount)
-              .slice(0, 3);
+              .sort((a, b) => lovedRank(byItem[b.id]) - lovedRank(byItem[a.id]) || b.reviewCount - a.reviewCount)
+              .slice(0, 5);
             if (alive) setTopItems(sorted);
           } catch {
             if (alive) setTopItems([]);
@@ -277,13 +289,13 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       )}
 
       {topItems.length > 0 && (
-        <section className="rvx-sec" aria-label="Loved here">
-          <div className="rvx-row"><h3>Loved here</h3><span>Top rated by visitors</span></div>
+        <section className="rvx-sec" aria-label="What to order here">
+          <div className="rvx-row"><h3>What to order here</h3><span>Most loved by diners</span></div>
           <div className="rvx-scroll rvx-loved">
             {topItems.map((it) => (
               <button key={it.id} type="button" className={selectedIds.includes(it.id) ? "on" : ""} aria-pressed={selectedIds.includes(it.id)} onClick={() => toggleSelected(it)}>
                 <span className="face"><ItemThumb path={it.image_path} size={32} />{selectedIds.includes(it.id) && <span className="ok"><Icon name="check" size={16} width={2.6} /></span>}</span>
-                {it.name}<span className="pct">{it.lovedPct != null ? `${it.lovedPct}% loved` : `★ ${it.ratingAvg?.toFixed(1)}`}</span>
+                {it.name}<span className="pct">{it.lovedPct != null ? `${it.lovedPct}% of ${it.reviewCount}` : `★ ${it.ratingAvg?.toFixed(1)}`}</span>
               </button>
             ))}
           </div>
@@ -292,7 +304,11 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
 
       {menu.length > 0 && (() => {
         const q = menuQ.trim().toLowerCase();
-        const found = q ? menu.filter((it) => `${it.name} ${it.description || ""}`.toLowerCase().includes(q)) : menu;
+        const matched = q ? menu.filter((it) => `${it.name} ${it.description || ""}`.toLowerCase().includes(q)) : menu;
+        const hasSaid = Object.keys(said).length > 0;
+        const found = lovedFirst && hasSaid
+          ? [...matched].sort((a, b) => lovedRank(said[b.id]) - lovedRank(said[a.id]))
+          : matched;
         const shown = q || menuAll ? found : found.slice(0, MENU_FIRST);
         return (
           <section className="rvx-sec" aria-label="Menu">
@@ -303,13 +319,18 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 <input type="search" value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder="Find on the menu" aria-label="Find on the menu" autoComplete="off" />
               </label>
             )}
+            {hasSaid && (
+              <div className="rvx-chips sm">
+                <button type="button" className={`rvx-chip static ${lovedFirst ? "on" : ""}`} style={{ cursor: "pointer" }} aria-pressed={lovedFirst} onClick={() => setLovedFirst((v) => !v)}><Icon name="heart" size={14} />Most loved first</button>
+              </div>
+            )}
             <div className="rvx-menu">
               {shown.map((it) => {
                 const on = selectedIds.includes(it.id);
                 return (
                   <button key={it.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} aria-pressed={on} aria-label={`${it.name}${on ? ", picked" : ""}`} onClick={() => toggleSelected(it)}>
                     <span className="th"><ItemThumb path={it.image_path} size={48} /></span>
-                    <span className="tx"><b><DietDot diet={it.diet} />{it.name}</b>{(it.price_inr != null || it.description) && <small>{[it.price_inr != null ? `₹${it.price_inr}` : "", it.description || ""].filter(Boolean).join(" · ")}</small>}</span>
+                    <span className="tx"><b><DietDot diet={it.diet} />{it.name}</b>{(said[it.id] || it.price_inr != null || it.description) && <small>{said[it.id] && <span className="rvx-said"><Icon name="heart" size={12} fill="currentColor" />{said[it.id]!.lovedPct}% of {said[it.id]!.count}</span>}{[it.price_inr != null ? `₹${it.price_inr}` : "", it.description || ""].filter(Boolean).join(" · ")}</small>}</span>
                     <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>
                   </button>
                 );

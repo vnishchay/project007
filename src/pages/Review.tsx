@@ -18,6 +18,7 @@ import { fetchGoogleRating } from "../lib/google";
 import { copyText, googleReviewUrl } from "../lib/util";
 import { shareLink } from "../lib/invite";
 import { generateStoryCard } from "../lib/story";
+import { lovedPct, topDishes, type TopDish } from "../lib/dishes";
 import "../styles/place.css";
 import "../styles/review.css";
 
@@ -55,6 +56,13 @@ const VERDICTS: { key: Verdict; label: string; rating: number }[] = [
 ];
 const verdictOf = (r: number): Verdict | undefined => (!r ? undefined : r >= 5 ? "love" : r >= 4 ? "good" : "meh");
 const labelOf = (r: number) => VERDICTS.find((v) => v.key === verdictOf(r))?.label ?? "";
+
+/** In shop mode the tab stays with the shop, so the wider app opens in a new tab (as the shop page's own link does). */
+function OutLink({ to, className, label, children }: { to: string; className: string; label: string; children: ReactNode }) {
+  return focusShop()
+    ? <a href={to} target="_blank" rel="noopener" className={className} aria-label={label}>{children}</a>
+    : <Link to={to} className={className} aria-label={label}>{children}</Link>;
+}
 
 function Face({ v, size = 26 }: { v: Verdict; size?: number }) {
   return (
@@ -338,6 +346,20 @@ function ReviewForm() {
     fetchGoogleRating(place.google_place_id).then((g) => { if (alive && g) setGoogleLive({ rating: g.rating }); }, () => {});
     return () => { alive = false; };
   }, [place?.google_place_id]);
+
+  // After posting: the best-loved things at other places close by, so the app is worth opening again.
+  const [nearby, setNearby] = useState<TopDish[]>([]);
+  useEffect(() => {
+    if (stage !== "done" || !place?.city) return;
+    let alive = true;
+    (async () => {
+      const base = { city: place.city, excludePlace: place.id, kind: place.kind || null, limit: 10 };
+      let r = place.area ? await topDishes({ ...base, area: place.area }) : { rows: [] as TopDish[], error: null };
+      if (r.rows.length < 3) r = await topDishes(base);
+      if (alive) setNearby(r.rows);
+    })();
+    return () => { alive = false; };
+  }, [stage, place?.id, place?.city, place?.area, place?.kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stop listening and typing if the page goes away.
   useEffect(() => () => { rec.current?.stop(); if (typer.current) clearInterval(typer.current); }, []);
@@ -759,15 +781,26 @@ function ReviewForm() {
     setSharingStory(true);
     try {
       const url = await shareLink(`/p/${placeId}`, "review");
+      // Lead with what a friend wants to know: the dish worth ordering, and how many diners agree.
+      const best = [...done].filter((d) => d.itemId && d.rating >= 4).sort((a, b) => b.rating - a.rating)[0];
+      let crowd = "";
+      if (best?.itemId) {
+        const { data } = await supabase.rpc("top_dishes", { p_place: placeId, p_limit: 50 }).then((x) => x, () => ({ data: null }));
+        const row = ((data as TopDish[] | null) || []).find((d) => d.item_id === best.itemId);
+        if (row && row.review_count >= 3) crowd = `${lovedPct(row)}% of ${row.review_count} diners loved it`;
+      }
       const cardFile = await generateStoryCard({
-        itemName: done.length ? done.map((d) => d.name).join(", ") : "My visit",
+        itemName: best ? best.name : done.length ? done.map((d) => d.name).join(", ") : "My visit",
         placeName: place?.name || "",
-        rating: overall,
-        body: (visit.reviewId && visit.body.trim()) || done.find((d) => d.body)?.body || "",
-        photoBlob: done.find((d) => d.photo)?.photo,
+        rating: best ? best.rating : overall,
+        body: (best?.body.trim()) || (visit.reviewId && visit.body.trim()) || done.find((d) => d.body)?.body || "",
+        photoBlob: best?.photo || done.find((d) => d.photo)?.photo,
+        crowd,
       });
       const lines = [visit.reviewId ? labelOf(visit.rating) : "", ...done.map((d) => `${d.name}: ${labelOf(d.rating).toLowerCase()}`)].filter(Boolean).join(", ");
-      const msg = `${lines} at ${place?.name}\n${url}`;
+      const msg = best
+        ? `Order the ${best.name} at ${place?.name}${crowd ? ` (${crowd})` : ""}. See what else is good there:\n${url}`
+        : `${lines} at ${place?.name}\n${url}`;
 
       if (navigator.share) {
         if (cardFile && navigator.canShare?.({ files: [cardFile] })) {
@@ -1252,6 +1285,20 @@ function ReviewForm() {
         )}
       </section>
 
+      {nearby.length > 0 && (
+        <section className="rvx-sec" aria-label={`Loved near ${place.name}`}>
+          <div className="rvx-row"><h3>Loved nearby</h3><span>{place.area || place.city}</span></div>
+          <div className="rvx-scroll">
+            {nearby.map((d) => (
+              <OutLink key={d.item_id} to={`/p/${d.place_id}`} className="rvx-pcard" label={`${d.item_name} at ${d.place_name}`}>
+                <span className="ph"><ItemThumb path={d.image_path} /></span>
+                <span className="tx"><b>{d.item_name}</b><small>{d.place_name}</small><small className="rvx-said"><Icon name="heart" size={12} fill="currentColor" />{lovedPct(d)}% of {d.review_count}</small></span>
+              </OutLink>
+            ))}
+          </div>
+          <OutLink to="/" className="rvx-more" label={`Find the best ${mode.itemPlural} near you`}><Icon name="search" size={18} />Best {mode.itemPlural} near you</OutLink>
+        </section>
+      )}
       <div className="rvx-after">
         <button type="button" className="rvx-more" onClick={() => void share()} disabled={sharingStory}><Icon name="share" size={18} />{sharingStory ? "Making your card…" : "Share with friends"}</button>
         <div className="two">
@@ -1261,7 +1308,7 @@ function ReviewForm() {
       </div>
       {isGuest && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${placeId}`)}`} className="rvx-nudge">
-          <span className="rvx-ico"><Icon name="lock" size={18} /></span><span className="grow"><b>Keep your reviews</b><small>Sign in to see them on any phone. Optional.</small></span><Icon name="chev" size={18} />
+          <span className="rvx-ico"><Icon name="lock" size={18} /></span><span className="grow"><b>Save your food diary</b><small>Every {mode.item} you rated and loved, on any phone. Optional.</small></span><Icon name="chev" size={18} />
         </Link>
       )}
     </div>
