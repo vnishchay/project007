@@ -14,6 +14,7 @@ import { NewsStrip } from "../components/home/NewsStrip";
 import { KINDS, MODES, type Kind } from "../lib/modes";
 import { bestPath, mealNow, openNow, topDishes, type TopDish } from "../lib/dishes";
 import { DishCard } from "../components/home/DishCard";
+import { InstallNudge } from "../components/Install";
 import "../styles/home.css";
 
 interface Cat { label: string; q: string; icon: GlyphName; tone: Tone }
@@ -294,6 +295,8 @@ export default function Discover() {
           ) : <p className="small muted">Nothing here is open right now.</p>}
         </section>
       )}
+
+      {!q && <InstallNudge look="callout" returning title="Get Trusted Picks on your home screen" sub="Open it like an app, no store needed." />}
 
       {signedIn && !q && <NewsStrip userId={session!.user.id} />}
 

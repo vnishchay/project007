@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./styles.css";
 import "./lib/invite";
 import { installImageFallback } from "./lib/demoArt";
+import { registerServiceWorker } from "./lib/install";
 import { AuthProvider } from "./lib/auth";
 import { configured } from "./lib/supabase";
 import { Layout, RequireAuth, ToastProvider } from "./components/ui";
@@ -37,6 +38,7 @@ function Setup() {
 }
 
 installImageFallback();
+registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

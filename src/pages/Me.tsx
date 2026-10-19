@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { isVisitItem, itemLabel, olderThan } from "../lib/reviews";
 import { ItemThumb } from "../components/place/ItemThumb";
+import { InstallNudge } from "../components/Install";
 import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { placeMediaUrl, shrinkImage } from "../lib/media";
@@ -258,6 +259,8 @@ export default function Me() {
       )}
 
       {reviews && <FoodDiary reviews={reviews} />}
+
+      <InstallNudge look="row" title="Add to home screen" sub="Open Trusted Picks like an app" />
 
       {openVisits.length > 0 && (
         <section className="stack" style={{ gap: 10 }}>
