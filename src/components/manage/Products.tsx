@@ -6,7 +6,7 @@ import { guessLinkKind } from "../LinkIcon";
 import type { PlaceLink } from "../place/ShopLinks";
 import { MediaImg } from "./MediaImg";
 import type { Item, Topic } from "../../lib/types";
-import { rupees } from "../../lib/util";
+import { formatPrice } from "../../lib/money";
 import type { Mode } from "../../lib/modes";
 import { Icon, useToast } from "../ui";
 import { ProductSheet, friendlyItemError } from "./ProductSheet";
@@ -20,7 +20,7 @@ const byOrder = (a: Item, b: Item) => a.sort_order - b.sort_order || a.name.loca
 const ITEM_COLS = "id, place_id, topic_id, name, image_path, description, price_inr, sort_order, is_listed, is_hidden";
 
 /** The shop's products: photo, price, type; reorder, hide, edit. */
-export function Products({ placeId, isAdmin, mode, links = [], onCount }: { placeId: string; isAdmin: boolean; mode: Mode; links?: PlaceLink[]; onCount?: (n: number) => void }) {
+export function Products({ placeId, isAdmin, mode, links = [], currency, onCount }: { placeId: string; isAdmin: boolean; mode: Mode; links?: PlaceLink[]; currency?: string | null; onCount?: (n: number) => void }) {
   const toast = useToast();
   const [items, setItems] = useState<Item[] | null>(null);
   const [stats, setStats] = useState<Record<string, Stat>>({});
@@ -161,7 +161,7 @@ export function Products({ placeId, isAdmin, mode, links = [], onCount }: { plac
           </div>
           <div className="mg-list">
             {listed.map((it, idx) => (
-              <ProductRow key={it.id} it={it} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)}>
+              <ProductRow key={it.id} it={it} currency={currency} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)}>
                 <button className={`mg-act ${it.is_hidden ? "" : "on"}`} aria-label={it.is_hidden ? `Show ${it.name}` : `Hide ${it.name}`} aria-pressed={!it.is_hidden}
                   onClick={() => update(it, { is_hidden: !it.is_hidden }, it.is_hidden ? "Visible to customers" : "Hidden from customers")}>
                   <Icon name={it.is_hidden ? "eyeOff" : "eye"} size={17} />
@@ -183,7 +183,7 @@ export function Products({ placeId, isAdmin, mode, links = [], onCount }: { plac
           <div className="mg-hint"><Icon name="info" size={15} />Add a photo to put it on your {mode.catalog.toLowerCase()}</div>
           <div className="mg-list">
             {fromCustomers.map((it) => (
-              <ProductRow key={it.id} it={it} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)}>
+              <ProductRow key={it.id} it={it} currency={currency} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)}>
                 <CustomerPhoto it={it} placeId={placeId} nextSort={nextSort} onDone={patch} />
                 <button className={`mg-act ${it.is_hidden ? "" : "on"}`} aria-label={it.is_hidden ? `Show ${it.name}` : `Hide ${it.name}`} aria-pressed={!it.is_hidden}
                   onClick={() => update(it, { is_hidden: !it.is_hidden }, it.is_hidden ? "Visible to customers" : "Hidden from customers")}>
@@ -196,7 +196,7 @@ export function Products({ placeId, isAdmin, mode, links = [], onCount }: { plac
       )}
 
       {importing !== null && (
-        <MenuImport placeId={placeId} mode={mode} links={links} start={importing} nextSort={(items || []).reduce((m, i) => Math.max(m, i.sort_order), 0) + 1}
+        <MenuImport placeId={placeId} mode={mode} links={links} currency={currency} start={importing} nextSort={(items || []).reduce((m, i) => Math.max(m, i.sort_order), 0) + 1}
           onClose={() => setImporting(null)} onSaved={() => { setImporting(null); setN((x) => x + 1); }} />
       )}
 
@@ -204,7 +204,7 @@ export function Products({ placeId, isAdmin, mode, links = [], onCount }: { plac
 
       {editing !== null && (
         <ProductSheet
-          placeId={placeId} item={sheetItem} topics={topics} mode={mode} reviews={sheetItem ? stats[sheetItem.id]?.review_count ?? 0 : 0}
+          placeId={placeId} item={sheetItem} topics={topics} mode={mode} currency={currency} reviews={sheetItem ? stats[sheetItem.id]?.review_count ?? 0 : 0}
           nextSort={nextSort} defaultTopic={defaultTopic} canRename={isAdmin}
           taken={(items || []).filter((x) => x.id !== sheetItem?.id).map((x) => x.name)}
           onClose={() => setEditing(null)}
@@ -216,14 +216,14 @@ export function Products({ placeId, isAdmin, mode, links = [], onCount }: { plac
   );
 }
 
-function ProductRow({ it, stat, topic, onEdit, children }: { it: Item; stat?: Stat; topic?: string; onEdit: () => void; children: React.ReactNode }) {
+function ProductRow({ it, currency, stat, topic, onEdit, children }: { it: Item; currency?: string | null; stat?: Stat; topic?: string; onEdit: () => void; children: React.ReactNode }) {
   return (
     <div className={`mg-product ${it.is_hidden ? "off" : ""}`}>
       <span className="thumb mg-thumb-empty"><MediaImg path={it.image_path} fallback={<Icon name="image" size={22} />} /></span>
       <button className="info" onClick={onEdit} aria-label={`Edit ${it.name}`}>
         <span className="name">{it.name}</span>
         <span className="mg-meta">
-          {it.price_inr != null && <span className="mg-price">{rupees(it.price_inr)}</span>}
+          {it.price_inr != null && <span className="mg-price">{formatPrice(it.price_inr, currency)}</span>}
           {it.section && <span className="badge gray">{it.section}</span>}
           {topic && <span>{topic}</span>}
           {isStockPhoto(it.image_path) && <span className="badge gray"><Icon name="image" size={11} />Stock</span>}

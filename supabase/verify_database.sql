@@ -40,6 +40,7 @@ with needed(fn, params) as (values
   ('place_latlng', array['p_place']::text[]),
   ('place_pin', array['p_place']::text[]),
   ('places_without_pin', array[]::text[]),
+  ('reply_to_review', array['p_review_id', 'p_text']::text[]),
   ('report_review', array['p_reason', 'p_review']::text[]),
   ('request_recheck', array['p_note', 'p_place']::text[]),
   ('review_link_counts', array['p_place']::text[]),
@@ -51,6 +52,7 @@ with needed(fn, params) as (values
   ('shop_stats', array['p_place']::text[]),
   ('submit_review', array[]::text[]),
   ('submit_visit_review', array['p_ai_drafted', 'p_body', 'p_device', 'p_is_public', 'p_place_id', 'p_rating', 'p_tags']::text[]),
+  ('top_dishes', array['p_area', 'p_city', 'p_exclude_place', 'p_kind', 'p_lat', 'p_limit', 'p_lng', 'p_place', 'p_query', 'p_radius_m']::text[]),
   ('verify_place', array['p_lat', 'p_lng', 'p_note', 'p_ok', 'p_place']::text[])
 )
 select n.fn as missing_function, n.params as with_arguments

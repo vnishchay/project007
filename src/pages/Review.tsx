@@ -10,12 +10,14 @@ import { Icon, RvxBack, Spinner, useToast, type IconName } from "../components/u
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ItemThumb } from "../components/place/ItemThumb";
-import { loadShopItems, priceLabel, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { loadShopItems, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
+import { formatPrice } from "../lib/money";
 import { deviceId } from "../lib/device";
 import { callAi } from "../lib/assist";
 import { modeOf, tagFits } from "../lib/modes";
 import { fetchGoogleRating } from "../lib/google";
 import { copyText, googleReviewUrl } from "../lib/util";
+import { bumpStat } from "../lib/stats";
 import { shareLink } from "../lib/invite";
 import { generateStoryCard } from "../lib/story";
 import { lovedPct, topDishes, type TopDish } from "../lib/dishes";
@@ -287,7 +289,7 @@ function ReviewForm() {
     (async () => {
       try {
         const [p, it, st, tg, g] = await Promise.all([
-          supabase.from("places").select("id, name, area, category, city, google_place_id, status, kind").eq("id", placeId).maybeSingle()
+          supabase.from("places").select("id, name, area, category, city, google_place_id, status, kind, currency").eq("id", placeId).maybeSingle()
             .then((r) => r.error && /kind/.test(r.error.message) ? supabase.from("places").select("id, name, area, category, city, google_place_id, status").eq("id", placeId).maybeSingle() : r),
           loadShopItems(placeId),
           supabase.from("item_stats").select("item_id, review_count").eq("place_id", placeId),
@@ -332,6 +334,7 @@ function ReviewForm() {
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
         setGate(g.gate);
+        if (g.gate === "ok") bumpStat("review_started", `review_started:${placeId}`);
         setVisitKey(g.visitKey);
       } catch (e) {
         if (alive) setLoadErr(errorText(e) === "Failed to fetch" ? "You seem to be offline." : errorText(e));
@@ -1048,7 +1051,7 @@ function ReviewForm() {
                           <span className="ph"><ItemThumb path={i.image_path} icon={look.icon} />
                             {wasRated ? <span className="rvx-rated">Rated</span> : <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>}
                           </span>
-                          <span className="tx"><b>{i.name}</b>{priceLabel(i.price_inr) && <small>{priceLabel(i.price_inr)}</small>}</span>
+                          <span className="tx"><b>{i.name}</b>{i.price_inr != null && <small>{formatPrice(i.price_inr, place.currency)}</small>}</span>
                         </button>
                       );
                     })}
@@ -1063,7 +1066,7 @@ function ReviewForm() {
                     return (
                       <button key={i.id} type="button" className={`rvx-mrow ${on ? "on" : ""}`} aria-pressed={on} disabled={wasRated} onClick={() => toggleItem(i)}>
                         <span className="th"><ItemThumb path={i.image_path} icon={look.icon} size={48} /></span>
-                        <span className="tx"><b>{i.name}</b>{(wasRated || priceLabel(i.price_inr)) && <small>{wasRated ? "Rated" : priceLabel(i.price_inr)}</small>}</span>
+                        <span className="tx"><b>{i.name}</b>{(wasRated || i.price_inr != null) && <small>{wasRated ? "Rated" : formatPrice(i.price_inr, place.currency)}</small>}</span>
                         {!wasRated && <span className="rvx-add-btn" aria-hidden="true"><Icon name={on ? "check" : "plus"} size={16} width={2.4} /></span>}
                       </button>
                     );
@@ -1243,11 +1246,12 @@ function ReviewForm() {
       </section>
 
       <section className="rvx-card" aria-labelledby="g-h">
-        <div className="rvx-ghead"><span className="rvx-ico g"><Icon name="globe" size={20} /></span><div className="grow"><b id="g-h">Add it to Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish there." : "Optional, about 20 seconds"}</small></div></div>
+        <div className="rvx-ghead"><span className="rvx-ico g"><Icon name="globe" size={20} /></span><div className="grow"><b id="g-h">Add it to Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish there." : "Optional, 4 taps"}</small></div></div>
         <ol className="rvx-coach">
-          <li><b>1</b>We copy your review</li>
-          <li><b>2</b>On Google, tap <span className="rvx-gs" aria-label={`${overall} stars`}>{"★".repeat(overall)}</span></li>
-          <li><b>3</b>Paste it and tap Post</li>
+          <li><b>1</b>Tap Open Google. Your review is copied for you</li>
+          <li><b>2</b>Tap <span className="rvx-gs" aria-label={`${overall} stars`}>{"★".repeat(overall)}</span></li>
+          <li><b>3</b>Tap the text box, then the paste suggestion above your keyboard</li>
+          <li><b>4</b>Tap Post</li>
         </ol>
         {copied === false && <p className="rvx-warn">Couldn't copy automatically. Tap Copy, then open Google.</p>}
         <div className="rvx-two">

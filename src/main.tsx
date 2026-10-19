@@ -1,3 +1,4 @@
+import { ViewStats } from "./lib/stats";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -46,6 +47,7 @@ createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <AuthProvider>
           <ToastProvider>
+            <ViewStats />
             <Layout>
               <Routes>
                 <Route path="/" element={<Discover />} />

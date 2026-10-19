@@ -13,8 +13,8 @@ import { CoordsField } from "../components/CoordsField";
 import { GoogleFind, areaCityFromAddress, matchCategory } from "../components/manage/Google";
 import "../styles/manage.css";
 
-type Tab = "verify" | "places" | "reviews" | "alerts" | "claims" | "billing" | "settings";
-const TABS: [Tab, IconName, string][] = [["verify", "shield", "Verify"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["claims", "shield", "Claims"], ["billing", "wallet", "Billing"], ["settings", "settings", "Settings"]];
+type Tab = "verify" | "places" | "reviews" | "alerts" | "claims" | "billing" | "stats" | "settings";
+const TABS: [Tab, IconName, string][] = [["verify", "shield", "Verify"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["claims", "shield", "Claims"], ["billing", "wallet", "Billing"], ["stats", "chart", "Stats"], ["settings", "settings", "Settings"]];
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
@@ -52,6 +52,7 @@ export default function Admin() {
       {tab === "alerts" && <Alerts />}
       {tab === "claims" && <Claims />}
       {tab === "billing" && <Billing />}
+      {tab === "stats" && <Stats />}
       {tab === "settings" && <><Settings /><Vocabulary /></>}
     </div>
   );
@@ -334,6 +335,14 @@ function Reviews() {
     setRows((rs) => (rs || []).map((x) => (x.id === r.id ? { ...x, status } : x)).filter((x) => show !== "hidden" || x.status === "hidden"));
   }
 
+  /** The team can take down an owner's reply (only the owner can write one). */
+  async function removeReply(r: ReviewRow) {
+    const { error } = await supabase.rpc("reply_to_review", { p_review_id: r.id, p_text: "" });
+    if (error) { toast(errorText(error)); return; }
+    toast("Reply removed");
+    setRows((rs) => (rs || []).map((x) => (x.id === r.id ? { ...x, owner_reply: null, owner_reply_at: null } : x)));
+  }
+
   return (
     <div className="stack">
       <div className="chips">
@@ -346,9 +355,12 @@ function Reviews() {
           <ReviewCard key={r.id} r={r} showPlace reveal>
             <div className="row between">
               {r.status === "hidden" ? <span className="badge red">Hidden</span> : <span className="badge gray">Published</span>}
-              {r.status === "hidden"
-                ? <button className="btn small ghost" onClick={() => setStatus(r, "published")}>Restore</button>
-                : <button className="btn small danger" onClick={() => { if (confirm("Hide this review from everyone?")) setStatus(r, "hidden"); }}>Hide</button>}
+              <span className="row" style={{ gap: 8 }}>
+                {r.owner_reply && <button className="btn small ghost" onClick={() => { if (confirm("Remove the owner's reply?")) removeReply(r); }}><Icon name="trash" size={15} />Remove reply</button>}
+                {r.status === "hidden"
+                  ? <button className="btn small ghost" onClick={() => setStatus(r, "published")}>Restore</button>
+                  : <button className="btn small danger" onClick={() => { if (confirm("Hide this review from everyone?")) setStatus(r, "hidden"); }}>Hide</button>}
+              </span>
             </div>
           </ReviewCard>
         ))}
@@ -476,6 +488,44 @@ function Claims() {
 
 /* ---------- Plan payments ---------- */
 interface BillRow { id: string; place_id: string; place_name: string; plan: string; billing_interval: string; currency: string; amount_minor: number; status: string; provider_payment_id: string | null; created_at: string; paid_at: string | null }
+
+// Daily totals only (no people): page views counted by the app, plus the review funnel from the tables.
+const STAT_LABELS: [string, string][] = [
+  ["scans", "QR scans"], ["review_started", "Reviews started"], ["reviews", "Reviews posted"], ["google_opened", "Sent on to Google"],
+  ["view_home", "Home views"], ["view_place", "Shop page views"], ["view_best", "Dish page views"], ["view_qr", "QR pages opened"],
+  ["view_business", "Business page views"], ["view_pricing", "Pricing views"], ["new_places", "New shops"], ["installed", "App installs"],
+];
+
+function Stats() {
+  const [rows, setRows] = useState<{ day: string; metric: string; n: number }[] | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    supabase.rpc("admin_daily_stats", { p_days: 30 }).then(({ data, error }) => {
+      setErr(error ? (error.code === "PGRST202" ? "Run the latest database update to see stats." : errorText(error)) : "");
+      setRows((data as { day: string; metric: string; n: number }[]) || []);
+    });
+  }, []);
+  if (!rows) return <div className="skeleton" style={{ height: 160 }} />;
+  const since = (days: number) => { const d = new Date(); d.setDate(d.getDate() - days + 1); return d.toISOString().slice(0, 10); };
+  const sum = (metric: string, days: number) => rows.filter((r) => r.metric === metric && r.day >= since(days)).reduce((n, r) => n + Number(r.n), 0);
+  const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "–");
+  const scans = sum("scans", 30), posted = sum("reviews", 30), google = sum("google_opened", 30);
+  return (
+    <div className="stack">
+      {err && <div className="notice err">{err}</div>}
+      <div className="card stack tight">
+        <b>Last 30 days</b>
+        <span className="small muted">{scans} scans, {posted} reviews ({pct(posted, scans)} of scans), {google} sent on to Google ({pct(google, posted)} of reviews)</span>
+      </div>
+      <div className="list">
+        <div className="list-item small muted"><span className="grow">Counted per day, never per person</span><span style={{ width: 56, textAlign: "right" }}>Today</span><span style={{ width: 56, textAlign: "right" }}>7 days</span><span style={{ width: 56, textAlign: "right" }}>30 days</span></div>
+        {STAT_LABELS.map(([k, label]) => (
+          <div key={k} className="list-item"><span className="grow">{label}</span><span style={{ width: 56, textAlign: "right" }}>{sum(k, 1)}</span><span style={{ width: 56, textAlign: "right" }}>{sum(k, 7)}</span><b style={{ width: 56, textAlign: "right" }}>{sum(k, 30)}</b></div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Billing() {
   const [view, setView] = useState<"payments" | "shops" | "prices">("payments");

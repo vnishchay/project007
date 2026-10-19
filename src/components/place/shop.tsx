@@ -10,6 +10,7 @@ export interface ShopItem {
   topic_id: number | null;
   image_path: string | null;
   description: string | null;
+  /** whole amount in the shop's currency (places.currency) */
   price_inr: number | null;
   sort_order: number;
   is_listed: boolean;
@@ -125,8 +126,4 @@ export function shopLook(category: string | null | undefined, kind?: string | nu
   if (/restaurant|pizz|food|biryani|kitchen|dhaba|bar|grill|diner|eat|bistro|mess/.test(c)) return { icon: "food", grad: "linear-gradient(135deg, #9c4733 0%, #ee6c4d 50%, #f3a712 100%)", tint: "coral", menu: "Menu" };
   if (/shop|store|boutique|mart|cloth|fashion|gift|book/.test(c)) return { icon: "bag", grad: "linear-gradient(135deg, #37609a 0%, #3a86ff 55%, #9cc3ff 100%)", tint: "sky", menu: "Products" };
   return { icon: "store", grad: "var(--grad-hero)", tint: "", menu: "Products" };
-}
-
-export function priceLabel(n: number | null | undefined): string | null {
-  return n == null ? null : `₹${n.toLocaleString("en-IN")}`;
 }

@@ -11,7 +11,7 @@ import { deviceId } from "../lib/device";
 import { generateStoryCard } from "../lib/story";
 import { itemLabel } from "../lib/reviews";
 import { Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
-import { REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
+import { OwnerReply, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { Chip, EmptyArt, Glyph, Retry, SectionTitle, type GlyphName } from "../components/home/Kit";
 import "../styles/home.css";
 
@@ -114,8 +114,8 @@ export default function Saved() {
   const text = (r.body || "").trim() || itemLabel(r.items?.name);
   const stars = `${r.rating} star${r.rating === 1 ? "" : "s"}`;
   const steps: [GlyphName, string][] = gid
-    ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Long-press the box, Paste, Post"]]
-    : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review"], ["star", `Tap ${stars}, long-press, Paste, Post`]];
+    ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Tap the box, then the paste suggestion above your keyboard"], ["check", "Tap Post"]]
+    : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review"], ["star", `Tap ${stars}, tap the box, tap the paste suggestion, Post`]];
 
   async function savePhoto() {
     if (!photo) return;
@@ -151,7 +151,7 @@ export default function Saved() {
       let ok = await copied;
       if (!ok) ok = await copyText(text).catch(() => false);
       setCopyFailed(!ok);
-      toast(ok ? (gid ? `Copied. On Google tap ${stars}, then long-press and Paste.` : `Copied. Pick the place, tap Write a review, then ${stars} and Paste.`) : "Couldn't copy. Copy your review from below.");
+      toast(ok ? (gid ? `Copied. On Google tap ${stars}, tap the box, then the paste suggestion.` : `Copied. Pick the place, tap Write a review, ${stars}, then paste.`) : "Couldn't copy. Copy your review from below.");
       const { error } = await supabase.from("google_shares").insert({ review_id: r!.id, user_id: uid });
       if (error) console.warn(errorText(error));
       // Popup blocked: go there in this tab instead, but only once the text is on the clipboard.
@@ -240,6 +240,7 @@ export default function Saved() {
           <Stars value={r.rating} />
         </div>
         {r.body && <p style={{ lineHeight: 1.5, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.body}</p>}
+        {r.owner_reply && <OwnerReply text={r.owner_reply} at={r.owner_reply_at} shop={placeName} />}
         <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
           <button type="button" className="btn small green" onClick={share} disabled={sharingStory}>
             <Icon name="share" size={16} />{sharingStory ? "Preparing story…" : "Share Story Card"}

@@ -11,6 +11,8 @@ import { assist } from "../../lib/assist";
 import { googleConfigured } from "../../lib/google";
 import type { PinInfo } from "../../lib/pin";
 import { timeAgo } from "../../lib/util";
+import { CurrencyField } from "./CurrencyField";
+import { currencyCode, currencySymbol, priceLevelText } from "../../lib/money";
 
 /** About, hours, category, area and price level: what owners may change themselves. */
 export interface PinState { pin: PinInfo | null | undefined; syncing: boolean; error: string; refresh: () => Promise<boolean>; reload: () => Promise<void> }
@@ -29,6 +31,7 @@ export function ShopDetails({ place, isAdmin, onSaved, pinState }: { place: Plac
   const [kind, setKind] = useState<Kind>(() => modeOf(place.kind, place.category).kind);
   const [area, setArea] = useState(place.area || "");
   const [price, setPrice] = useState<number | null>(place.price_level);
+  const [currency, setCurrency] = useState(() => currencyCode(place.currency));
   const [days, setDays] = useState<DayHours[]>(() => readHours(place.hours));
   const [hoursSet, setHoursSet] = useState(Boolean(place.hours));
   const [coords, setCoords] = useState("");
@@ -43,6 +46,8 @@ export function ShopDetails({ place, isAdmin, onSaved, pinState }: { place: Plac
     setBusy(true);
     const change: Partial<Place> = {
       about: about.trim() || null, category: category.trim(), ...(kind !== place.kind ? { kind } : {}), area: area.trim() || null, price_level: price,
+      // Sent only when changed, so saving still works on a database from before shops had a currency.
+      ...(currency !== currencyCode(place.currency) ? { currency } : {}),
       ...(hoursSet ? { hours: writeHours(days) } : place.hours ? { hours: null } : {}),
     };
     const { error } = await supabase.from("places").update(change).eq("id", place.id);
@@ -88,12 +93,14 @@ export function ShopDetails({ place, isAdmin, onSaved, pinState }: { place: Plac
           <div className="field"><label className="mg-label" htmlFor="sc"><Icon name="tag" size={15} />Category</label><input id="sc" className="input" required value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Salon" /></div>
           <div className="field"><label className="mg-label" htmlFor="sa"><Icon name="pin" size={15} />Area</label><input id="sa" className="input" value={area} onChange={(e) => setArea(e.target.value)} placeholder="Baner" /></div>
         </div>
+        <CurrencyField id="scur" value={currency} onChange={setCurrency} />
         <div className="field">
           <span className="mg-label"><Icon name="wallet" size={15} />Price level</span>
           <div className="mg-seg" role="radiogroup" aria-label="Price level">
             <button type="button" role="radio" aria-checked={price == null} className={price == null ? "on" : ""} onClick={() => setPrice(null)} aria-label="Not set"><Icon name="close" size={15} /></button>
             {[1, 2, 3, 4].map((n) => (
-              <button type="button" key={n} role="radio" aria-checked={price === n} className={price === n ? "on" : ""} onClick={() => setPrice(n)}>{"₹".repeat(n)}</button>
+              <button type="button" key={n} role="radio" aria-checked={price === n} className={price === n ? "on" : ""} onClick={() => setPrice(n)}
+                style={[...currencySymbol(currency)].length > 1 ? { fontSize: 12 } : undefined}>{priceLevelText(n, currency)}</button>
             ))}
           </div>
         </div>

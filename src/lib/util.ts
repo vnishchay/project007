@@ -48,10 +48,6 @@ export function radiusChoices(): { m: number; label: string }[] {
 }
 export const defaultRadius = () => (usesMiles() ? Math.round(3 * MILE) : 5000);
 
-export function priceText(level: number | null | undefined): string {
-  return level ? "₹".repeat(level) : "";
-}
-
 export function timeAgo(iso: string): string {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return "just now";
@@ -62,6 +58,7 @@ export function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
+/** Plan prices and payments (billing is in rupees). Shop prices use formatPrice() in money.ts. */
 export function rupees(n: number): string {
   return `₹${n.toLocaleString("en-IN")}`;
 }

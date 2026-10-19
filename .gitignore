@@ -6,3 +6,4 @@ dist
 *.tsbuildinfo
 deno.lock
 graphify-out/
+.claude/worktrees/

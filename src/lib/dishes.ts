@@ -6,6 +6,7 @@ export interface TopDish {
   item_id: string;
   item_name: string;
   image_path: string | null;
+  /** whole amount in `currency`, the shop's own */
   price_inr: number | null;
   diet: string[] | null;
   place_id: string;
@@ -20,6 +21,8 @@ export interface TopDish {
   loved_count: number;
   friend_loved: number;
   score: number;
+  /** the shop's currency (missing before migration 40, which means INR) */
+  currency?: string | null;
 }
 
 export interface DishQuery {

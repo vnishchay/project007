@@ -24,6 +24,7 @@ const ICONS = {
   zap: L.Zap, flag: L.Flag, wallet: L.Wallet, dashboard: L.LayoutDashboard, chart: L.ChartBar, filter: L.Filter, list: L.List,
   grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, cake: L.CakeSlice, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,
   gift: L.Gift, chevronRight: L.ChevronRight, arrowLeft: L.ArrowLeft, fileText: L.FileText,
+  dollar: L.DollarSign, euro: L.Euro, pound: L.PoundSterling, yen: L.JapaneseYen, banknote: L.Banknote, reply: L.Reply,
 } satisfies Record<string, L.LucideIcon>;
 export type IconName = keyof typeof ICONS;
 

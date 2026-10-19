@@ -1,10 +1,12 @@
 // Google business details via the official Places API (New). Google's terms don't allow
 // storing or copying this content, so it's fetched each time, shown as Google's, with
 // Google's attribution, and never saved to our database (only the Place ID is kept).
-const KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY as string | undefined;
-const API = "https://places.googleapis.com/v1";
+// Every call goes through our /api/google, which holds the API key, so the key never reaches the browser.
+const API = "/api/google";
+const KEY = __GOOGLE__;
 
-export const googleConfigured = Boolean(KEY);
+/** Whether this deployment has a Google key (decided at build time; the key itself stays on the server). */
+export const googleConfigured = KEY;
 
 export interface GoogleRating { rating: number; count: number; mapsUri: string | null }
 
@@ -35,10 +37,10 @@ export interface GoogleDetails {
   reviews: GoogleReview[];
 }
 
-async function get<T>(path: string, fields: string): Promise<T | null> {
+async function get<T>(id: string, fields: string): Promise<T | null> {
   if (!KEY) return null;
   try {
-    const res = await fetch(`${API}/${path}`, { headers: { "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": fields } });
+    const res = await fetch(`${API}?op=place&id=${encodeURIComponent(id)}&fields=${encodeURIComponent(fields)}`);
     return res.ok ? ((await res.json()) as T) : null;
   } catch {
     return null;
@@ -48,7 +50,7 @@ async function get<T>(path: string, fields: string): Promise<T | null> {
 export async function fetchGoogleRating(placeId: string): Promise<GoogleRating | null> {
   if (!placeId) return null;
   const j = await get<{ rating?: number; userRatingCount?: number; googleMapsUri?: string }>(
-    `places/${encodeURIComponent(placeId)}`, "rating,userRatingCount,googleMapsUri");
+    placeId, "rating,userRatingCount,googleMapsUri");
   if (j?.rating == null) return null;
   return { rating: j.rating, count: j.userRatingCount ?? 0, mapsUri: j.googleMapsUri ?? null };
 }
@@ -64,7 +66,7 @@ export function fetchGoogleDetails(placeId: string): Promise<GoogleDetails | nul
       id: string; displayName?: { text: string }; formattedAddress?: string; editorialSummary?: { text: string };
       rating?: number; userRatingCount?: number; googleMapsUri?: string; websiteUri?: string; nationalPhoneNumber?: string;
       regularOpeningHours?: { weekdayDescriptions?: string[] }; types?: string[]; photos?: GooglePhoto[]; reviews?: GoogleReview[];
-    }>(`places/${encodeURIComponent(placeId)}`, fields).then((j) => j && {
+    }>(placeId, fields).then((j) => j && {
       id: j.id,
       name: j.displayName?.text || "",
       address: j.formattedAddress ?? null,
@@ -85,7 +87,7 @@ export function fetchGoogleDetails(placeId: string): Promise<GoogleDetails | nul
 
 /** Image address for a Google photo. Show it with its authorAttributions. */
 export function googlePhotoUrl(photo: GooglePhoto, maxPx = 800): string {
-  return `${API}/${photo.name}/media?maxWidthPx=${maxPx}&key=${KEY}`;
+  return `${API}?op=photo&name=${encodeURIComponent(photo.name)}&max=${maxPx}`;
 }
 
 export interface GoogleMatch { id: string; name: string; address: string | null; types: string[] }
@@ -94,13 +96,10 @@ export interface GoogleMatch { id: string; name: string; address: string | null;
 export async function searchGooglePlaces(text: string, near?: { lat: number; lng: number }): Promise<GoogleMatch[]> {
   if (!KEY || !text.trim()) return [];
   try {
-    const res = await fetch(`${API}/places:searchText`, {
+    const res = await fetch(`${API}?op=search`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.types" },
-      body: JSON.stringify({
-        textQuery: text.trim().slice(0, 200), pageSize: 5,
-        ...(near ? { locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 2000 } } } : {}),
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text.trim().slice(0, 200), ...(near ? { lat: near.lat, lng: near.lng } : {}) }),
     });
     if (!res.ok) return [];
     const j = (await res.json()) as { places?: { id: string; displayName?: { text: string }; formattedAddress?: string; types?: string[] }[] };
@@ -155,7 +154,7 @@ export interface GoogleLocation { lat: number; lng: number }
 /** The business's exact pin on Google Maps. Cached by us for at most ~25 days (Google allows 30). */
 export async function fetchGoogleLocation(placeId: string): Promise<GoogleLocation | null> {
   if (!placeId) return null;
-  const j = await get<{ location?: { latitude?: number; longitude?: number } }>(`places/${encodeURIComponent(placeId)}`, "location");
+  const j = await get<{ location?: { latitude?: number; longitude?: number } }>(placeId, "location");
   const { latitude, longitude } = j?.location ?? {};
   return typeof latitude === "number" && typeof longitude === "number" ? { lat: latitude, lng: longitude } : null;
 }

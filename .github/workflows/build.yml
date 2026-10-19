@@ -1,0 +1,27 @@
+# Builds the app on every pull request and every push to main, so a broken build, a type error,
+# or an app call to a database function the SQL doesn't define is caught before it ships.
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check database contract, typecheck and build the app
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+      - name: Typecheck the server functions
+        run: npx tsc -p tsconfig.api.json --noEmit

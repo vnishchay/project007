@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import type { Profile, SearchResult } from "../../lib/types";
-import { distanceText, priceText } from "../../lib/util";
+import { distanceText } from "../../lib/util";
+import { priceLevelText } from "../../lib/money";
 import { Avatar, Icon } from "../ui";
 import { Cover } from "./Kit";
 
-export interface Media { cover_path: string | null; logo_path: string | null }
+/** Looked up per result: photos, and the currency its price level is in. */
+export interface Media { cover_path: string | null; logo_path: string | null; currency?: string | null }
 
 function Rating({ r }: { r: SearchResult }) {
   return r.trust_score != null
@@ -25,7 +27,7 @@ function Friends({ r, people }: { r: SearchResult; people: Record<string, Profil
   );
 }
 
-export function PlaceCard({ r, people, coverUrl }: { r: SearchResult; people: Record<string, Profile>; coverUrl: string | null }) {
+export function PlaceCard({ r, people, coverUrl, currency }: { r: SearchResult; people: Record<string, Profile>; coverUrl: string | null; currency?: string | null }) {
   const dist = distanceText(r.distance_m);
   return (
     <Link to={`/p/${r.place_id}`} className="place-card">
@@ -39,7 +41,7 @@ export function PlaceCard({ r, people, coverUrl }: { r: SearchResult; people: Re
           <span>{r.category}</span>
           {r.area && <span><Icon name="pin" size={12} />{r.area}</span>}
           {dist && <span><Icon name="navigate" size={11} />{dist}</span>}
-          {r.price_level ? <span>{priceText(r.price_level)}</span> : null}
+          {r.price_level ? <span>{priceLevelText(r.price_level, currency)}</span> : null}
         </span>
         <span className="badges">
           <Friends r={r} people={people} />
