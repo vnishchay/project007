@@ -11,7 +11,9 @@ import { LocationPicker } from "../components/LocationPicker";
 import { Chip, EmptyArt, Glyph, SectionTitle, greeting, lookFor, type GlyphName, type Tone } from "../components/home/Kit";
 import { PickCard, PlaceCard, type Media } from "../components/home/PlaceCard";
 import { NewsStrip } from "../components/home/NewsStrip";
-import { KINDS, MODES } from "../lib/modes";
+import { KINDS, MODES, type Kind } from "../lib/modes";
+import { bestPath, mealNow, openNow, topDishes, type TopDish } from "../lib/dishes";
+import { DishCard } from "../components/home/DishCard";
 import "../styles/home.css";
 
 interface Cat { label: string; q: string; icon: GlyphName; tone: Tone }
@@ -132,6 +134,29 @@ export default function Discover() {
     hydrate(rows, () => mine !== gen.current);
   }
 
+  // Dishes, not just shops: what to eat right now, or the best of what was searched.
+  const [dishes, setDishes] = useState<TopDish[] | null>(null);
+  const [openOnly, setOpenOnly] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setDishes(null);
+    const ask = (radiusM: number) => topDishes({
+      query: q, lat: near ? coords.lat : null, lng: near ? coords.lng : null, radiusM,
+      city: effective.kind === "city" || effective.kind === "area" ? effective.city : null,
+      area: effective.kind === "area" ? effective.area : null, kind: type || null, limit: 20,
+    });
+    (async () => {
+      let r = await ask(15000);
+      if (alive && near && r.rows.length < 4) {
+        const wide = await ask(60000);
+        if (wide.rows.length > r.rows.length) r = wide;
+      }
+      if (alive) setDishes(r.rows);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, type, whereKey, coords, session?.user.id]);
+
   // Flag when Google's rating hides a weaker one from people you trust.
   const [gap, setGap] = useState<{ name: string; google: number; ours: number; item: string | null; id: string } | null>(null);
   useEffect(() => {
@@ -183,6 +208,10 @@ export default function Discover() {
   const firstName = (profile?.display_name || "").split(" ")[0];
   const hi = greeting();
   const cover = (id: string) => placeMediaUrl(media[id]?.cover_path) || placeMediaUrl(media[id]?.logo_path);
+  const shownDishes = (dishes || []).filter((d) => !openOnly || openNow(d.hours) !== false);
+  const dishCity = effective.kind === "city" || effective.kind === "area" ? effective.city : dishes?.[0]?.city;
+  const kindMode = type && type in MODES ? MODES[type as Kind] : null;
+  const dishTitle = q ? `Best ${q}` : kindMode && type !== "food" ? `Most loved ${kindMode.itemPlural}` : `${mealNow()} picks ${nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}`.trim();
   const extraTopics = topics.filter((t) => !CATS.some((c) => c.label.toLowerCase() === t.name.toLowerCase() || c.q === t.name.toLowerCase()));
 
   return (
@@ -250,6 +279,20 @@ export default function Discover() {
           <Chip icon="alert" tone="coral" size="sm" />
           <span className="grow small"><b>{gap.name}</b>: Google {gap.google.toFixed(1)}, {session ? "your circle" : "reviewers here"} {gap.ours.toFixed(1)}{gap.item ? ` for the ${gap.item.toLowerCase()}` : ""}.</span>
         </Link>
+      )}
+
+      {dishes && dishes.length > 0 && (
+        <section className="stack" style={{ gap: 10 }} aria-label={dishTitle}>
+          <SectionTitle icon={q ? "trophy" : "food"} tone={q ? "amber" : "coral"} right={
+            <button type="button" className={`chip ${openOnly ? "on" : ""}`} aria-pressed={openOnly} onClick={() => setOpenOnly((v) => !v)}><Icon name="clock" size={14} />Open now</button>
+          }>{dishTitle}</SectionTitle>
+          {shownDishes.length > 0 ? (
+            <div className="hscroll">
+              {shownDishes.map((d) => <DishCard key={d.item_id} d={d} />)}
+              {q && dishCity && <Link to={bestPath(dishCity, q)} className="pick-card dish-card more-card"><span className="grow center stack tight"><Icon name="list" size={22} /><span className="strong small">All {q} in {dishCity}</span></span></Link>}
+            </div>
+          ) : <p className="small muted">Nothing here is open right now.</p>}
+        </section>
       )}
 
       {signedIn && !q && <NewsStrip userId={session!.user.id} />}

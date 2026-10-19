@@ -13,6 +13,7 @@ import { LinksEditor } from "../components/manage/LinksEditor";
 import { Updates } from "../components/manage/Updates";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
 import { ReviewLinks } from "../components/manage/ReviewLinks";
+import { ShareKit } from "../components/manage/ShareKit";
 import { Plan } from "../components/manage/Plan";
 import type { IconName } from "../components/ui";
 import { modeOf } from "../lib/modes";
@@ -121,6 +122,7 @@ export default function Manage() {
         {tab === "qr" && <>
           <ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} />
           <ReviewLinks placeId={place.id} placeName={place.name} live={place.status === "live"} />
+          <ShareKit placeId={place.id} placeName={place.name} live={place.status === "live"} />
         </>}
         {tab === "plan" && <Plan placeId={place.id} placeName={place.name} />}
       </div>

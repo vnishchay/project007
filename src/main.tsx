@@ -25,6 +25,7 @@ import AdminPlace from "./pages/AdminPlace";
 import Demo from "./pages/Demo";
 import NotFound from "./pages/NotFound";
 import Manage from "./pages/Manage";
+import BestDish from "./pages/BestDish";
 
 function Setup() {
   return (
@@ -47,6 +48,7 @@ createRoot(document.getElementById("root")!).render(
               <Routes>
                 <Route path="/" element={<Discover />} />
                 <Route path="/p/:id" element={<PlacePage />} />
+                <Route path="/best/:city/:dish" element={<BestDish />} />
                 <Route path="/q/:token" element={<QrLanding />} />
                 <Route path="/r/:token" element={<QrLanding link />} />
                 <Route path="/signin" element={<SignIn />} />

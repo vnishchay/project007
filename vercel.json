@@ -1,16 +1,55 @@
 {
   "framework": "vite",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/robots.txt",
+      "destination": "/api/page?kind=robots"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/page?kind=sitemap"
+    },
+    {
+      "source": "/p/:id",
+      "destination": "/api/page?kind=place&id=:id"
+    },
+    {
+      "source": "/best/:city/:dish",
+      "destination": "/api/page?kind=best&city=:city&dish=:dish"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "geolocation=(self), microphone=(self), camera=(self), payment=(self \"https://checkout.razorpay.com\" \"https://api.razorpay.com\")" },
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(self), microphone=(self), camera=(self), payment=(self \"https://checkout.razorpay.com\" \"https://api.razorpay.com\")"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        }
       ]
     }
   ]

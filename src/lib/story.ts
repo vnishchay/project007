@@ -5,6 +5,8 @@ export interface StoryCardParams {
   rating: number;
   body?: string | null;
   photoBlob?: Blob | File | null;
+  /** What other diners said ("92% of 38 diners loved it"), so the card answers "is it worth ordering?". */
+  crowd?: string;
 }
 
 export async function generateStoryCard({
@@ -13,6 +15,7 @@ export async function generateStoryCard({
   rating,
   body,
   photoBlob,
+  crowd,
 }: StoryCardParams): Promise<File | null> {
   try {
     await document.fonts?.ready;
@@ -110,6 +113,14 @@ export async function generateStoryCard({
     g.fillText(`@ ${placeName || "Local Favorite"}`, 120, curY);
     curY += 65;
 
+    // What other diners said
+    if (crowd) {
+      g.fillStyle = "#FBBF24";
+      g.font = "700 32px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      g.fillText(`♥ ${crowd}`, 120, curY);
+      curY += 65;
+    }
+
     // Review snippet
     if (body) {
       g.fillStyle = "#CBD5E1";
@@ -120,7 +131,7 @@ export async function generateStoryCard({
     // Bottom Watermark
     g.fillStyle = "#64748B";
     g.font = "600 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    g.fillText("Scan tabletop QR to rate dishes & discover hidden gems", 120, 1730);
+    wrap(g, `See what to order at ${placeName || "this place"} on Trusted Picks`, 120, 1730, 840, 32, 1);
 
     const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
     return blob ? new File([blob], "verified-dish-story.png", { type: "image/png" }) : null;

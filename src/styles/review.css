@@ -290,3 +290,4 @@ a.rvx-cta[aria-disabled="true"] { opacity: 0.4; }
   .rvx *, .rvx *::before, .rvx *::after { animation: none !important; transition: none !important; }
 }
 .rvx-face-btn:disabled { opacity: 0.6; cursor: default; }
+.rvx-said { display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; color: #8a5300; font-weight: 600; }
