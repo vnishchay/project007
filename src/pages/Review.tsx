@@ -1243,11 +1243,12 @@ function ReviewForm() {
       </section>
 
       <section className="rvx-card" aria-labelledby="g-h">
-        <div className="rvx-ghead"><span className="rvx-ico g"><Icon name="globe" size={20} /></span><div className="grow"><b id="g-h">Add it to Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish there." : "Optional, about 20 seconds"}</small></div></div>
+        <div className="rvx-ghead"><span className="rvx-ico g"><Icon name="globe" size={20} /></span><div className="grow"><b id="g-h">Add it to Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish there." : "Optional, 4 taps"}</small></div></div>
         <ol className="rvx-coach">
-          <li><b>1</b>We copy your review</li>
-          <li><b>2</b>On Google, tap <span className="rvx-gs" aria-label={`${overall} stars`}>{"★".repeat(overall)}</span></li>
-          <li><b>3</b>Paste it and tap Post</li>
+          <li><b>1</b>Tap Open Google. Your review is copied for you</li>
+          <li><b>2</b>Tap <span className="rvx-gs" aria-label={`${overall} stars`}>{"★".repeat(overall)}</span></li>
+          <li><b>3</b>Tap the text box, then the paste suggestion above your keyboard</li>
+          <li><b>4</b>Tap Post</li>
         </ol>
         {copied === false && <p className="rvx-warn">Couldn't copy automatically. Tap Copy, then open Google.</p>}
         <div className="rvx-two">

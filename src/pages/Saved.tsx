@@ -114,8 +114,8 @@ export default function Saved() {
   const text = (r.body || "").trim() || itemLabel(r.items?.name);
   const stars = `${r.rating} star${r.rating === 1 ? "" : "s"}`;
   const steps: [GlyphName, string][] = gid
-    ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Long-press the box, Paste, Post"]]
-    : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review"], ["star", `Tap ${stars}, long-press, Paste, Post`]];
+    ? [["copy", "We copy your review"], ["external", `Google opens ${placeName}`], ["star", `Tap ${stars}`], ["edit", "Tap the box, then the paste suggestion above your keyboard"], ["check", "Tap Post"]]
+    : [["copy", "We copy your review"], ["map", `Google Maps finds ${placeName}`], ["edit", "Pick it, tap Write a review"], ["star", `Tap ${stars}, tap the box, tap the paste suggestion, Post`]];
 
   async function savePhoto() {
     if (!photo) return;
@@ -151,7 +151,7 @@ export default function Saved() {
       let ok = await copied;
       if (!ok) ok = await copyText(text).catch(() => false);
       setCopyFailed(!ok);
-      toast(ok ? (gid ? `Copied. On Google tap ${stars}, then long-press and Paste.` : `Copied. Pick the place, tap Write a review, then ${stars} and Paste.`) : "Couldn't copy. Copy your review from below.");
+      toast(ok ? (gid ? `Copied. On Google tap ${stars}, tap the box, then the paste suggestion.` : `Copied. Pick the place, tap Write a review, ${stars}, then paste.`) : "Couldn't copy. Copy your review from below.");
       const { error } = await supabase.from("google_shares").insert({ review_id: r!.id, user_id: uid });
       if (error) console.warn(errorText(error));
       // Popup blocked: go there in this tab instead, but only once the text is on the clipboard.
