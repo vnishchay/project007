@@ -35,6 +35,39 @@ export interface GoogleDetails {
   types: string[];
   photos: GooglePhoto[];
   reviews: GoogleReview[];
+  /** What the place offers, as Google lists it ("Breakfast", "Outdoor seating"...). */
+  serves: string[];
+  goodToKnow: string[];
+  openNow: boolean | null;
+  /** e.g. "₹200–400", per person. */
+  priceRange: string | null;
+  /** Google's review summary, written by Gemini; show it with `disclosure`. */
+  reviewSummary: { text: string; disclosure: string; flagUri: string | null } | null;
+}
+
+type Flags = Record<string, boolean | undefined>;
+const SERVES: [string, string][] = [
+  ["servesBreakfast", "Breakfast"], ["servesBrunch", "Brunch"], ["servesLunch", "Lunch"], ["servesDinner", "Dinner"],
+  ["servesCoffee", "Coffee"], ["servesDessert", "Desserts"], ["servesVegetarianFood", "Vegetarian food"],
+  ["servesBeer", "Beer"], ["servesWine", "Wine"], ["servesCocktails", "Cocktails"],
+];
+const GOOD_TO_KNOW: [string, string][] = [
+  ["dineIn", "Dine-in"], ["takeout", "Takeaway"], ["delivery", "Delivery"], ["curbsidePickup", "Kerbside pickup"],
+  ["reservable", "Takes reservations"], ["outdoorSeating", "Outdoor seating"], ["liveMusic", "Live music"],
+  ["goodForChildren", "Good for kids"], ["menuForChildren", "Kids' menu"], ["goodForGroups", "Good for groups"],
+  ["goodForWatchingSports", "Sports on TV"], ["allowsDogs", "Dogs allowed"], ["restroom", "Restroom"],
+];
+const yes = (f: Flags | undefined, list: [string, string][]) => list.filter(([k]) => f?.[k] === true).map(([, l]) => l);
+
+interface Money { currencyCode?: string; units?: string }
+function money(m?: Money): string | null {
+  if (!m?.units) return null;
+  try { return new Intl.NumberFormat("en", { style: "currency", currency: m.currencyCode || "INR", maximumFractionDigits: 0 }).format(Number(m.units)); }
+  catch { return m.units; }
+}
+function priceRangeText(r?: { startPrice?: Money; endPrice?: Money }): string | null {
+  const a = money(r?.startPrice), b = money(r?.endPrice);
+  return a && b ? `${a}–${b.replace(/^[^\d]+/, "")}` : a ? `From ${a}` : null;
 }
 
 async function get<T>(id: string, fields: string): Promise<T | null> {
@@ -61,11 +94,14 @@ const cache = new Map<string, Promise<GoogleDetails | null>>();
 export function fetchGoogleDetails(placeId: string): Promise<GoogleDetails | null> {
   if (!placeId || !KEY) return Promise.resolve(null);
   if (!cache.has(placeId)) {
-    const fields = "id,displayName,formattedAddress,editorialSummary,rating,userRatingCount,googleMapsUri,websiteUri,nationalPhoneNumber,regularOpeningHours.weekdayDescriptions,types,photos,reviews";
+    const fields = "id,displayName,formattedAddress,editorialSummary,rating,userRatingCount,googleMapsUri,websiteUri,nationalPhoneNumber,regularOpeningHours.weekdayDescriptions,types,photos,reviews,servesBreakfast,servesBrunch,servesLunch,servesDinner,servesCoffee,servesDessert,servesVegetarianFood,servesBeer,servesWine,servesCocktails,dineIn,takeout,delivery,curbsidePickup,reservable,outdoorSeating,liveMusic,goodForChildren,goodForGroups,goodForWatchingSports,menuForChildren,allowsDogs,restroom,paymentOptions,parkingOptions,accessibilityOptions,priceRange,currentOpeningHours.openNow,reviewSummary";
     cache.set(placeId, get<{
       id: string; displayName?: { text: string }; formattedAddress?: string; editorialSummary?: { text: string };
       rating?: number; userRatingCount?: number; googleMapsUri?: string; websiteUri?: string; nationalPhoneNumber?: string;
       regularOpeningHours?: { weekdayDescriptions?: string[] }; types?: string[]; photos?: GooglePhoto[]; reviews?: GoogleReview[];
+      paymentOptions?: Flags; parkingOptions?: Flags; accessibilityOptions?: Flags; priceRange?: { startPrice?: Money; endPrice?: Money };
+      currentOpeningHours?: { openNow?: boolean };
+      reviewSummary?: { text?: { text?: string }; disclosureText?: { text?: string }; flagContentUri?: string };
     }>(placeId, fields).then((j) => j && {
       id: j.id,
       name: j.displayName?.text || "",
@@ -80,6 +116,20 @@ export function fetchGoogleDetails(placeId: string): Promise<GoogleDetails | nul
       types: j.types ?? [],
       photos: (j.photos ?? []).slice(0, 10),
       reviews: j.reviews ?? [],
+      serves: yes(j as unknown as Flags, SERVES),
+      goodToKnow: [
+        ...yes(j as unknown as Flags, GOOD_TO_KNOW),
+        ...(j.accessibilityOptions?.wheelchairAccessibleEntrance ? ["Wheelchair access"] : []),
+        ...(j.parkingOptions && Object.values(j.parkingOptions).some(Boolean) ? [j.parkingOptions.freeParkingLot || j.parkingOptions.freeStreetParking ? "Free parking" : "Parking"] : []),
+        ...(j.paymentOptions?.acceptsCreditCards || j.paymentOptions?.acceptsDebitCards ? ["Cards accepted"] : []),
+        ...(j.paymentOptions?.acceptsNfc ? ["Tap to pay"] : []),
+        ...(j.paymentOptions?.acceptsCashOnly ? ["Cash only"] : []),
+      ],
+      openNow: j.currentOpeningHours?.openNow ?? null,
+      priceRange: priceRangeText(j.priceRange),
+      reviewSummary: j.reviewSummary?.text?.text
+        ? { text: j.reviewSummary.text.text, disclosure: j.reviewSummary.disclosureText?.text || "Summarized with Gemini", flagUri: j.reviewSummary.flagContentUri ?? null }
+        : null,
     }));
   }
   return cache.get(placeId)!;

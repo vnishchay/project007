@@ -14,15 +14,17 @@
 //   The business's own website  schema.org menu/services with prices, hours, price range, and the links it
 //                               gives to its Zomato/Swiggy/Instagram pages (robots.txt respected)
 //   Wikimedia Commons           a cover photo, only when freely licensed, with its credit in the about text
+//   Wikipedia / Wikidata        a short history and founding year for well-known places, credited
 // Zomato, Swiggy, Justdial and Google pages are never scraped.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadEnv, root, slugify } from "./lib/common.mjs";
-import { aboutFromTags, categoryFor, cleanUrl, currencyFor, mergeLinks, osmHoursToApp, socialUrl, telLink } from "./lib/normalize.mjs";
+import { amenitiesFromTags, categoryFor, composeAbout, storyFromTags, cleanUrl, currencyFor, mergeLinks, osmHoursToApp, socialUrl, telLink } from "./lib/normalize.mjs";
 import { discoverOsm, geocodeCity, osmArea, osmRichness, reverseArea } from "./sources/osm.mjs";
 import { matchGooglePlace } from "./sources/google.mjs";
 import { readWebsite } from "./sources/website.mjs";
 import { commonsFileFor, commonsImage } from "./sources/commons.mjs";
+import { wikiFacts } from "./sources/wikipedia.mjs";
 import { normalizeKind, onboardBusiness } from "./lib/writer.mjs";
 
 const HELP = `
@@ -37,6 +39,7 @@ Trusted Picks onboarding: real public data only.
   --no-google             Skip matching Google Place IDs (no GOOGLE_MAPS_KEY needed)
   --no-website            Don't read business websites
   --no-photos             Don't add Wikimedia Commons cover photos
+  --no-wiki               Don't add Wikipedia history for well-known places
   --no-qr                 Don't create the counter QR
   --reverse-area          Look up the neighbourhood on OpenStreetMap when the place doesn't name one (1/sec)
   --verified              Mark new places verified (default: verified only when matched to Google, else pending)
@@ -46,7 +49,7 @@ Trusted Picks onboarding: real public data only.
 `;
 
 function parseArgs(argv) {
-  const o = { kinds: ["food"], limit: 50, radius: 2000, google: true, website: true, photos: true, qr: true, months: 12 };
+  const o = { kinds: ["food"], limit: 50, radius: 2000, google: true, website: true, photos: true, wiki: true, qr: true, months: 12 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], next = () => argv[++i];
     if (a === "--city") o.city = next();
@@ -59,6 +62,7 @@ function parseArgs(argv) {
     else if (a === "--no-google") o.google = false;
     else if (a === "--no-website") o.website = false;
     else if (a === "--no-photos") o.photos = false;
+    else if (a === "--no-wiki") o.wiki = false;
     else if (a === "--no-qr") o.qr = false;
     else if (a === "--reverse-area") o.reverseArea = true;
     else if (a === "--verified") o.verified = true;
@@ -130,12 +134,15 @@ async function enrichOsm(rec, ctx, o) {
     if (photo) sources.push("Wikimedia Commons");
   }
 
+  const wiki = o.wiki && (t.wikipedia || t.wikidata) ? await wikiFacts(t).catch(() => null) : null;
+  if (wiki?.history) sources.push("Wikipedia");
+
   const tags = { ...t };
   if (!tags.cuisine && site?.cuisine?.length) tags.cuisine = site.cuisine.join(";");
-  if (!tags.start_date && site?.since) tags.start_date = site.since;
+  if (!tags.start_date) tags.start_date = site?.since || wiki?.since || undefined;
   return {
     name: rec.name, kind: rec.kind, category: categoryFor(rec.typeLabel, tags), area, city: ctx.city,
-    about: aboutFromTags(tags), hours: ctx.hoursFrom(t["opening_hours"]) || site?.hours || null,
+    about: composeAbout({ story: storyFromTags(tags), history: wiki?.history, historyCredit: wiki?.credit, amenities: amenitiesFromTags(tags) }), hours: ctx.hoursFrom(t["opening_hours"]) || site?.hours || null,
     priceLevel: site?.priceLevel || null, currency: ctx.currency, lat: rec.lat, lng: rec.lng, googlePlaceId,
     links: mergeLinks(links), items: site?.items || [], photo, verified: o.verified || Boolean(googlePlaceId), sources, osmId: rec.osmId,
   };

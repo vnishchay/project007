@@ -185,7 +185,7 @@ export function AmenitiesCard({ amenities }: { amenities: string[] }) {
       <div className="section-title">
         <span className="icon-chip sm amber"><Icon name="spark" size={16} /></span>
         <span className="grow">Services & Highlights</span>
-        <span className="muted tiny">{list.length} verified</span>
+        <span className="muted tiny">{list.length}</span>
       </div>
       <div className="pl-amenities-chips">
         {list.map((item, i) => (
