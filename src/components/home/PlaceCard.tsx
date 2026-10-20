@@ -6,7 +6,13 @@ import { Avatar, Icon } from "../ui";
 import { Cover } from "./Kit";
 
 /** Looked up per result: photos, and the currency its price level is in. */
-export interface Media { cover_path: string | null; logo_path: string | null; currency?: string | null }
+export interface Media {
+  cover_path: string | null; logo_path: string | null; currency?: string | null;
+  /** Google's rating and review count, saved by onboarding (migration 42). */
+  google_rating?: number | null; google_rating_count?: number | null;
+}
+
+const compact = (n: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 function Rating({ r }: { r: SearchResult }) {
   return r.trust_score != null
@@ -27,7 +33,7 @@ function Friends({ r, people }: { r: SearchResult; people: Record<string, Profil
   );
 }
 
-export function PlaceCard({ r, people, coverUrl, currency }: { r: SearchResult; people: Record<string, Profile>; coverUrl: string | null; currency?: string | null }) {
+export function PlaceCard({ r, people, coverUrl, currency, google }: { r: SearchResult; people: Record<string, Profile>; coverUrl: string | null; currency?: string | null; google?: Media }) {
   const dist = distanceText(r.distance_m);
   return (
     <Link to={`/p/${r.place_id}`} className="place-card">
@@ -48,6 +54,11 @@ export function PlaceCard({ r, people, coverUrl, currency }: { r: SearchResult; 
           {r.verified_count > 0 && <span className="pill verified" title="Verified visits"><Icon name="verified" size={13} />{r.verified_count}</span>}
           {r.has_qr && !r.verified_count && <span className="pill verified" title="Table QR"><Icon name="qr" size={13} /></span>}
           {r.review_count > 0 && <span className="pill gray" title="Reviews"><Icon name="message" size={12} />{r.review_count}</span>}
+          {google?.google_rating != null && (
+            <span className="pill gray" title={`${google.google_rating} on Google from ${(google.google_rating_count ?? 0).toLocaleString("en-IN")} reviews`}>
+              <b>G</b>{Number(google.google_rating).toFixed(1)}<Icon name="star" size={11} fill="currentColor" />{google.google_rating_count ? <span className="muted">{compact(google.google_rating_count)}</span> : null}
+            </span>
+          )}
           {r.top_item && <span className="pill loved" title="Most loved"><Icon name="heart" size={12} fill="currentColor" /><span>{r.top_item}</span></span>}
         </span>
       </span>

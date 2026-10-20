@@ -5,6 +5,7 @@
 // Tasks (POST JSON {task, ...}):
 //   draft     anyone signed in (guests too): review of a visit or an item from the verdict, tags, answers, notes
 //   menu      shop owner: menu / price-list photos, or pasted menu text -> products to check
+//             (also the onboarding script, with the x-onboard-token header: reads a shop's own website menu)
 //   photos    shop owner: finds a stock picture for each product that has none (Pexels) and saves it
 //   update    shop owner: a few words -> a shop update
 //   about     shop owner: the shop's About text
@@ -20,6 +21,8 @@ const MODEL = Deno.env.get("DEEPSEEK_MODEL") || "deepseek-flash";
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+// The team's onboarding script (scripts/onboard) sends this secret to read menus from shops' own websites.
+const ONBOARD_TOKEN = Deno.env.get("ONBOARD_TOKEN") || "";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -86,7 +89,15 @@ async function ai(o: { system: string; user: string; images?: string[]; json?: b
   return text;
 }
 
-interface Ctx { user: SupabaseClient; admin: SupabaseClient; userId: string | null; guest: boolean; taken: number }
+interface Ctx { user: SupabaseClient; admin: SupabaseClient; userId: string | null; guest: boolean; taken: number; onboarding: boolean }
+
+/** Constant-time compare, so the token can't be guessed a character at a time. */
+function sameSecret(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
 
 async function context(req: Request): Promise<Ctx> {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
@@ -98,11 +109,13 @@ async function context(req: Request): Promise<Ctx> {
     const { data } = await user.auth.getUser(token);
     if (data.user) { userId = data.user.id; guest = Boolean(data.user.is_anonymous); }
   }
-  return { user, admin, userId, guest, taken: 0 };
+  const onboarding = ONBOARD_TOKEN.length >= 24 && sameSecret(req.headers.get("x-onboard-token") || "", ONBOARD_TOKEN);
+  return { user, admin, userId, guest, taken: 0, onboarding };
 }
 
 /** Daily allowance per person (and the overall daily ceiling); throws when used up. */
 async function take(c: Ctx, cost = 1, limit?: number) {
+  if (c.onboarding) return; // the team's own script, run by hand
   if (!c.userId) throw new Fail(401, "Open the page again to continue");
   const { data, error } = await c.admin.rpc("ai_take", { p_user: c.userId, p_cost: cost, p_limit: limit ?? (c.guest ? 10 : 40) });
   if (error?.message?.includes("ai_daily_ceiling")) throw new Fail(429, "AI help is very busy today. Try again tomorrow.");
@@ -127,10 +140,12 @@ async function aiFor(c: Ctx, o: Parameters<typeof ai>[0]): Promise<string> {
 }
 
 async function ownerPlace(c: Ctx, placeId: string, o: { checked?: (ok: boolean) => void } = {}) {
-  if (!c.userId) throw new Fail(401, "Sign in first");
+  if (!c.onboarding && !c.userId) throw new Fail(401, "Sign in first");
   if (!UUID.test(placeId)) throw new Fail(400, "Missing shop");
-  const { data: ok } = await c.user.rpc("can_manage_place", { p_place: placeId });
-  if (ok !== true) throw new Fail(403, "Only the shop owner can do this");
+  if (!c.onboarding) {
+    const { data: ok } = await c.user.rpc("can_manage_place", { p_place: placeId });
+    if (ok !== true) throw new Fail(403, "Only the shop owner can do this");
+  }
   const { data } = await c.admin.from("places").select("name, category, area, city, verification").eq("id", placeId).maybeSingle();
   if (!data) throw new Fail(404, "Shop not found");
   const p = data as { name: string; category: string; area: string | null; city: string; verification?: string };
@@ -427,7 +442,9 @@ Deno.serve(async (req) => {
     const b = await req.json().catch(() => ({})) as Record<string, unknown>;
     const run = TASKS[String(b.task)];
     if (!run) return json(400, { error: "Unknown task" });
-    return json(200, await run(await context(req), b));
+    const c = await context(req);
+    if (c.onboarding && b.task !== "menu") c.onboarding = false; // the onboarding token only reads menus
+    return json(200, await run(c, b));
   } catch (e) {
     if (e instanceof Fail) return json(e.status, { error: e.message });
     console.error(e);

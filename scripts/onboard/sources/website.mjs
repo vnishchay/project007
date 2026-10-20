@@ -137,38 +137,78 @@ function profileLinks(html, base) {
   return out;
 }
 
+const MENU_WORDS = /menu|services|price|rate[-_ ]?card|tariff|food|dishes|our[-_ ]?offer|packages|treatments/i;
+const PAGE_WORDS = /menu|services|price|rate|tariff|contact|about|gallery|food|treatments|packages|timing|hours/i;
+
+/** Visible text of a page, scripts and styles dropped. */
+export function pageText(html) {
+  return html.replace(/<script\b[\s\S]*?<\/script>/gi, " ").replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+    .replace(/<(br|\/p|\/li|\/tr|\/h\d|\/div)\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#8377;|&#x20b9;/gi, "₹").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+}
+
+function sameSiteLinks(html, base) {
+  const host = new URL(base).hostname.replace(/^www\./, "");
+  const out = [];
+  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    try {
+      const u = new URL(m[1].replace(/&amp;/g, "&"), base);
+      if (!/^https?:$/.test(u.protocol) || u.hostname.replace(/^www\./, "") !== host) continue;
+      out.push({ url: u.toString().replace(/#.*$/, ""), label: m[2].replace(/<[^>]+>/g, " ").trim() });
+    } catch { /* bad link */ }
+  }
+  return out;
+}
+
+/** Images on a page that look like menus or price lists (by file name or alt text). */
+function menuImages(html, base) {
+  const out = [];
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0];
+    const src = tag.match(/\b(?:data-src|data-lazy-src|src)=["']([^"']+)["']/i)?.[1];
+    const alt = tag.match(/\balt=["']([^"']*)["']/i)?.[1] || "";
+    if (!src || !(MENU_WORDS.test(src) || MENU_WORDS.test(alt))) continue;
+    try { out.push(new URL(src, base).toString()); } catch { /* bad src */ }
+  }
+  return out;
+}
+
 /**
- * Reads a business website. Returns what it states about itself:
- * { phone, hours, priceLevel, cuisine, since, links[], items[], menuUrl } (fields may be empty).
+ * Reads a business website: the home page and up to `maxPages - 1` of its own menu/services/contact pages.
+ * Returns { phone, hours, priceLevel, cuisine, since, links[], items[], menuUrl, menuText, menuFiles[] }.
+ * items are schema.org menu entries; menuText / menuFiles (PDFs, menu photos) go to the menu reader.
  */
-export async function readWebsite(siteUrl) {
+export async function readWebsite(siteUrl, { maxPages = 6 } = {}) {
   const start = cleanUrl(siteUrl);
   if (!start) return null;
   const home = await getPage(start);
   if (!home) return null;
-  const objs = jsonLd(home.html);
+  const pages = [home];
+  const seen = new Set([home.url]);
+  const candidates = sameSiteLinks(home.html, home.url)
+    .filter((l) => PAGE_WORDS.test(l.url) || PAGE_WORDS.test(l.label))
+    .sort((a, b) => Number(MENU_WORDS.test(b.url + b.label)) - Number(MENU_WORDS.test(a.url + a.label)));
+  const pdfs = new Set();
+  for (const l of sameSiteLinks(home.html, home.url)) if (/\.pdf($|\?)/i.test(l.url) && MENU_WORDS.test(l.url + l.label)) pdfs.add(l.url);
+  for (const c of candidates) {
+    if (pages.length >= maxPages) break;
+    if (seen.has(c.url) || /\.(pdf|jpe?g|png|webp)($|\?)/i.test(c.url)) continue;
+    seen.add(c.url);
+    const p = await getPage(c.url);
+    if (p) { p.menuish = MENU_WORDS.test(c.url + c.label); pages.push(p); }
+  }
+  const objs = pages.flatMap((p) => jsonLd(p.html));
   const biz = objs.find((o) => isType(o, BUSINESS) && (o.name || o.telephone || o.address)) || {};
-  const links = [
-    ...[].concat(biz.sameAs || []).map((u) => ({ url: u })),
-    ...profileLinks(home.html, home.url),
-  ];
+  const links = [...[].concat(biz.sameAs || []).map((u) => ({ url: u })), ...pages.flatMap((p) => profileLinks(p.html, p.url))];
   let items = catalogFromLd(objs);
-  // One more page: the menu / services page, when the site links one on its own domain.
   let menuUrl = typeof biz.hasMenu === "string" ? biz.hasMenu : biz.hasMenu?.url || biz.menu || null;
-  if (!menuUrl) {
-    const m = home.html.match(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>\s*(?:<[^>]+>\s*)*(?:our\s+)?(menu|services|price\s*list|rate\s*card)\b/i);
-    if (m) menuUrl = m[1];
-  }
-  if (menuUrl) {
-    try {
-      const abs = new URL(menuUrl, home.url);
-      menuUrl = abs.toString();
-      if (abs.hostname === new URL(home.url).hostname && !items.length) {
-        const page = await getPage(menuUrl);
-        if (page) items = catalogFromLd(jsonLd(page.html));
-      }
-    } catch { menuUrl = null; }
-  }
+  const menuPage = pages.find((p) => p.menuish);
+  if (!menuUrl && menuPage) menuUrl = menuPage.url;
+  try { if (menuUrl) menuUrl = new URL(menuUrl, home.url).toString(); } catch { menuUrl = null; }
+  // Text of the menu/services pages, for the menu reader when there's no schema.org menu.
+  const menuText = items.length ? "" : pages.filter((p) => p.menuish).map((p) => pageText(p.html)).join("\n\n").slice(0, 24000);
+  for (const p of pages) for (const l of sameSiteLinks(p.html, p.url)) if (/\.pdf($|\?)/i.test(l.url) && MENU_WORDS.test(l.url + l.label)) pdfs.add(l.url);
+  const imgs = [...new Set(pages.flatMap((p) => menuImages(p.html, p.url)))].slice(0, 4);
   const pr = String(biz.priceRange || "");
   const priceLevel = /^[₹$€£¥]{1,4}$/.test(pr) ? pr.length : null;
   const since = String(biz.foundingDate || "").match(/^\d{4}/)?.[0] || null;
@@ -181,5 +221,8 @@ export async function readWebsite(siteUrl) {
     links,
     items,
     menuUrl: menuUrl && cleanUrl(menuUrl),
+    menuText: menuText.length > 80 ? menuText : "",
+    menuFiles: items.length ? [] : [...pdfs].slice(0, 2).concat(imgs),
+    pages: pages.length,
   };
 }

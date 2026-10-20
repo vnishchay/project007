@@ -19,13 +19,15 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadEnv, root, slugify } from "./lib/common.mjs";
-import { amenitiesFromTags, categoryFor, composeAbout, storyFromTags, cleanUrl, currencyFor, mergeLinks, osmHoursToApp, socialUrl, telLink } from "./lib/normalize.mjs";
+import { amenitiesFromTags, categoryFor, composeAbout, storyFromTags, cleanUrl, linkKind, currencyFor, mergeLinks, osmHoursToApp, socialUrl, telLink } from "./lib/normalize.mjs";
 import { discoverOsm, geocodeCity, osmArea, osmRichness, reverseArea } from "./sources/osm.mjs";
-import { matchGooglePlace } from "./sources/google.mjs";
+import { googleDetails, googlePhoto, matchGooglePlace } from "./sources/google.mjs";
+import { fetchMenuFile, pdfText, readMenu } from "./sources/menus.mjs";
+import { readMarketplaceMenu } from "./sources/marketplaces.mjs";
 import { readWebsite } from "./sources/website.mjs";
 import { commonsFileFor, commonsImage } from "./sources/commons.mjs";
 import { wikiFacts } from "./sources/wikipedia.mjs";
-import { normalizeKind, onboardBusiness } from "./lib/writer.mjs";
+import { itemCount, normalizeKind, onboardBusiness, saveItems } from "./lib/writer.mjs";
 
 const HELP = `
 Trusted Picks onboarding: real public data only.
@@ -40,6 +42,9 @@ Trusted Picks onboarding: real public data only.
   --no-website            Don't read business websites
   --no-photos             Don't add Wikimedia Commons cover photos
   --no-wiki               Don't add Wikipedia history for well-known places
+  --no-menus              Don't read menus (website pages, PDFs, photos, Zomato/Swiggy)
+  --no-marketplaces       Don't read the shop's own Zomato/Swiggy page
+  --menu-photos <n>       Google photos to check for a menu per place (default 8; 0 = none)
   --no-qr                 Don't create the counter QR
   --reverse-area          Look up the neighbourhood on OpenStreetMap when the place doesn't name one (1/sec)
   --verified              Mark new places verified (default: verified only when matched to Google, else pending)
@@ -49,7 +54,7 @@ Trusted Picks onboarding: real public data only.
 `;
 
 function parseArgs(argv) {
-  const o = { kinds: ["food"], limit: 50, radius: 2000, google: true, website: true, photos: true, wiki: true, qr: true, months: 12 };
+  const o = { kinds: ["food"], limit: 50, radius: 2000, google: true, website: true, photos: true, wiki: true, menus: true, marketplaces: true, menuPhotos: 8, qr: true, months: 12 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], next = () => argv[++i];
     if (a === "--city") o.city = next();
@@ -63,6 +68,9 @@ function parseArgs(argv) {
     else if (a === "--no-website") o.website = false;
     else if (a === "--no-photos") o.photos = false;
     else if (a === "--no-wiki") o.wiki = false;
+    else if (a === "--no-menus") o.menus = false;
+    else if (a === "--no-marketplaces") o.marketplaces = false;
+    else if (a === "--menu-photos") o.menuPhotos = Math.max(0, Number(next()) || 0);
     else if (a === "--no-qr") o.qr = false;
     else if (a === "--reverse-area") o.reverseArea = true;
     else if (a === "--verified") o.verified = true;
@@ -104,20 +112,29 @@ async function enrichOsm(rec, ctx, o) {
   const wa = String(t["contact:whatsapp"] || "").replace(/\D/g, "");
   if (wa.length >= 8) links.push({ kind: "whatsapp", url: `https://wa.me/${wa}` });
 
-  let googlePlaceId = null;
+  let googlePlaceId = null, gd = null;
   if (o.google && ctx.googleKey) {
     const g = await matchGooglePlace(ctx.googleKey, { name: rec.name, lat: rec.lat, lng: rec.lng, city: ctx.city, area });
     if (g?.closed) return { skip: "closed for good on Google" };
     if (g?.placeId) {
-      googlePlaceId = g.placeId; sources.push("Google Place ID");
+      googlePlaceId = g.placeId; sources.push("Google");
       const q = [rec.name, area, ctx.city].filter(Boolean).join(" ");
       links.push({ kind: "maps", url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}&query_place_id=${encodeURIComponent(g.placeId)}` });
+      gd = await googleDetails(ctx.googleKey, g.placeId).catch(() => null);
+      if (gd?.closed) return { skip: "closed for good on Google" };
+      if (gd) {
+        const tel = telLink(gd.phone, ctx.calling);
+        if (tel) links.push({ kind: "phone", url: tel });
+        if (gd.website) links.push({ url: gd.website });
+      }
     }
   }
 
+  // The shop's own site: from OSM, else the one on its Google profile (unless that's a social or delivery page).
+  const ownSite = website || (gd?.website && linkKind(gd.website) === "website" ? cleanUrl(gd.website) : null);
   let site = null;
-  if (o.website && website) {
-    site = await readWebsite(website);
+  if (o.website && ownSite) {
+    site = await readWebsite(ownSite);
     if (site) {
       sources.push("own website");
       const tel = telLink(site.phone, ctx.calling);
@@ -128,10 +145,16 @@ async function enrichOsm(rec, ctx, o) {
   }
 
   let photo = null;
+  const coverLoaders = [];
   if (o.photos) {
     const file = await commonsFileFor(t).catch(() => null);
     if (file) photo = await commonsImage(file).catch(() => null);
-    if (photo) sources.push("Wikimedia Commons");
+    if (photo) { sources.push("Wikimedia Commons"); coverLoaders.push(async () => ({ url: photo.url, mime: photo.mime, credit: photo.credit, prefix: "commons" })); }
+    const first = gd?.photos?.[0];
+    if (first) coverLoaders.push(async () => {
+      const img = await googlePhoto(ctx.googleKey, first.name, 1400);
+      return img && { ...img, prefix: "google", credit: `Photo: ${first.author || "a Google Maps user"}, via Google Maps` };
+    });
   }
 
   const wiki = o.wiki && (t.wikipedia || t.wikidata) ? await wikiFacts(t).catch(() => null) : null;
@@ -140,11 +163,18 @@ async function enrichOsm(rec, ctx, o) {
   const tags = { ...t };
   if (!tags.cuisine && site?.cuisine?.length) tags.cuisine = site.cuisine.join(";");
   if (!tags.start_date) tags.start_date = site?.since || wiki?.since || undefined;
+  const amenities = [...new Set([...amenitiesFromTags(tags), ...(gd?.amenities || []), ...(gd?.priceRange ? [gd.priceRange] : [])])].slice(0, 24);
+  const story = [storyFromTags(tags), gd?.summary].filter(Boolean).join(" ");
+  // A plain OSM label ("Restaurant") gives way to Google's more specific one ("North Indian restaurant").
+  const category = !tags.cuisine && gd?.typeLabel ? gd.typeLabel : categoryFor(rec.typeLabel, tags);
   return {
-    name: rec.name, kind: rec.kind, category: categoryFor(rec.typeLabel, tags), area, city: ctx.city,
-    about: composeAbout({ story: storyFromTags(tags), history: wiki?.history, historyCredit: wiki?.credit, amenities: amenitiesFromTags(tags) }), hours: ctx.hoursFrom(t["opening_hours"]) || site?.hours || null,
-    priceLevel: site?.priceLevel || null, currency: ctx.currency, lat: rec.lat, lng: rec.lng, googlePlaceId,
-    links: mergeLinks(links), items: site?.items || [], photo, verified: o.verified || Boolean(googlePlaceId), sources, osmId: rec.osmId,
+    name: rec.name, kind: rec.kind, category, area, city: ctx.city,
+    about: composeAbout({ story, history: wiki?.history, historyCredit: wiki?.credit, amenities }),
+    hours: ctx.hoursFrom(t["opening_hours"]) || gd?.hours || site?.hours || null,
+    priceLevel: site?.priceLevel || gd?.priceLevel || null, currency: ctx.currency, lat: rec.lat, lng: rec.lng, googlePlaceId,
+    google: gd && { rating: gd.rating, count: gd.count }, googlePhotos: gd?.photos || [],
+    links: mergeLinks(links), items: site?.items || [], menuText: site?.menuText || "", menuFiles: site?.menuFiles || [],
+    photo, coverLoaders, verified: o.verified || Boolean(googlePlaceId), sources, osmId: rec.osmId,
   };
 }
 
@@ -171,10 +201,54 @@ async function fromInput(x, ctx, o) {
   };
 }
 
+/**
+ * Looks for a menu in order: the shop's Zomato/Swiggy page, its website's menu pages, PDF menus and menu
+ * photos, then its Google photos (the reader returns nothing for photos that aren't menus).
+ * Returns { items, from, blocked[] }.
+ */
+async function findMenu(b, placeId, ctx, o) {
+  const blocked = [];
+  if (await itemCount(placeId) > 0) return { items: [], from: null, blocked };
+  if (o.marketplaces) {
+    for (const l of b.links.filter((l) => l.kind === "zomato" || l.kind === "swiggy")) {
+      const m = await readMarketplaceMenu(l.url);
+      if (m.items?.length) return { items: m.items, from: l.kind, blocked };
+      blocked.push(`${l.kind}: ${m.blocked}`);
+    }
+  }
+  if (!ctx.env.ONBOARD_TOKEN) return { items: [], from: null, blocked };
+  if (b.menuText) {
+    const items = await readMenu(ctx.env, placeId, { text: b.menuText });
+    if (items.length) return { items, from: "website", blocked };
+  }
+  const images = [];
+  for (const url of b.menuFiles || []) {
+    const f = await fetchMenuFile(url);
+    if (f?.kind === "pdf") {
+      const text = await pdfText(f.data).catch(() => "");
+      const items = text.length > 40 ? await readMenu(ctx.env, placeId, { text }) : [];
+      if (items.length) return { items, from: "website PDF", blocked };
+    } else if (f?.kind === "image") images.push(f);
+  }
+  if (images.length) {
+    const items = await readMenu(ctx.env, placeId, { images });
+    if (items.length) return { items, from: "website photos", blocked };
+  }
+  // Google photos, four at a time (the reader's limit), up to --menu-photos of them.
+  const photos = (b.googlePhotos || []).slice(0, o.menuPhotos);
+  for (let i = 0; i < photos.length; i += 4) {
+    const batch = (await Promise.all(photos.slice(i, i + 4).map((p) => googlePhoto(ctx.googleKey, p.name, 1200).catch(() => null)))).filter(Boolean);
+    if (!batch.length) continue;
+    const items = await readMenu(ctx.env, placeId, { images: batch });
+    if (items.length >= 3) return { items, from: "Google photos", blocked };
+  }
+  return { items: [], from: null, blocked };
+}
+
 async function main() {
   const o = parseArgs(process.argv.slice(2));
   const env = loadEnv();
-  const ctx = { city: o.city, googleKey: o.google ? env.GOOGLE_MAPS_KEY || env.VITE_GOOGLE_MAPS_KEY : null, currency: "INR", calling: "91", hoursFrom: osmHoursToApp };
+  const ctx = { env, city: o.city, googleKey: o.google ? env.GOOGLE_MAPS_KEY || env.VITE_GOOGLE_MAPS_KEY : null, currency: "INR", calling: "91", hoursFrom: osmHoursToApp };
   if (o.google && !ctx.googleKey) console.log("No GOOGLE_MAPS_KEY in .env: skipping Google Place IDs.");
 
   let businesses = [];
@@ -197,17 +271,32 @@ async function main() {
     });
   }
 
-  const results = [];
+  // Places are written one at a time (so the same shop listed twice can't be created twice) ...
+  const results = [], pending = [];
   for (const b of businesses.filter(Boolean)) {
     try {
       const r = await onboardBusiness(b, { dryRun: o.dryRun, overwrite: o.overwrite, qr: o.qr, plan: o.plan, planMonths: o.months });
-      results.push({ ...r, sources: b.sources, osmId: b.osmId, category: b.category, hours: b.hours, about: b.about,
-        links: b.links, catalog: b.items, photo: b.photo && { page: b.photo.page, credit: b.photo.credit } });
+      const row = { ...r, sources: b.sources, osmId: b.osmId, category: b.category, hours: b.hours, about: b.about, google: b.google,
+        links: b.links, catalog: b.items, photo: r.photo || (o.dryRun && b.coverLoaders?.length ? "available" : null),
+        menuSources: { text: Boolean(b.menuText), files: b.menuFiles?.length || 0, googlePhotos: b.googlePhotos?.length || 0 } };
+      results.push(row);
+      if (!o.dryRun && o.menus && r.placeId && !r.items) pending.push({ b, row });
       if (!o.dryRun) console.log(`✓ ${b.name}: ${r.action}, ${r.items} items${r.qr ? `, QR /q/${r.qr}` : ""}${r.photo ? ", photo" : ""}`);
     } catch (e) {
       console.warn(`✗ ${b.name}: ${e.message}`);
       results.push({ name: b.name, error: e.message });
     }
+  }
+  // ... then menus are looked for three places at a time, as reading them is the slow part.
+  if (pending.length) {
+    if (!ctx.env.ONBOARD_TOKEN) console.log("No ONBOARD_TOKEN in .env: only Zomato/Swiggy pages are read for menus (website and photo menus need the ai function).");
+    console.log(`\n🍽️  Looking for menus at ${pending.length} places...`);
+    await pool(pending, 3, async ({ b, row }) => {
+      const m = await findMenu(b, row.placeId, ctx, o).catch((e) => ({ items: [], from: null, blocked: [e.message] }));
+      if (m.items.length) { row.items = await saveItems(row.placeId, m.items, row.currency); row.menuFrom = m.from; }
+      if (m.blocked.length) row.menuBlocked = m.blocked;
+      if (row.items) console.log(`  ✓ ${b.name}: ${row.items} items from ${m.from}`);
+    });
   }
 
   const dir = join(root, "scripts", "onboard", "out");
@@ -215,7 +304,10 @@ async function main() {
   const file = join(dir, `${slugify(o.city || "input")}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}${o.dryRun ? "-dry" : ""}.json`);
   writeFileSync(file, JSON.stringify({ at: new Date().toISOString(), options: o, attribution: "Data © OpenStreetMap contributors (ODbL)", results }, null, 2));
   const ok = results.filter((r) => !r.error);
-  console.log(`\n${o.dryRun ? "Would onboard" : "Onboarded"} ${ok.length} places (${ok.filter((r) => r.googlePlaceId).length} matched to Google, ${ok.reduce((n, r) => n + (r.items || 0), 0)} catalog items). Report: ${file}`);
+  const n = (f) => ok.filter(f).length;
+  console.log(`\n${o.dryRun ? "Would onboard" : "Onboarded"} ${ok.length} places: ${n((r) => r.googlePlaceId)} matched to Google, ${n((r) => r.google?.rating != null)} with Google rating, ` +
+    `${n((r) => r.hours)} with hours, ${n((r) => r.photo)} with a cover photo, ${n((r) => r.items > 0)} with a menu (${ok.reduce((s, r) => s + (r.items || 0), 0)} items), ` +
+    `${n((r) => r.menuBlocked?.length)} where Zomato/Swiggy refused. Report: ${file}`);
 }
 
 main().catch((e) => { console.error(`❌ ${e.message}`); process.exit(1); });
