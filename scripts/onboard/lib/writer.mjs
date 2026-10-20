@@ -4,7 +4,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv, metres, parsePoint, slugify, clip } from "./common.mjs";
 import { mergeLinks, normalizeDiet } from "./normalize.mjs";
-import { storeCommonsImage } from "../sources/commons.mjs";
+import { http } from "./common.mjs";
 
 let client = null;
 export function db() {
@@ -62,6 +62,8 @@ export async function onboardBusiness(b, opts = {}) {
     contact_phone: b.links.find((l) => l.kind === "phone")?.url.slice(4) || null, google_place_id: b.googlePlaceId || null,
     currency: b.currency || "INR",
   };
+  // Google's numbers are refreshed on every run (they change), unlike details owners may have edited.
+  const google = b.google?.rating != null ? { google_rating: b.google.rating, google_rating_count: b.google.count ?? 0, google_synced_at: new Date().toISOString() } : {};
   const point = b.lat != null && b.lng != null ? `SRID=4326;POINT(${b.lng} ${b.lat})` : null;
 
   let placeId, place;
@@ -80,14 +82,16 @@ export async function onboardBusiness(b, opts = {}) {
     if (point && (replace || !existing.location)) patch.location = point;
     const links = replace ? mergeLinks(b.links) : mergeLinks(existing.links || [], b.links);
     if (JSON.stringify(links) !== JSON.stringify(existing.links || [])) patch.links = links;
+    const changed = Object.keys(patch);
+    Object.assign(patch, google);
     if (Object.keys(patch).length) {
       const { error } = await sb.from("places").update(patch).eq("id", placeId);
       if (error) throw new Error(`update ${b.name}: ${error.message}`);
     }
-    result.action = Object.keys(patch).length ? `updated (${Object.keys(patch).join(", ")})` : "unchanged";
+    result.action = changed.length ? `updated (${changed.join(", ")})` : "unchanged";
     place = { ...existing, ...patch };
   } else {
-    const row = { ...fresh, links: mergeLinks(b.links), status: "live", verification: b.verified ? "verified" : "pending" };
+    const row = { ...fresh, ...google, links: mergeLinks(b.links), status: "live", verification: b.verified ? "verified" : "pending" };
     if (point) row.location = point;
     const { data, error } = await sb.from("places").insert(row).select(PLACE_COLS).single();
     if (error) throw new Error(`insert ${b.name}: ${error.message}`);
@@ -95,28 +99,22 @@ export async function onboardBusiness(b, opts = {}) {
   }
   result.placeId = placeId;
 
-  // Cover photo: a freely licensed Commons photo, only if the place has none.
-  if (b.photo && !place.cover_path) {
-    const path = await storeCommonsImage(sb, placeId, b.photo);
-    if (path) {
-      const about = [place.about, b.photo.credit].filter(Boolean).join("\n\n");
+  // Cover photo, only if the place has none: a Commons photo, else the first Google photo.
+  if (!place.cover_path) {
+    for (const load of b.coverLoaders || []) {
+      const img = await load().catch(() => null);
+      if (!img) continue;
+      const path = await storeImage(sb, placeId, img);
+      if (!path) continue;
+      const about = [place.about, img.credit].filter(Boolean).join("\n\n");
       await sb.from("places").update({ cover_path: path, about }).eq("id", placeId);
-      result.photo = b.photo.page;
+      result.photo = img.credit;
+      break;
     }
   }
 
-  // Catalog: menu items or services the business itself publishes. New names only; owner edits are kept.
-  if (b.items?.length) {
-    const rows = b.items.map((it, i) => ({
-      place_id: placeId, name: clip(it.name, 80), section: it.section ? clip(it.section, 40) : null,
-      description: it.description || null, diet: normalizeDiet(it.diet),
-      price_inr: it.price != null && (!it.currency || it.currency === fresh.currency) ? Math.round(it.price) : null,
-      sort_order: i, is_listed: false,
-    }));
-    const { data, error } = await sb.from("items").upsert(rows, { onConflict: "place_id,name_normalized", ignoreDuplicates: true }).select("id");
-    if (error) console.warn(`    items: ${error.message}`);
-    else result.items = data?.length || 0;
-  }
+  if (b.items?.length) result.items = await saveItems(placeId, b.items, fresh.currency);
+  result.currency = fresh.currency;
 
   // One counter QR if the place has none. Seats, jar size and refill stay empty so the database's
   // per-type defaults apply (qr_jar: a restaurant QR holds 12 reviews and refills one every 5 minutes).
@@ -141,4 +139,39 @@ export async function onboardBusiness(b, opts = {}) {
     if (error) console.warn(`    plan: ${error.message}`);
   }
   return result;
+}
+
+/** Uploads a photo ({ data: Buffer, type } or { url, mime }) to the place-media bucket. Returns its path. */
+export async function storeImage(sb, placeId, img) {
+  let data = img.data, type = img.type || img.mime || "image/jpeg";
+  if (!data && img.url) {
+    const res = await http(img.url, { timeout: 30000 });
+    if (!res.ok) return null;
+    data = Buffer.from(await res.arrayBuffer());
+  }
+  if (!data || data.length > 5 * 1024 * 1024 || !/^image\/(jpeg|png|webp)$/.test(type)) return null;
+  const ext = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
+  const path = `${placeId}/${img.prefix || "photo"}-${Date.now().toString(36)}.${ext}`;
+  const { error } = await sb.storage.from("place-media").upload(path, data, { contentType: type, upsert: false });
+  if (error) { console.warn(`    photo upload failed: ${error.message}`); return null; }
+  return path;
+}
+
+/** Menu items or services for a place. New names only; owner edits are kept. Returns how many were added. */
+export async function saveItems(placeId, items, currency = "INR") {
+  const rows = items.map((it, i) => ({
+    place_id: placeId, name: clip(it.name, 80), section: it.section ? clip(it.section, 40) : null,
+    description: it.description ? clip(it.description, 200) : null, diet: normalizeDiet(it.diet),
+    price_inr: it.price != null && (!it.currency || it.currency === currency) ? Math.round(it.price) : null,
+    sort_order: i, is_listed: false,
+  }));
+  const { data, error } = await db().from("items").upsert(rows, { onConflict: "place_id,name_normalized", ignoreDuplicates: true }).select("id");
+  if (error) { console.warn(`    items: ${error.message}`); return 0; }
+  return data?.length || 0;
+}
+
+/** How many items a place already has. */
+export async function itemCount(placeId) {
+  const { count } = await db().from("items").select("id", { count: "exact", head: true }).eq("place_id", placeId);
+  return count || 0;
 }
