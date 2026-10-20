@@ -1,5 +1,5 @@
 // Database Provisioner for Automated Restaurant Onboarding
-// Ingests places, menus, active QR codes, subscriptions, and initial review seeds into Supabase.
+// Ingests places, menus, active QR codes and subscriptions into Supabase (no reviews).
 
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
@@ -67,7 +67,8 @@ function normalizeDiet(diet) {
 }
 
 
-export async function onboardRestaurant(restaurantData, menuItems, reviewSeeds) {
+// Never writes reviews: those only come from real customers scanning a QR.
+export async function onboardRestaurant(restaurantData, menuItems) {
   console.log(`\n======================================================`);
   console.log(`🚀 Onboarding: ${restaurantData.name} (${restaurantData.area}, ${restaurantData.city})`);
   console.log(`======================================================`);
@@ -228,10 +229,7 @@ export async function onboardRestaurant(restaurantData, menuItems, reviewSeeds) 
       place_id: placeId,
       token,
       table_label: "Table 1 / Counter",
-      active: true,
-      seats: 4,
-      jar_size: 20,
-      refill_seconds: 30
+      active: true
     });
     if (qrErr) console.warn("  ⚠️ QR code insert warning:", qrErr.message);
     else console.log(`✓ Table QR Code activated (Token: ${token})`);
@@ -271,50 +269,12 @@ export async function onboardRestaurant(restaurantData, menuItems, reviewSeeds) 
     console.log(`✓ Subscription upgraded to active starter with open review allowance.`);
   }
 
-  // 5. Ingest Initial Google Reviews Bootstrapping
-  console.log(`⭐ Bootstrapping initial reviews from Google reputation...`);
-  let reviewsInserted = 0;
-  for (const rev of reviewSeeds) {
-    const matchedItem = insertedItems.find((it) => it.name.toLowerCase() === rev.item_name.toLowerCase()) || insertedItems[0];
-    if (!matchedItem) continue;
-
-    // Use deterministic demo UUID for reviewer profile
-    const reviewerUid = `de000000-0000-4000-8000-${String(rev.user_ord || 1).padStart(12, "0")}`;
-
-    const { data: existingRev } = await supabase
-      .from("reviews")
-      .select("id")
-      .eq("place_id", placeId)
-      .eq("item_id", matchedItem.id)
-      .eq("user_id", reviewerUid)
-      .maybeSingle();
-
-    if (!existingRev) {
-      const { error: revErr } = await supabase.from("reviews").insert({
-        place_id: placeId,
-        item_id: matchedItem.id,
-        user_id: reviewerUid,
-        rating: rev.rating,
-        body: rev.body,
-        is_public: true,
-        status: "published",
-        created_at: rev.created_at || new Date().toISOString(),
-        updated_at: rev.created_at || new Date().toISOString()
-      });
-
-      if (!revErr) reviewsInserted++;
-      else console.warn(`  ⚠️ Review seed warning:`, revErr.message);
-    }
-  }
-  console.log(`✓ ${reviewsInserted} Google-bootstrapped reviews seeded.`);
-
   return {
     placeId,
     name: restaurantData.name,
     area: restaurantData.area,
     city: restaurantData.city,
     itemsCount: insertedItems.length,
-    reviewsCount: reviewsInserted,
     qrToken,
     placeUrl: `/p/${placeId}`,
     qrUrl: `/q/${qrToken}`

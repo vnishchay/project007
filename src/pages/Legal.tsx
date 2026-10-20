@@ -61,6 +61,8 @@ export function Terms() {
       <p>Plans are paid in advance for one month or one year and give the number of review QRs shown on the <Link to="/pricing">pricing page</Link>. Plans do not renew automatically. If a plan ends, new reviews pause; the business page stays up.</p>
       <h3>Google</h3>
       <p>Trusted Picks is not part of Google. We never post to Google for you; you choose whether to copy your review there yourself.</p>
+      <h3>Business details</h3>
+      <p>Some business details (names, opening hours, contact links) come from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> under the Open Database License, and some shop photos from Wikimedia Commons, credited on the shop page. Owners can claim their shop and correct anything.</p>
       <h3>Liability</h3>
       <p>The service is provided as is. Our total liability for any claim is limited to what you paid us in the last 12 months.</p>
       <p>Questions: <Mail />.</p>
