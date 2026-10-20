@@ -7,3 +7,4 @@ dist
 deno.lock
 graphify-out/
 .claude/worktrees/
+supabase/.temp/
