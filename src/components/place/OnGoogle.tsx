@@ -47,6 +47,15 @@ function Review({ r }: { r: GoogleReview }) {
   );
 }
 
+function Chips({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="stack tight">
+      <span className="tiny strong muted">{title}</span>
+      <div className="pl-amenities-chips">{items.map((i) => <span key={i} className="pl-amenity-chip">{i}</span>)}</div>
+    </div>
+  );
+}
+
 /** Google's own description, photos and reviews, fetched live and never saved. */
 export function OnGoogle({ googlePlaceId }: { googlePlaceId: string }) {
   // Google bills every lookup, so nothing loads until the visitor asks for it.
@@ -65,7 +74,7 @@ export function OnGoogle({ googlePlaceId }: { googlePlaceId: string }) {
     </button>
   );
   if (d === null) return null;
-  const empty = d && !d.summary && !d.photos.length && !d.reviews.length && d.rating == null;
+  const empty = d && !d.summary && !d.photos.length && !d.reviews.length && d.rating == null && !d.serves.length && !d.goodToKnow.length;
   if (empty && !d.mapsUri) return null;
 
   return (
@@ -89,6 +98,24 @@ export function OnGoogle({ googlePlaceId }: { googlePlaceId: string }) {
       ) : (
         <>
           {d.summary && <p className="gg-summary">{d.summary}</p>}
+          {(d.openNow != null || d.priceRange) && (
+            <div className="row wrap" style={{ gap: 8 }}>
+              {d.openNow != null && <span className={`pill ${d.openNow ? "green" : ""}`}><Icon name="clock" size={13} />{d.openNow ? "Open now" : "Closed now"}</span>}
+              {d.priceRange && <span className="pill"><Icon name="wallet" size={13} />{d.priceRange} per person</span>}
+            </div>
+          )}
+          {d.reviewSummary && (
+            <div className="pl-summary">
+              <span className="row tiny strong" style={{ gap: 6 }}><Icon name="spark" size={14} />What Google reviewers say</span>
+              <p className="small">{d.reviewSummary.text}</p>
+              <span className="tiny muted">
+                {d.reviewSummary.disclosure}
+                {d.reviewSummary.flagUri && <> · <a href={d.reviewSummary.flagUri} target="_blank" rel="noopener noreferrer">Report</a></>}
+              </span>
+            </div>
+          )}
+          {d.serves.length > 0 && <Chips title="Serves" items={d.serves} />}
+          {d.goodToKnow.length > 0 && <Chips title="Good to know" items={d.goodToKnow} />}
           {d.photos.length > 0 && <div className="hscroll gg-photos">{d.photos.map((p) => <Photo key={p.name} p={p} />)}</div>}
           {d.reviews.length > 0 && <div className="stack" style={{ gap: 10 }}>{d.reviews.map((r) => <Review key={r.name} r={r} />)}</div>}
           {d.mapsUri && (

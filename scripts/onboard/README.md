@@ -20,11 +20,16 @@ Needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env` (not for `--dry-run`), 
 
 | Source | What we take | Rules we follow |
 | --- | --- | --- |
-| OpenStreetMap (Nominatim + Overpass) | Name, type, cuisine, map pin, opening hours, phone, email, website, Instagram/Facebook/WhatsApp, diet (pure veg, vegan, Jain), amenities, year founded | ODbL: credited on the Terms page. 1 Nominatim request a second |
+| OpenStreetMap (Nominatim + Overpass) | Name, type, cuisine, map pin, opening hours, phone, email, website, Instagram/Facebook/WhatsApp, diet (pure veg, vegan, Jain), year founded, and amenity chips: seats, outdoor seating, AC, Wi-Fi, bookings, takeaway, delivery, high chairs, baby changing, toilets, wheelchair access, no smoking, UPI/cards, kitchen hours, women/men/unisex salons | ODbL: credited on the Terms page. 1 Nominatim request a second |
 | Google Places API (New) | Only the Place ID, after the name matches within 250 m. Places Google marks closed for good are skipped | Google lets us keep Place IDs, not ratings, reviews, photos or hours. The app shows those live |
 | The business's own website | schema.org menu items or services with prices and diet tags, hours, price range, and the links it gives to its own Zomato/Swiggy/Instagram pages | robots.txt respected, 2 pages at most, no photos or prose copied |
+| Wikipedia / Wikidata | A short history (up to 600 characters) and founding year, only for places OpenStreetMap links to their article | CC BY-SA: the credit is saved under the history |
 | Wikimedia Commons | A cover photo, only public domain, CC0, CC BY or CC BY-SA, with its credit added to the about text | Never stock or AI pictures |
 | `--input` file | Whatever you collected from the owner or by hand | Same writer, same checks |
+
+Shown live on the shop page from Google, never saved: what it serves (breakfast, coffee, vegetarian...),
+good to know (dine-in, kids, groups, reservations, parking, wheelchair access, cards), open now, price range
+per person, and Google's review summary (written by Gemini and labelled so).
 
 ## What it writes
 

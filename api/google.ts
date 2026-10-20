@@ -14,6 +14,8 @@ const PHOTO = /^places\/[A-Za-z0-9_-]{10,300}\/photos\/[A-Za-z0-9_-]{10,1000}$/;
 const PLACE_FIELDS = new Set([
   "rating,userRatingCount,googleMapsUri",
   "id,displayName,formattedAddress,editorialSummary,rating,userRatingCount,googleMapsUri,websiteUri,nationalPhoneNumber,regularOpeningHours.weekdayDescriptions,types,photos,reviews",
+  // Same, plus what the place offers (shown as "Good to know").
+  "id,displayName,formattedAddress,editorialSummary,rating,userRatingCount,googleMapsUri,websiteUri,nationalPhoneNumber,regularOpeningHours.weekdayDescriptions,types,photos,reviews,servesBreakfast,servesBrunch,servesLunch,servesDinner,servesCoffee,servesDessert,servesVegetarianFood,servesBeer,servesWine,servesCocktails,dineIn,takeout,delivery,curbsidePickup,reservable,outdoorSeating,liveMusic,goodForChildren,goodForGroups,goodForWatchingSports,menuForChildren,allowsDogs,restroom,paymentOptions,parkingOptions,accessibilityOptions,priceRange,currentOpeningHours.openNow,reviewSummary",
   "location",
 ]);
 const SEARCH_FIELDS = "places.id,places.displayName,places.formattedAddress,places.types";

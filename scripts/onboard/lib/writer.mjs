@@ -74,6 +74,9 @@ export async function onboardBusiness(b, opts = {}) {
       if (k === "google_place_id" && existing.google_place_id) continue; // never re-point a Google link
       if (replace || blank(existing[k]) || (k === "kind" && existing.kind === "other")) patch[k] = v;
     }
+    // Older profiles without the amenities block get it added under what's there.
+    const block = fresh.about?.split("\n\n").find((x) => /^services\s*&\s*amenities:/i.test(x));
+    if (!patch.about && block && existing.about && !/services\s*&\s*amenities:/i.test(existing.about)) patch.about = `${existing.about}\n\n${block}`;
     if (point && (replace || !existing.location)) patch.location = point;
     const links = replace ? mergeLinks(b.links) : mergeLinks(existing.links || [], b.links);
     if (JSON.stringify(links) !== JSON.stringify(existing.links || [])) patch.links = links;

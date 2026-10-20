@@ -240,35 +240,72 @@ export function mergeLinks(...lists) {
 
 // ---------------------------------------------------------------- about
 const YES = (v) => v === "yes" || v === "only" || v === "designated";
-/** A short factual about text from OSM tags. Built from facts only, never copied prose. */
-export function aboutFromTags(tags = {}) {
+
+/** Amenity chips from OSM tags, shown as "Services & Highlights" on the shop's About tab. */
+export function amenitiesFromTags(t = {}) {
+  const a = [];
+  const add = (cond, label) => { if (cond) a.push(label); };
+  const cap = Number(t.capacity);
+  add(cap >= 4 && cap <= 2000, `Seats ${cap}`);
+  add(YES(t.outdoor_seating), "Outdoor seating");
+  add(YES(t.air_conditioning), "Air-conditioned");
+  add(t.internet_access && t.internet_access !== "no", t.internet_access_fee === "no" || t["internet_access:fee"] === "no" ? "Free Wi-Fi" : "Wi-Fi");
+  add(YES(t.reservation) || t.reservation === "recommended" || t.reservation === "required", t.reservation === "required" ? "Booking required" : "Takes bookings");
+  add(YES(t.appointment) || t.appointment === "required", "By appointment");
+  add(YES(t.takeaway), "Takeaway");
+  add(YES(t.delivery), "Delivery");
+  add(YES(t.drive_through), "Drive-through");
+  add(YES(t.self_service), "Self-service");
+  add(YES(t.live_music), "Live music");
+  add(YES(t.highchair), "High chairs");
+  add(YES(t.changing_table), "Baby changing");
+  add(YES(t.toilets) || YES(t["toilets:access"]), "Toilets");
+  add(YES(t.wheelchair), "Wheelchair accessible");
+  add(t.smoking === "no", "No smoking");
+  add(YES(t.dog), "Dogs welcome");
+  add(YES(t["payment:upi"]), "UPI");
+  add(YES(t["payment:cards"]) || YES(t["payment:credit_cards"]) || YES(t["payment:debit_cards"]), "Cards accepted");
+  add(t["payment:cash"] === "only", "Cash only");
+  add(YES(t.unisex), "Unisex");
+  add(YES(t.female) && !YES(t.male) && !YES(t.unisex), "Women only");
+  add(YES(t.male) && !YES(t.female) && !YES(t.unisex), "Men only");
+  add(YES(t["diet:halal"]), "Halal");
+  add(YES(t["diet:jain"]), "Jain options");
+  add(YES(t["diet:gluten_free"]), "Gluten-free options");
+  add(YES(t["diet:vegan"]) && t["diet:vegan"] !== "only", "Vegan options");
+  add(t.opening_hours === "24/7", "Open 24 hours");
+  if (t["opening_hours:kitchen"]) { const k = osmHoursToApp(t["opening_hours:kitchen"]); if (k && Object.keys(k).length === 1) a.push(`Kitchen ${Object.values(k)[0]}`); }
+  return a.slice(0, 16);
+}
+
+/** Factual sentences about the place from OSM tags. Built from facts only, never copied prose. */
+export function storyFromTags(tags = {}) {
   const facts = [];
   const cuisine = String(tags.cuisine || "").split(/[;,]/).map((c) => titleCase(c.trim())).filter(Boolean);
   if (cuisine.length) facts.push(`Serves ${cuisine.join(", ")}.`);
   if (tags["diet:vegetarian"] === "only") facts.push("Pure vegetarian.");
   else if (tags["diet:vegan"] === "only") facts.push("Fully vegan.");
-  else {
-    const opts = [];
-    if (YES(tags["diet:vegetarian"])) opts.push("vegetarian");
-    if (YES(tags["diet:vegan"])) opts.push("vegan");
-    if (YES(tags["diet:jain"])) opts.push("Jain");
-    if (YES(tags["diet:gluten_free"])) opts.push("gluten-free");
-    if (opts.length) facts.push(`Has ${opts.join(", ")} options.`);
-  }
-  if (tags["diet:halal"] === "only" || tags["diet:halal"] === "yes") facts.push("Halal.");
-  const am = [];
-  if (YES(tags.outdoor_seating)) am.push("outdoor seating");
-  if (YES(tags.air_conditioning)) am.push("air-conditioned");
-  if (tags.internet_access && tags.internet_access !== "no") am.push("Wi-Fi");
-  if (YES(tags.wheelchair)) am.push("wheelchair accessible");
-  if (YES(tags.takeaway)) am.push("takeaway");
-  if (YES(tags.delivery)) am.push("delivery");
-  if (YES(tags.reservation) || tags.reservation === "recommended" || tags.reservation === "required") am.push("reservations");
-  if (YES(tags["payment:upi"])) am.push("UPI");
-  if (YES(tags["payment:cards"]) || YES(tags["payment:credit_cards"])) am.push("cards accepted");
-  if (am.length) facts.push(`${am[0][0].toUpperCase()}${am.join(", ").slice(1)}.`);
+  else if (YES(tags["diet:vegetarian"])) facts.push("Has vegetarian options.");
+  const spec = String(tags["healthcare:speciality"] || "").split(/[;,]/).map((c) => titleCase(c.trim())).filter(Boolean);
+  if (spec.length) facts.push(`Specialities: ${spec.join(", ")}.`);
   const since = String(tags.start_date || "").match(/^\d{4}/)?.[0];
   if (since && Number(since) > 1700 && Number(since) <= new Date().getFullYear()) facts.push(`Since ${since}.`);
   if (tags.brand && tags.brand !== tags.name) facts.push(`Part of ${tags.brand}.`);
-  return facts.join(" ") || null;
+  return facts.join(" ");
 }
+
+/**
+ * The places.about text, in the blocks the shop page reads (parsePlaceAbout): the story first, then
+ * "Services & Amenities: a • b", then any credits. Blocks are separated by a blank line.
+ */
+export function composeAbout({ story, history, historyCredit, amenities = [], credits = [] }) {
+  const blocks = [];
+  const text = [story, history].filter(Boolean).join("\n\n");
+  if (text) blocks.push(text);
+  if (amenities.length) blocks.push(`Services & Amenities: ${amenities.join(" • ")}`);
+  blocks.push(...[historyCredit, ...credits].filter(Boolean));
+  return blocks.join("\n\n") || null;
+}
+
+/** Old name, kept for callers: story and amenities in one about text. */
+export const aboutFromTags = (tags = {}) => composeAbout({ story: storyFromTags(tags), amenities: amenitiesFromTags(tags) });
