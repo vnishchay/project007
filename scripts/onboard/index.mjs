@@ -112,12 +112,12 @@ async function enrichOsm(rec, ctx, o) {
   const wa = String(t["contact:whatsapp"] || "").replace(/\D/g, "");
   if (wa.length >= 8) links.push({ kind: "whatsapp", url: `https://wa.me/${wa}` });
 
-  let googlePlaceId = null, gd = null;
+  let googlePlaceId = null, gd = null, googleFar = false;
   if (o.google && ctx.googleKey) {
     const g = await matchGooglePlace(ctx.googleKey, { name: rec.name, lat: rec.lat, lng: rec.lng, city: ctx.city, area });
     if (g?.closed) return { skip: "closed for good on Google" };
     if (g?.placeId) {
-      googlePlaceId = g.placeId; sources.push("Google");
+      googlePlaceId = g.placeId; googleFar = g.far; sources.push(g.far ? "Google (pin 250 m+ away)" : "Google");
       const q = [rec.name, area, ctx.city].filter(Boolean).join(" ");
       links.push({ kind: "maps", url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}&query_place_id=${encodeURIComponent(g.placeId)}` });
       gd = await googleDetails(ctx.googleKey, g.placeId).catch(() => null);
@@ -174,7 +174,7 @@ async function enrichOsm(rec, ctx, o) {
     priceLevel: site?.priceLevel || gd?.priceLevel || null, currency: ctx.currency, lat: rec.lat, lng: rec.lng, googlePlaceId,
     google: gd && { rating: gd.rating, count: gd.count }, googlePhotos: gd?.photos || [],
     links: mergeLinks(links), items: site?.items || [], menuText: site?.menuText || "", menuFiles: site?.menuFiles || [],
-    photo, coverLoaders, verified: o.verified || Boolean(googlePlaceId), sources, osmId: rec.osmId,
+    photo, coverLoaders, verified: o.verified || (Boolean(googlePlaceId) && !googleFar), sources, osmId: rec.osmId,
   };
 }
 
