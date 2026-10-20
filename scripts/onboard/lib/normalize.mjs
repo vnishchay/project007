@@ -31,9 +31,24 @@ const LEISURE = {
 };
 const HEALTHCARE = { physiotherapist: ["health", "Physiotherapy"], laboratory: ["health", "Diagnostic lab"], alternative: ["health", "Ayurveda & wellness"] };
 
+// Names that describe a thing, not a business ("Tea Stall", "Street Food area"), and places the public
+// can't walk into (hostel messes, staff and campus canteens).
+const GENERIC_NAME = /^(the\s+)?(famous|tea|chai|chaat|momo|momos|pani\s*puri|golgappa|juice|lassi|paan|food|fast\s*food|street\s*food|snacks?|sweets?|dhaba|canteen|cafeteria|restaurant|cafe|hotel|bakery|stall|shop)(\s+(stall|shop|corner|area|point|cart|centre|center|counter|court|thela|wala|vendor))?$/i;
+const NOT_PUBLIC = /\b(hostel|mess|staff\s+canteen|students?\s+canteen|canteen)\b/i;
+
+/** Whether an OSM element is a real business open to the public, judged from its name and access tags. */
+export function isPublicBusiness(tags) {
+  const name = String(tags?.name || "").trim();
+  if (name.length < 3 || GENERIC_NAME.test(name)) return false;
+  if (["private", "no", "customers", "permit", "students", "employees"].includes(tags.access)) return false;
+  if (NOT_PUBLIC.test(name) && !tags.brand) return false;
+  return true;
+}
+
 /** Which kind and label an OSM element is, or null if it isn't a business we list. */
 export function classifyOsm(tags) {
   if (!tags?.name || tags.disused || tags["disused:shop"] || tags.shop === "vacant") return null;
+  if (!isPublicBusiness(tags)) return null;
   if (tags.amenity && AMENITY[tags.amenity]) return AMENITY[tags.amenity];
   if (tags.leisure && LEISURE[tags.leisure]) return LEISURE[tags.leisure];
   if (tags.sport === "yoga") return LEISURE.yoga;
