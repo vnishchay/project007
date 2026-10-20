@@ -8,7 +8,6 @@
     "build": "node scripts/check-db-contract.mjs && tsc -b && vite build",
     "check:db": "node scripts/check-db-contract.mjs --sql",
     "onboard": "node scripts/onboard/index.mjs",
-    "onboard:vns": "node scripts/onboard/onboard-varanasi.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b"
   },
