@@ -58,19 +58,46 @@ export const titleCase = (s) => String(s || "").replace(/_/g, " ").replace(/\b\w
 /** Lowercase letters and digits only, for comparing names from different sources. */
 export const nameKey = (s) => String(s || "").toLowerCase().normalize("NFKD").replace(/['’`]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
-/** Rough similarity of two business names, 0..1 (shared word share, plus containment). */
+/** Edit distance of two short strings. */
+function edits(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+/** Same word, allowing a typo: 1 edit for 5+ letters, 2 for 8+ ("resturant" = "restaurant"); 4-letter words
+ *  only by an added or dropped letter ("chat" = "chaat", but "chat" != "chai"). */
+const sameWord = (a, b) => {
+  if (a === b) return true;
+  const n = Math.min(a.length, b.length);
+  if (n < 4 || (n === 4 && a.length === b.length)) return false;
+  return edits(a, b) <= (n >= 8 ? 2 : 1);
+};
+
+const NAME_STOP = ["the", "and", "of", "restaurant", "cafe", "shop", "store", "salon", "pvt", "ltd"];
+
+/** Rough similarity of two business names, 0..1 (shared word share, plus containment), tolerant of typos and
+ *  spacing ("Rita Ice Cream Parlour" = "Rita Icecream Parlour"). */
 export function nameSimilarity(a, b) {
   const x = nameKey(a), y = nameKey(b);
   if (!x || !y) return 0;
   if (x === y) return 1;
+  const cx = x.replace(/ /g, ""), cy = y.replace(/ /g, "");
+  if (cx === cy) return 0.95;
   if (x.includes(y) || y.includes(x)) return 0.85;
-  const stop = new Set(["the", "and", "of", "restaurant", "cafe", "shop", "store", "salon", "pvt", "ltd"]);
-  const wa = new Set(x.split(" ").filter((w) => !stop.has(w)));
-  const wb = new Set(y.split(" ").filter((w) => !stop.has(w)));
-  if (!wa.size || !wb.size) return 0;
+  const words = (k) => [...new Set(k.split(" ").filter((w) => w && !NAME_STOP.some((s) => sameWord(w, s))))];
+  const wa = words(x), wb = words(y);
+  if (!wa.length || !wb.length) return 0;
+  // Words split in one name and joined in the other count as one ("ice cream" / "icecream").
+  const joined = (list, other) => list.filter((w, i) => i + 1 < list.length && other.some((o) => sameWord(w + list[i + 1], o)));
   let shared = 0;
-  for (const w of wa) if (wb.has(w)) shared++;
-  return shared / Math.max(wa.size, wb.size);
+  for (const w of wa) if (wb.some((o) => sameWord(w, o))) shared++;
+  const ja = joined(wa, wb).length, jb = joined(wb, wa).length;
+  shared += ja + jb;
+  return Math.min(1, shared / Math.max(wa.length - ja, wb.length - jb));
 }
 
 /** Distance in metres between two {lat,lng}. */

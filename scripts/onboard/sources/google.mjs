@@ -11,14 +11,16 @@ const FIELDS = "places.id,places.displayName,places.location,places.businessStat
  * Returns { placeId, closed } for the Google place that is the same business (similar name within
  * `maxMetres`), { closed: true } if Google says it closed for good, or null when there's no confident match.
  */
-export async function matchGooglePlace(key, { name, lat, lng, city, area }, { maxMetres = 250 } = {}) {
+// A listing counts as this place when its name matches within 250 m, or matches closely (0.85+) within 1 km,
+// since OpenStreetMap pins are often a few hundred metres off. Far matches come back `far` so they stay pending.
+export async function matchGooglePlace(key, { name, lat, lng, city, area }, { maxMetres = 250, farMetres = 1000 } = {}) {
   if (!key) return null;
   const res = await http(API, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": FIELDS },
     body: JSON.stringify({
       textQuery: [name, area, city].filter(Boolean).join(", "),
-      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 500 } },
+      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: farMetres } },
       maxResultCount: 5,
     }),
   });
@@ -30,11 +32,11 @@ export async function matchGooglePlace(key, { name, lat, lng, city, area }, { ma
   for (const p of places) {
     const d = metres({ lat, lng }, { lat: p.location?.latitude, lng: p.location?.longitude });
     const sim = nameSimilarity(name, p.displayName?.text);
-    if (d > maxMetres || sim < 0.6) continue;
-    const score = sim - d / (maxMetres * 4);
-    if (!best || score > best.score) best = { score, placeId: p.id, closed: p.businessStatus === "CLOSED_PERMANENTLY" };
+    if (!(d <= maxMetres && sim >= 0.6) && !(d <= farMetres && sim >= 0.85)) continue;
+    const score = sim - d / (farMetres * 4);
+    if (!best || score > best.score) best = { score, placeId: p.id, closed: p.businessStatus === "CLOSED_PERMANENTLY", far: d > maxMetres };
   }
-  return best ? { placeId: best.placeId, closed: best.closed } : null;
+  return best ? { placeId: best.placeId, closed: best.closed, far: best.far } : null;
 }
 
 const DETAILS = "rating,userRatingCount,businessStatus,regularOpeningHours.weekdayDescriptions,internationalPhoneNumber,nationalPhoneNumber," +
