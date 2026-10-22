@@ -337,3 +337,6 @@ a.rvx-cta[aria-disabled="true"] { opacity: 0.4; }
 .rvx-gprev { margin: 0 20px; padding: 0 14px; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); }
 .rvx-gprev summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: 15px; font-weight: 600; }
 .rvx-gprev p { margin: 0 0 14px; white-space: pre-wrap; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+.rvx-trust { flex-wrap: wrap; gap: 4px 12px; padding: 6px 8px; }
+.rvx-trust > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rvx-trust > .more { color: var(--accent); font-weight: 600; }

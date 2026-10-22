@@ -16,7 +16,7 @@ export const LINK_KINDS: LinkKindDef[] = [
   { kind: "justdial", label: "Justdial", match: /justdial\.com/i, color: "#0f6fc6", letter: "Jd" },
   { kind: "phone", label: "Call", match: /^tel:/i, color: "#0e9f6e", icon: Phone },
   { kind: "email", label: "Email", match: /^mailto:/i, color: "#6b7280", icon: Mail },
-  { kind: "website", label: "Official Website", match: /^https?:\/\//i, color: "#3b5bdb", icon: Globe },
+  { kind: "website", label: "Official website", match: /^https?:\/\//i, color: "#3b5bdb", icon: Globe },
   { kind: "other", label: "Link", match: /.^/, color: "#64748b", icon: LinkGlyph },
 ];
 

@@ -356,3 +356,9 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 .switch-row input:checked::after { transform: translateX(16px); }
 .switch-row input:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
 .mg-show { padding: 10px 12px; border-radius: 14px; background: var(--fill); font-size: 15px; }
+
+/* Touch targets (UX review): every tap target reaches 44px, either by size or by an invisible
+   extension around it, so small-looking chips and text buttons stay easy to hit. */
+.link-btn { min-height: 44px; }
+.chip { position: relative; }
+.chip::after { content: ""; position: absolute; inset: -4px 0; }

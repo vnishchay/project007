@@ -355,9 +355,9 @@ export function Setup() {
       <h2>Pick a plan</h2>
       <p className="small muted">Your page is free. A plan switches on {tables} review QR{tables === 1 ? "" : "s"}.</p>
       <p className="tiny muted row" style={{ justifyContent: "center", gap: 6 }}><Icon name="rupee" size={13} />Prices and billing are in Indian rupees (INR)</p>
-      <div className="pn-seg" role="tablist" aria-label="Pay for">
+      <div className="pn-seg" role="radiogroup" aria-label="Pay for">
         {(["year", "month"] as const).map((i) => (
-          <button key={i} type="button" role="tab" aria-selected={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>{i === "year" ? "Yearly (2 months free)" : "Monthly"}</button>
+          <button key={i} type="button" role="radio" aria-checked={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>{i === "year" ? "Yearly (2 months free)" : "Monthly"}</button>
         ))}
       </div>
       {plans.length === 0 && <div className="notice row" style={{ textAlign: "left" }}><span className="grow">Loading plans…</span><button type="button" className="link-btn" onClick={() => loadPlans().then(setPlans)}><Icon name="refresh" size={15} />Retry</button></div>}

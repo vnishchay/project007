@@ -400,8 +400,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           )}
           {!refused && (
             <button type="button" className="rvx-trust" aria-expanded={showPerks} onClick={() => setShowPerks((v) => !v)}>
-              <Icon name="eyeOff" size={14} />{session ? "Anonymous unless you choose" : "No account"} · <Icon name="verified" size={14} />Verified visit
-              {!link && <> · <Icon name="pin" size={14} />Checks you're here</>}<Icon name="info" size={14} />
+              <span><Icon name="eyeOff" size={14} />{session ? "Anonymous unless you choose" : "No account"}</span>
+              <span><Icon name="verified" size={14} />Verified visit</span>
+              {!link && <span><Icon name="pin" size={14} />Checks you're here</span>}
+              <span className="more"><Icon name="info" size={14} />{showPerks ? "Less" : "More"}</span>
             </button>
           )}
           {showPerks && !refused && (

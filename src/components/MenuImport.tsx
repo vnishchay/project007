@@ -144,30 +144,33 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
           </div>
         ) : !rows ? (
           <>
-            <div className="pn-seg" role="tablist" aria-label="Import source" style={{ marginBottom: 12 }}>
+            <div className="pn-seg" role="radiogroup" aria-label="Import from" style={{ marginBottom: 12 }}>
               <button
-                role="tab"
-                aria-selected={method === "photo"}
+                type="button"
+                role="radio"
+                aria-checked={method === "photo"}
                 className={method === "photo" ? "on" : ""}
                 onClick={() => setMethod("photo")}
               >
                 <Icon name="camera" size={14} /> Photo / PDF
               </button>
               <button
-                role="tab"
-                aria-selected={method === "url"}
+                type="button"
+                role="radio"
+                aria-checked={method === "url"}
                 className={method === "url" ? "on" : ""}
                 onClick={() => setMethod("url")}
               >
-                <Icon name="globe" size={14} /> Website / Delivery URL
+                <Icon name="globe" size={14} /> Website or delivery link
               </button>
               <button
-                role="tab"
-                aria-selected={method === "text"}
+                type="button"
+                role="radio"
+                aria-checked={method === "text"}
                 className={method === "text" ? "on" : ""}
                 onClick={() => setMethod("text")}
               >
-                <Icon name="edit" size={14} /> Paste Text
+                <Icon name="edit" size={14} /> Paste text
               </button>
             </div>
 

@@ -66,9 +66,9 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
       </div>
 
       <p className="tiny muted row" style={{ gap: 6, margin: 0 }}><Icon name="rupee" size={13} />Prices and billing are in Indian rupees (INR)</p>
-      <div className="pn-seg" role="tablist" aria-label="Pay for">
+      <div className="pn-seg" role="radiogroup" aria-label="Pay for">
         {(["year", "month"] as const).map((i) => (
-          <button key={i} role="tab" aria-selected={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>
+          <button key={i} role="radio" aria-checked={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>
             {i === "year" ? "Yearly (2 months free)" : "Monthly"}
           </button>
         ))}

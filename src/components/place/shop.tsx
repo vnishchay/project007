@@ -38,7 +38,7 @@ export function DietDot({ diet }: { diet?: string[] | null }) {
   if (!isVeg && !isNonVeg && !isEgg) return null;
 
   const color = isNonVeg ? "#dc2626" : isEgg ? "#ca8a04" : "#16a34a";
-  const title = isNonVeg ? "Non-Vegetarian" : isEgg ? "Contains Egg" : "Vegetarian";
+  const title = isNonVeg ? "Non-Vegetarian" : isEgg ? "Contains egg" : "Vegetarian";
 
   return (
     <span
