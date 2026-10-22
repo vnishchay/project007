@@ -1,0 +1,35 @@
+/* The shared "Post it on Google" card and private note, used after reviewing and on /saved.
+   Uses the app tokens only, so it reads the same inside the review flow (.rvx) and on a normal page. */
+.gh { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: var(--radius-card, 20px); background: var(--card); box-shadow: var(--shadow); color: var(--ink); }
+.rvx .gh { margin: 0 20px; }
+.gh-head { display: flex; align-items: center; gap: 12px; }
+.gh-ico { width: 44px; height: 44px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--sky-soft); color: var(--sky); }
+.gh-t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gh-t h2 { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 700; letter-spacing: -0.018em; }
+.gh-t small { font-size: 13px; color: var(--muted); }
+.gh-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.gh-steps li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.35; }
+.gh-steps b { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 13px; background: var(--fill); color: var(--ink); }
+.gh-steps b.done { background: var(--good); color: #fff; }
+.gh-stars { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--bg); font-size: 14px; font-weight: 600; }
+.gh-s { font-size: 20px; letter-spacing: 2px; color: var(--star, #b26a00); }
+.gh-s i { font-style: normal; color: var(--line); }
+.gh-cta { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; width: 100%; border: 0; border-radius: 14px; background: var(--accent); color: #fff; font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; }
+.gh-cta:active { transform: scale(0.98); }
+.gh-cta:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+.gh-manual { display: flex; flex-direction: column; gap: 6px; }
+.gh-manual > span { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.gh-fine { margin: 0; display: flex; align-items: flex-start; gap: 6px; font-size: 13px; color: var(--muted); }
+.gh-fine svg { flex: none; margin-top: 2px; }
+.gh-note { display: flex; flex-direction: column; gap: 10px; }
+.gh-warn { margin: 0; display: flex; align-items: flex-start; gap: 6px; padding: 8px 10px; border-radius: 10px; background: var(--warn-soft); color: var(--ink); font-size: 13px; line-height: 1.4; }
+.gh-warn svg { flex: none; margin-top: 2px; }
+.gh-note-sent { margin: 0; display: flex; align-items: center; gap: 6px; }
+/* One quiet row of secondary actions under the Google card. */
+.gh-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rvx .gh-row { margin: 0 20px; }
+.gh-row > button, .gh-row > a { min-height: 64px; padding: 8px 4px; border: 0; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; text-decoration: none; cursor: pointer; }
+.gh-row > [aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.gh-panel { padding: 16px; border-radius: var(--radius-card, 20px); background: var(--card); box-shadow: var(--shadow); }
+.rvx .gh-panel { margin: 0 20px; }
+@media (prefers-color-scheme: dark) { .rvx .gh-stars { background: rgba(255, 255, 255, 0.06); } }

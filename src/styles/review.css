@@ -49,7 +49,7 @@
 .rvx-hint.c { text-align: center; margin: 0; }
 
 /* Three choices: how did it go? White tiles, the chosen one gets the accent ring and a filled mark. */
-.rvx-faces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rvx-faces { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .rvx-face-btn { position: relative; min-height: 88px; padding: 12px 6px; border: 0; border-radius: 18px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); font-size: 15px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: box-shadow 0.2s var(--rv-ease), background 0.2s var(--rv-ease), transform 0.2s var(--rv-ease); }
 .rvx-face-btn svg { color: var(--muted); transition: color 0.2s, transform 0.25s var(--rv-ease); }
 .rvx-face-btn:active { transform: scale(0.97); }
@@ -127,7 +127,7 @@
 .rvx-rcard p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink-2); overflow-wrap: anywhere; white-space: pre-wrap; }
 .rvx-rcard p.none { color: var(--muted); }
 .rvx-badge { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.rvx-badge.meh { background: var(--fill); color: var(--ink-2); }
+.rvx-badge.meh, .rvx-badge.ok { background: var(--fill); color: var(--ink-2); }
 .rvx-badge.good { background: var(--good-soft); color: var(--good-dark); }
 .rvx-badge.love { background: var(--accent-soft); color: var(--accent-dark); }
 .rvx-edit { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; padding: 2px 0; border: 0; background: none; color: var(--accent); font-size: 15px; font-weight: 600; cursor: pointer; }
@@ -315,3 +315,25 @@ a.rvx-cta[aria-disabled="true"] { opacity: 0.4; }
   .rvx .rvx-warn, .rvx .notice.warn { color: #ffcf8a; }
   .rvx .input, .rvx .textarea { background: var(--surface); }
 }
+
+/* QR landing: shop logo, specials inside the menu, honest scores, trust line */
+.rvx-logo { width: 32px; height: 32px; border-radius: 9px; overflow: hidden; flex: none; background: var(--fill); }
+.rvx-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rvx-sub { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; color: var(--muted); }
+.rvx-full { color: var(--danger, #a3123a); font-weight: 600; }
+.rvx-said.new { color: var(--muted); font-weight: 500; }
+.rvx-trust { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.rvx-trust-more { margin: 0 0 6px; padding: 0 8px 0 28px; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--muted); }
+
+/* Four faces: smaller type so 'It was OK' fits a phone row; the star value sits under each label. */
+.rvx-face-btn { font-size: 13px; line-height: 1.2; text-align: center; padding: 12px 4px; }
+.rvx-stars { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.rvx-face-btn.on .rvx-stars { color: var(--accent-dark); }
+.rvx-face-btn .rvx-stars svg { transform: none; }
+/* How the review will be posted, in words next to the icon. */
+.rvx-bar .rvx-who { width: auto; min-width: 40px; padding: 0 4px; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+@media (max-width: 360px) { .rvx-bar .rvx-who span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+/* The exact Google text, shown before posting. */
+.rvx-gprev { margin: 0 20px; padding: 0 14px; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); }
+.rvx-gprev summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: 15px; font-weight: 600; }
+.rvx-gprev p { margin: 0 0 14px; white-space: pre-wrap; font-size: 14px; line-height: 1.45; color: var(--ink-2); }

@@ -63,7 +63,6 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const [visit, setVisit] = useState<Visit | null>(null);
   const [scanErr, setScanErr] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [scanTry, setScanTry] = useState(0);
   const [refused, setRefused] = useState<Refusal | null>(null);
   // What diners said about each menu item, so the menu itself answers "what should I order?".
   const [said, setSaid] = useState<Record<string, Said>>({});
@@ -256,7 +255,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   async function openVisit() {
     setScanning(true); setScanErr(""); setRefused(null);
     const { data } = await supabase.auth.getSession();
-    scannedFor.current = `${data.session?.user.id}:${token}:${scanTry}`;
+    scannedFor.current = `${data.session?.user.id}:${token}:${Date.now()}`;
     const r = await unlock().then((x) => x, (e: unknown) => ({ data: null, error: e as Error }));
     if (r.error) { setScanning(false); setScanErr(friendly(r.error)); return false; }
     const no = await checkCan(peek!.place_id);
