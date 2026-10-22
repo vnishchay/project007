@@ -11,7 +11,7 @@ import { assist } from "../../lib/assist";
 interface ShopStats { reviews: number; avg_rating: number | null; reviews_30d: number; verified: number; google_handoffs: number; google_handoffs_30d: number; scans_30d: number; saves: number; items_rated: number; link_visits_30d?: number }
 interface ItemStat { item_id: string; name: string; image_path: string | null; reviews: number; avg_rating: number; low_ratings: number }
 
-export type ManageTab = "insights" | "products" | "links" | "updates" | "details" | "qr" | "plan";
+export type ManageTab = "insights" | "products" | "links" | "updates" | "visitors" | "details" | "qr" | "plan";
 
 const n = (x: number | null | undefined) => (x ?? 0).toLocaleString("en-IN");
 

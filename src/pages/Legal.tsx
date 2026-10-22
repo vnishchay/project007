@@ -88,7 +88,9 @@ export function Privacy() {
       <p>We collect as little as we can and never sell data.</p>
       <ul>
         <li>Reviews are anonymous unless you choose to show your name. Anonymous reviews show only a rough date.</li>
-        <li>Nobody, including shop owners and friends, can see where you've been or which review is yours unless you posted it with your name.</li>
+        <li>Nobody, including shop owners and friends, can see which review is yours unless you posted it with your name.</li>
+        <li>When you scan a shop's QR code, that shop sees your profile name and photo (or "Guest"), when you visited and which table. It never sees your email, phone or location, and it can't link you to a review. The shop can send you offers in the app. You can hide from a shop, or stop its offers, with one tap on its scan page or any of its offers.</li>
+        <li>Other people and other shops never see where you've been.</li>
         <li>When you scan a QR we may check if you're near the shop. We keep only "near" or "far", never your location.</li>
         <li>No ad trackers. Signing in is optional.</li>
         <li>Payments are handled by Razorpay. We never see or store card or UPI details.</li>

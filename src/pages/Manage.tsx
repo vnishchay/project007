@@ -11,6 +11,7 @@ import { QrPrintSheet, ShopQr } from "../components/manage/ShopQr";
 import { Insights, type ManageTab } from "../components/manage/Insights";
 import { LinksEditor } from "../components/manage/LinksEditor";
 import { Updates } from "../components/manage/Updates";
+import { Visitors } from "../components/manage/Visitors";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
 import { ReviewLinks } from "../components/manage/ReviewLinks";
 import { ShareKit } from "../components/manage/ShareKit";
@@ -27,6 +28,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "products", label: "Products", icon: "box" },
   { id: "links", label: "Links", icon: "link" },
   { id: "updates", label: "Updates", icon: "message" },
+  { id: "visitors", label: "Visitors", icon: "people" },
   { id: "details", label: "Details", icon: "store" },
   { id: "qr", label: "QR", icon: "qr" },
   { id: "plan", label: "Plan", icon: "crown" },
@@ -115,6 +117,7 @@ export default function Manage() {
         {tab === "products" && <Products placeId={place.id} isAdmin={isAdmin} mode={modeOf(place.kind, place.category)} links={place.links ?? []} currency={place.currency} onCount={onCount} />}
         {tab === "links" && <LinksEditor placeId={place.id} links={place.links ?? []} onSaved={(links) => merge({ links })} />}
         {tab === "updates" && <Updates placeId={place.id} live={place.status === "live"} />}
+        {tab === "visitors" && <Visitors placeId={place.id} />}
         {tab === "details" && <>
           <GoogleConnect place={place} isAdmin={isAdmin} onSaved={merge} />
           <ShopDetails place={place} isAdmin={isAdmin} onSaved={merge} pinState={pinState} />
