@@ -3,18 +3,34 @@ import { supabase, errorText } from "../../lib/supabase";
 import { placeMediaUrl, removePlaceMedia, uploadPlaceMedia } from "../../lib/media";
 import type { Item, Topic } from "../../lib/types";
 import type { Mode } from "../../lib/modes";
-import { Icon, useToast } from "../ui";
+import { Icon, useConfirm, useToast } from "../ui";
 import { DIET_OPTIONS } from "../place/shop";
 import { currencyCode, currencyIcon } from "../../lib/money";
 
 export function friendlyItemError(e: unknown): string {
   const t = errorText(e);
-  if (/duplicate key|items_place_id_name_normalized/i.test(t)) return "You already have a product with this name";
+  if (/duplicate key|items_place_id_name_normalized/i.test(t)) return "You already have one with this name";
   return t;
 }
 
 /** Add or edit one product: photo, name, price, topic and a short line. */
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+
+/** How many single-letter edits turn a into b. */
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0]!; row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j]!;
+      row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length]!;
+}
+/** A reviewed item may get a spelling fix, not a new identity: its reviews stay attached to it. */
+const smallRename = (from: string, to: string) => editDistance(norm(from), norm(to)) <= Math.max(2, Math.floor(norm(from).length * 0.25));
 
 export function ProductSheet({ placeId, item, topics, mode, currency, reviews, nextSort, defaultTopic, canRename, taken, onClose, onSaved, onDeleted }: {
   placeId: string;
@@ -33,7 +49,10 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
   onDeleted: (id: string) => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const fileIn = useRef<HTMLInputElement>(null);
+  const [shown, setShown] = useState(!item?.is_hidden);
+  const [newOffer, setNewOffer] = useState<string | null>(null);
   const [name, setName] = useState(item?.name ?? "");
   const [price, setPrice] = useState(item?.price_inr != null ? String(item.price_inr) : "");
   const [topic, setTopic] = useState<number | null>(item ? item.topic_id : defaultTopic);
@@ -48,7 +67,8 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [hideOffer, setHideOffer] = useState(false);
-  const nameLocked = Boolean(item) && reviews > 0 && !canRename;
+  // Reviewed items can only get small fixes to their name (spelling, spacing), unless an admin edits.
+  const reviewed = Boolean(item) && reviews > 0 && !canRename;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -107,7 +127,12 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
     e.preventDefault();
     const n = name.trim().replace(/\s+/g, " ");
     if (!n) { setErr("Give it a name"); return; }
-    if ((!item || norm(item.name) !== norm(n)) && taken.some((t) => norm(t) === norm(n))) { setErr("You already have a product with this name"); return; }
+    if ((!item || norm(item.name) !== norm(n)) && taken.some((t) => norm(t) === norm(n))) { setErr(`You already have a ${mode.item} with this name`); return; }
+    if (reviewed && item && norm(item.name) !== norm(n) && !smallRename(item.name, n)) {
+      setErr(`That's a different ${mode.item}, not a small fix. Its ${reviews} ${reviews === 1 ? "review is" : "reviews are"} about “${item.name}”, so add “${n}” as a new ${mode.item} instead.`);
+      setNewOffer(n);
+      return;
+    }
     const p = price.trim() ? Math.round(Number(price)) : null;
     if (p != null && (!Number.isFinite(p) || p < 0)) { setErr("Check the price"); return; }
     setBusy(true); setErr("");
@@ -120,16 +145,16 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
         return;
       }
     }
-    const row = { name: n, price_inr: p, topic_id: topic, description: desc.trim() || null, image_path, is_listed: true,
+    const row = { name: n, price_inr: p, topic_id: topic, description: desc.trim() || null, image_path, is_listed: true, ...(item ? { is_hidden: !shown } : {}),
       diet: diet.length ? diet : null,
       ...(section.trim() || item?.section ? { section: section.trim().slice(0, 40) || null } : {}), ...(item && !item.is_listed ? { sort_order: nextSort } : {}) };
     let res = item
-      ? await supabase.from("items").update(nameLocked ? { ...row, name: item.name } : row).eq("id", item.id).select("*").single()
+      ? await supabase.from("items").update(row).eq("id", item.id).select("*").single()
       : await supabase.from("items").insert({ ...row, place_id: placeId, sort_order: nextSort, is_hidden: false }).select("*").single();
     if (res.error && (res.error.code === "42703" || /column "diet"/i.test(res.error.message))) {
       const { diet: _d, ...noDiet } = row;
       res = item
-        ? await supabase.from("items").update(nameLocked ? { ...noDiet, name: item.name } : noDiet).eq("id", item.id).select("*").single()
+        ? await supabase.from("items").update(noDiet).eq("id", item.id).select("*").single()
         : await supabase.from("items").insert({ ...noDiet, place_id: placeId, sort_order: nextSort, is_hidden: false }).select("*").single();
     }
     setBusy(false);
@@ -144,18 +169,31 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
   }
 
   async function remove() {
-    if (!item || !confirm(`Delete “${item.name}”?`)) return;
+    if (!item) return;
+    const ok = await confirm({ title: `Delete “${item.name}”?`, body: "It comes off your page for good. Hide it instead if you might bring it back.", ok: "Delete", danger: true });
+    if (!ok) return;
     setBusy(true); setErr("");
     const { data, error } = await supabase.from("items").delete().eq("id", item.id).select("id");
     setBusy(false);
     if (error || !data?.length) {
-      setErr(error ? `${friendlyItemError(error)}. You can hide it instead.` : "This product has reviews, so it stays. Hide it instead.");
+      setErr(error ? `${friendlyItemError(error)}. You can hide it instead.` : `This ${mode.item} has reviews, so it stays. Hide it instead.`);
       setHideOffer(true);
       return;
     }
     removePlaceMedia(item.image_path).catch(() => {});
     toast("Deleted");
     onDeleted(item.id);
+  }
+
+  /** Adds the new name as its own item, leaving the reviewed one as it is. */
+  async function addAsNew() {
+    if (!newOffer) return;
+    setBusy(true); setErr("");
+    const { data, error } = await supabase.from("items").insert({ name: newOffer, price_inr: price.trim() ? Math.round(Number(price)) : null, topic_id: topic, description: desc.trim() || null, is_listed: true, place_id: placeId, sort_order: nextSort, is_hidden: false }).select("*").single();
+    setBusy(false);
+    if (error) { setErr(friendlyItemError(error)); return; }
+    toast(`Added ${newOffer}`);
+    onSaved(data as Item, true);
   }
 
   async function hide() {
@@ -228,8 +266,8 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
 
         <div className="field">
           <label className="mg-label" htmlFor="pn"><Icon name="tag" size={15} />Name</label>
-          <input id="pn" className="input" required maxLength={80} value={name} disabled={nameLocked} onChange={(e) => setName(e.target.value)} placeholder={mode.itemExample} />
-          {nameLocked && <span className="mg-locked"><Icon name="lock" size={13} />Has reviews, so the name stays</span>}
+          <input id="pn" className="input" required maxLength={80} value={name} onChange={(e) => { setName(e.target.value); setNewOffer(null); }} placeholder={mode.itemExample} />
+          {reviewed && <span className="mg-locked"><Icon name="info" size={13} />Has reviews: fix the spelling if you like. A different {mode.item} needs its own entry.</span>}
         </div>
 
         <div className="field">
@@ -289,12 +327,19 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
           <input id="pd" className="input" maxLength={140} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="One line customers should know" />
         </div>
 
+        {item && (
+          <label className="switch-row mg-show">
+            <input type="checkbox" role="switch" checked={shown} onChange={(e) => setShown(e.target.checked)} />
+            <span className="grow"><b>Show to customers</b><br /><span className="tiny muted">{shown ? "On your page and in the review list" : "Hidden from your page; its reviews stay"}</span></span>
+          </label>
+        )}
         {err && <div className="notice err small" role="alert">{err}</div>}
+        {newOffer && <button type="button" className="btn ghost block" disabled={busy} onClick={addAsNew}><Icon name="plus" size={18} />Add “{newOffer}” as a new {mode.item}</button>}
         {hideOffer && <button type="button" className="btn ghost block" onClick={hide}><Icon name="eyeOff" size={18} />Hide instead</button>}
 
         <div className="row">
           {item && reviews === 0 && (
-            <button type="button" className="btn danger" aria-label="Delete product" disabled={busy} onClick={remove} style={{ width: 52, padding: 0 }}><Icon name="trash" size={19} /></button>
+            <button type="button" className="btn danger" aria-label={`Delete ${mode.item}`} disabled={busy} onClick={remove} style={{ width: 52, padding: 0 }}><Icon name="trash" size={19} /></button>
           )}
           <button className="btn green grow" disabled={busy}>{busy ? "Saving…" : <><Icon name="check" size={19} />{item ? "Save" : `Add ${mode.item}`}</>}</button>
         </div>

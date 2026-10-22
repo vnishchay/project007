@@ -206,12 +206,3 @@ a.news-card:hover { color: inherit; }
 .face-pick button.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent-dark); }
 .face-pick button.on svg { color: var(--accent); }
 
-/* Shops that can see you: two labelled switches per shop. */
-.seen-row { align-items: center; cursor: default; }
-.seen-switches { flex: none; gap: 2px; }
-.switch-row { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 13px; font-weight: 500; color: var(--ink-2); cursor: pointer; }
-.switch-row input { appearance: none; -webkit-appearance: none; position: relative; width: 40px; height: 24px; margin: 0; border-radius: 999px; background: var(--line); cursor: pointer; transition: background 0.2s; flex: none; }
-.switch-row input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.2s var(--ease); }
-.switch-row input:checked { background: var(--good); }
-.switch-row input:checked::after { transform: translateX(16px); }
-.switch-row input:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }

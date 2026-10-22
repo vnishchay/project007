@@ -31,6 +31,7 @@ export function Products({ placeId, isAdmin, mode, links = [], currency, onCount
   const [n, setN] = useState(0);
   const [importing, setImporting] = useState<null | "photo" | "text">(null);
   const [picBusy, setPicBusy] = useState(false);
+  const [drag, setDrag] = useState<{ id: string; from: number; over: number } | null>(null);
   const onlineMenu = links.some((l) => ["zomato", "swiggy"].includes(l.kind || guessLinkKind(l.url)));
 
   useEffect(() => {
@@ -74,11 +75,12 @@ export function Products({ placeId, isAdmin, mode, links = [], currency, onCount
     return true;
   }
 
-  async function move(idx: number, dir: -1 | 1) {
+  /** Move one item from position idx to position to, saving only the rows whose order changed. */
+  async function move(idx: number, to: number) {
     const order = [...listed];
-    const j = idx + dir;
-    if (j < 0 || j >= order.length) return;
-    [order[idx], order[j]] = [order[j]!, order[idx]!];
+    if (to < 0 || to >= order.length || to === idx) return;
+    const [it] = order.splice(idx, 1);
+    order.splice(to, 0, it!);
     const changed = order.map((it, k) => ({ it, sort_order: k + 1 })).filter((x) => x.it.sort_order !== x.sort_order);
     setItems((xs) => (xs || []).map((x) => { const c = changed.find((y) => y.it.id === x.id); return c ? { ...x, sort_order: c.sort_order } : x; }));
     const res = await Promise.all(changed.map((c) => supabase.from("items").update({ sort_order: c.sort_order }).eq("id", c.it.id)));
@@ -161,17 +163,23 @@ export function Products({ placeId, isAdmin, mode, links = [], currency, onCount
             </button>
           </div>
           <div className="mg-list">
+            {/* Tap a row to edit (show/hide is in there too); drag the handle, or focus it and use the arrow keys, to reorder. */}
             {listed.map((it, idx) => (
-              <ProductRow key={it.id} it={it} currency={currency} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)}>
-                <button className={`mg-act ${it.is_hidden ? "" : "on"}`} aria-label={it.is_hidden ? `Show ${it.name}` : `Hide ${it.name}`} aria-pressed={!it.is_hidden}
-                  onClick={() => update(it, { is_hidden: !it.is_hidden }, it.is_hidden ? "Visible to customers" : "Hidden from customers")}>
-                  <Icon name={it.is_hidden ? "eyeOff" : "eye"} size={17} />
+              <ProductRow key={it.id} it={it} currency={currency} stat={stats[it.id]} topic={topicName(it.topic_id)} onEdit={() => setEditing(it)} rowIdx={idx} dragging={drag?.id === it.id} over={drag != null && drag.over === idx && drag.id !== it.id}>
+                <button type="button" className="mg-grip" aria-label={`Reorder ${it.name}, position ${idx + 1} of ${listed.length}. Use arrow keys`} data-idx={idx}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); void move(idx, idx + (e.key === "ArrowUp" ? -1 : 1)); const el = e.currentTarget; requestAnimationFrame(() => el.closest(".mg-list")?.querySelector<HTMLElement>(`[data-idx="${idx + (e.key === "ArrowUp" ? -1 : 1)}"]`)?.focus()); }
+                  }}
+                  onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDrag({ id: it.id, from: idx, over: idx }); }}
+                  onPointerMove={(e) => {
+                    if (!drag) return;
+                    const row = document.elementsFromPoint(e.clientX, e.clientY).find((el) => (el as HTMLElement).dataset?.row != null) as HTMLElement | undefined;
+                    if (row) setDrag((d) => (d ? { ...d, over: Number(row.dataset.row) } : d));
+                  }}
+                  onPointerUp={() => { if (drag) { const d = drag; setDrag(null); void move(d.from, d.over); } }}
+                  onPointerCancel={() => setDrag(null)}>
+                  <Icon name="grip" size={18} />
                 </button>
-                <button className="mg-act" aria-label={`Edit ${it.name}`} onClick={() => setEditing(it)}><Icon name="edit" size={16} /></button>
-                <span className="mg-updown">
-                  <button className="mg-act" aria-label={`Move ${it.name} up`} disabled={idx === 0} onClick={() => move(idx, -1)}><Icon name="up" size={14} /></button>
-                  <button className="mg-act" aria-label={`Move ${it.name} down`} disabled={idx === listed.length - 1} onClick={() => move(idx, 1)}><Icon name="arrowDown" size={14} /></button>
-                </span>
               </ProductRow>
             ))}
           </div>
@@ -217,9 +225,9 @@ export function Products({ placeId, isAdmin, mode, links = [], currency, onCount
   );
 }
 
-function ProductRow({ it, currency, stat, topic, onEdit, children }: { it: Item; currency?: string | null; stat?: Stat; topic?: string; onEdit: () => void; children: React.ReactNode }) {
+function ProductRow({ it, currency, stat, topic, onEdit, children, rowIdx, dragging, over }: { it: Item; currency?: string | null; stat?: Stat; topic?: string; onEdit: () => void; children: React.ReactNode; rowIdx?: number; dragging?: boolean; over?: boolean }) {
   return (
-    <div className={`mg-product ${it.is_hidden ? "off" : ""}`}>
+    <div className={`mg-product ${it.is_hidden ? "off" : ""} ${dragging ? "dragging" : ""} ${over ? "drop" : ""}`} data-row={rowIdx}>
       <span className="thumb mg-thumb-empty"><MediaImg path={it.image_path} fallback={<Icon name="image" size={22} />} /></span>
       <button className="info" onClick={onEdit} aria-label={`Edit ${it.name}`}>
         <span className="name">{it.name}</span>

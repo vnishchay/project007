@@ -36,7 +36,7 @@ export function NfcSheet({ code, onClose }: { code: QrCode; onClose: () => void 
     setBusy(true); setErr("");
     const { data, error } = await supabase.rpc("nfc_tag_setup", { p_qr: code.id, p_new_key: newKey });
     setBusy(false);
-    if (error) { setErr(error.code === "PGRST202" ? "NFC tags need this week's database update first." : errorText(error)); return; }
+    if (error) { setErr(error.code === "PGRST202" ? "NFC tags aren't available yet." : errorText(error)); return; }
     setS(((data as Setup[]) || [])[0] ?? null);
     setConfirmNew(false);
   }

@@ -344,3 +344,36 @@
 .biz-footer-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; padding: 8px 0 16px; }
 .biz-footer-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 14px; color: var(--muted); text-decoration: none; }
 .biz-footer-nav a:hover { color: var(--ink); text-decoration: underline; }
+.mg-qr-name { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-height: 36px; border: 0; background: none; color: inherit; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.mg-qr-name svg { opacity: 0.6; flex: none; }
+/* Setup checklist on the Home group. */
+.mg-setup { display: flex; flex-direction: column; }
+.mg-setup-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 0; border: 0; border-top: 0.5px solid var(--line-soft); background: none; color: var(--ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.mg-setup-row:first-child { border-top: 0; }
+.mg-setup-row .tick { width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--muted); }
+.mg-setup-row.done { color: var(--muted); cursor: default; text-decoration: line-through; }
+.mg-setup-row.done .tick { background: var(--good); color: #fff; }
+/* Sticky action at the bottom of a list (Visitors). */
+.mg-sticky { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 5; padding-top: 8px; }
+.mg-sticky .btn { box-shadow: var(--shadow-lg); }
+/* Who gets the message. */
+.mg-aud { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; min-width: 0; }
+.mg-aud label { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 14px; background: var(--fill); cursor: pointer; }
+.mg-aud label.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.mg-aud input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.mg-aud label:focus-within { outline: 3px solid var(--sky); outline-offset: 2px; }
+.mg-aud span { display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
+.mg-aud small { font-size: 13px; color: var(--muted); }
+/* Manage: four groups, then the pages inside the open group. */
+.mg-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.mg-groups button { position: relative; min-height: 60px; padding: 6px 2px; border: 0; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; }
+.mg-groups button.on { background: var(--accent-soft); color: var(--accent-dark); box-shadow: inset 0 0 0 2px var(--accent); }
+.mg-groups .count { position: absolute; top: 6px; right: 10px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 12px; line-height: 18px; }
+.mg-sub { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.mg-sub::-webkit-scrollbar { display: none; }
+/* Drag handle for reordering the catalog. touch-action: none so the drag doesn't scroll the page. */
+.mg-grip { width: 44px; height: 44px; flex: none; border: 0; border-radius: 12px; background: none; color: var(--muted); display: grid; place-items: center; cursor: grab; touch-action: none; }
+.mg-grip:active { cursor: grabbing; background: var(--fill); }
+.mg-grip:focus-visible { outline: 3px solid var(--sky); outline-offset: 1px; }
+.mg-product.dragging { opacity: 0.6; }
+.mg-product.drop { box-shadow: inset 0 3px 0 var(--accent); }

@@ -3,17 +3,17 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type Place, type QrCode } from "../lib/types";
-import { Icon, Spinner, TopBar, useToast } from "../components/ui";
+import { Icon, Spinner, TopBar, useTabKeys, useToast } from "../components/ui";
 import { ShopHeader } from "../components/manage/ShopHeader";
 import { Products } from "../components/manage/Products";
 import { ShopDetails } from "../components/manage/ShopDetails";
 import { QrPrintSheet, ShopQr } from "../components/manage/ShopQr";
 import { Insights, type ManageTab } from "../components/manage/Insights";
 import { LinksEditor } from "../components/manage/LinksEditor";
-import { Updates } from "../components/manage/Updates";
+import { Messages, type Audience } from "../components/manage/Messages";
 import { Visitors } from "../components/manage/Visitors";
+import { ReviewsTab } from "../components/manage/ReviewsTab";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
-import { ReviewLinks } from "../components/manage/ReviewLinks";
 import { ShareKit } from "../components/manage/ShareKit";
 import { Plan } from "../components/manage/Plan";
 import type { IconName } from "../components/ui";
@@ -23,22 +23,27 @@ import "../styles/manage.css";
 
 const COLS = "id, google_place_id, name, kind, category, area, city, about, hours, price_level, status, listed_until, created_at, cover_path, logo_path, currency";
 type Tab = ManageTab;
-const TABS: { id: Tab; label: string; icon: IconName }[] = [
-  { id: "insights", label: "Insights", icon: "chart" },
-  { id: "products", label: "Products", icon: "box" },
-  { id: "links", label: "Links", icon: "link" },
-  { id: "updates", label: "Updates", icon: "message" },
-  { id: "visitors", label: "Visitors", icon: "people" },
-  { id: "details", label: "Details", icon: "store" },
-  { id: "qr", label: "QR", icon: "qr" },
-  { id: "plan", label: "Plan", icon: "crown" },
+type Group = "home" | "reviews" | "customers" | "shop";
+/** Four groups instead of eight tabs. ?tab= keeps the page ids (plan, qr…) so old links still land in the right place. */
+const GROUPS: { id: Group; label: string; icon: IconName; tabs: { id: Tab; label: string }[] }[] = [
+  { id: "home", label: "Home", icon: "chart", tabs: [{ id: "insights", label: "Overview" }, { id: "plan", label: "Plan" }] },
+  { id: "reviews", label: "Reviews", icon: "star", tabs: [{ id: "reviews", label: "Reviews" }] },
+  { id: "customers", label: "Customers", icon: "people", tabs: [{ id: "visitors", label: "Visitors" }, { id: "updates", label: "Messages" }] },
+  { id: "shop", label: "Shop page", icon: "store", tabs: [{ id: "products", label: "Catalog" }, { id: "details", label: "Details" }, { id: "links", label: "Links" }, { id: "qr", label: "QR codes" }] },
 ];
+const TABS = GROUPS.flatMap((g) => g.tabs);
+const groupOf = (t: Tab) => GROUPS.find((g) => g.tabs.some((x) => x.id === t))!;
 
 export default function Manage() {
   const { placeId = "" } = useParams();
   const { isAdmin } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = (TABS.find((t) => t.id === params.get("tab"))?.id ?? "insights") as Tab;
+  const group = groupOf(tab);
+  // Visitors picked for an offer, kept while moving between Visitors and Messages.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [audience, setAudience] = useState<Audience>("update");
+  const [sentN, setSentN] = useState(0);
   const [allowed, setAllowed] = useState<boolean | undefined>(undefined);
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
   const [err, setErr] = useState("");
@@ -74,7 +79,9 @@ export default function Manage() {
   }, [placeId, isAdmin, attempt]);
 
   const onCount = useCallback((n: number) => setCount(n), []);
-  const setTab = useCallback((t: Tab) => { setParams(t === "insights" ? {} : { tab: t }, { replace: true }); }, [setParams]);
+  const setTab = useCallback((t: Tab) => { setParams(t === "insights" ? {} : { tab: t }, { replace: true }); window.scrollTo({ top: 0 }); }, [setParams]);
+  const groupKeys = useTabKeys(GROUPS.map((g) => g.id), group.id, (g) => setTab(GROUPS.find((x) => x.id === g)!.tabs[0]!.id));
+  const subKeys = useTabKeys(group.tabs.map((t) => t.id), tab, setTab);
 
   if (err) return (
     <div className="page"><TopBar title="Your shop" />
@@ -90,6 +97,7 @@ export default function Manage() {
   );
 
   const merge = (p: Partial<Place>) => setPlace((x) => (x ? { ...x, ...p } : x));
+  const catalog = modeOf(place.kind, place.category).catalog;
 
   return (
     <div className="page narrow-gap">
@@ -105,29 +113,41 @@ export default function Manage() {
             <Icon name="chev" size={18} />
           </button>
         )}
-        <div className="mg-tabs" role="tablist" aria-label="Manage">
-          {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} ref={tab === t.id ? (el) => el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }) : undefined} onClick={() => setTab(t.id)}>
-              <span className="ico"><Icon name={t.icon} size={19} />{t.id === "products" && count != null && count > 0 && <span className="count">{count}</span>}</span>
-              {t.label}
+        <div className="mg-groups" role="tablist" aria-label="Manage" onKeyDown={groupKeys}>
+          {GROUPS.map((g) => (
+            <button key={g.id} type="button" role="tab" tabIndex={group.id === g.id ? 0 : -1} aria-selected={group.id === g.id} className={group.id === g.id ? "on" : ""} onClick={() => setTab(g.tabs[0]!.id)}>
+              <Icon name={g.icon} size={20} />{g.label}
             </button>
           ))}
         </div>
-        {tab === "insights" && <Insights place={place} onGo={setTab} />}
+        {group.tabs.length > 1 && (
+          <div className="mg-sub" role="tablist" aria-label={group.label} onKeyDown={subKeys}>
+            {group.tabs.map((t) => (
+              <button key={t.id} type="button" role="tab" tabIndex={tab === t.id ? 0 : -1} aria-selected={tab === t.id} className={`chip ${tab === t.id ? "on" : ""}`} onClick={() => setTab(t.id)}>
+                {t.id === "products" ? catalog : t.label}
+                {t.id === "products" && count != null && count > 0 && <span className="muted"> {count}</span>}
+                {t.id === "updates" && picked.size > 0 && <span className="badge" style={{ marginLeft: 4 }}>{picked.size}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        {tab === "insights" && <Insights place={place} onGo={setTab} hasPin={pinState.pin ? pinState.pin.has_pin : null} />}
+        {tab === "plan" && <Plan placeId={place.id} placeName={place.name} />}
+        {tab === "reviews" && <ReviewsTab placeId={place.id} placeName={place.name} live={place.status === "live"} onGo={setTab} />}
+        {tab === "visitors" && <Visitors placeId={place.id} picked={picked} setPicked={setPicked} reload={sentN} onWrite={() => { setAudience("offer"); setTab("updates"); }} />}
+        {tab === "updates" && <Messages placeId={place.id} placeName={place.name} logoPath={place.logo_path ?? null} live={place.status === "live"}
+          audience={audience} onAudience={setAudience} picked={[...picked]} onPick={() => { setAudience("offer"); setTab("visitors"); }}
+          onSent={() => { if (audience === "offer") setPicked(new Set()); setSentN((x) => x + 1); }} />}
         {tab === "products" && <Products placeId={place.id} isAdmin={isAdmin} mode={modeOf(place.kind, place.category)} links={place.links ?? []} currency={place.currency} onCount={onCount} />}
-        {tab === "links" && <LinksEditor placeId={place.id} links={place.links ?? []} onSaved={(links) => merge({ links })} />}
-        {tab === "updates" && <Updates placeId={place.id} live={place.status === "live"} />}
-        {tab === "visitors" && <Visitors placeId={place.id} />}
         {tab === "details" && <>
           <GoogleConnect place={place} isAdmin={isAdmin} onSaved={merge} />
           <ShopDetails place={place} isAdmin={isAdmin} onSaved={merge} pinState={pinState} />
         </>}
+        {tab === "links" && <LinksEditor placeId={place.id} links={place.links ?? []} onSaved={(links) => merge({ links })} />}
         {tab === "qr" && <>
           <ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} />
-          <ReviewLinks placeId={place.id} placeName={place.name} live={place.status === "live"} />
           <ShareKit placeId={place.id} placeName={place.name} live={place.status === "live"} />
         </>}
-        {tab === "plan" && <Plan placeId={place.id} placeName={place.name} />}
       </div>
       {tab === "qr" && <QrPrintSheet place={place} codes={codes} />}
     </div>

@@ -25,7 +25,7 @@ export function ReviewLinks({ placeId, placeName, live }: { placeId: string; pla
     setBusy(true); setErr("");
     const { data, error } = await supabase.rpc("create_review_link", { p_place: placeId });
     setBusy(false);
-    if (error) { setErr(/could not find the function/i.test(error.message) ? "Review links need the latest database update." : errorText(error)); return; }
+    if (error) { setErr(/could not find the function/i.test(error.message) ? "Review links aren't available yet." : errorText(error)); return; }
     const row = ((data as { token: string; expires_at: string }[]) || [])[0];
     if (!row) return;
     setLink({ url: `${window.location.origin}/r/${row.token}`, expires: row.expires_at });
