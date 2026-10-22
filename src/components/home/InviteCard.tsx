@@ -2,6 +2,7 @@ import { useState } from "react";
 import { shareOrCopy, useInviteLink } from "../../lib/invite";
 import { copyText } from "../../lib/util";
 import { Icon, QrImage, useToast } from "../ui";
+import { WalletButton } from "../WalletButton";
 
 /** Your invite link: share it, copy it, or show it as a QR. Whoever joins through it becomes your friend. */
 export function InviteCard() {
@@ -37,6 +38,7 @@ export function InviteCard() {
         <div className="qr-pop">
           <QrImage text={qrLink} size={196} />
           <span className="small strong row" style={{ gap: 6 }}><Icon name="scan" size={16} color="var(--green)" />Scan to become friends</span>
+          <WalletButton pass={{ kind: "invite" }} />
         </div>
       )}
     </div>

@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { supabase, errorText } from "../lib/supabase";
 import { shrinkImage } from "../lib/media";
-import { renderPdfPages } from "../lib/pdfMenu";
+import { pdfText, renderPdfPages } from "../lib/pdfMenu";
+import { checkReadable } from "../lib/readable";
 import { callAi } from "../lib/assist";
 import type { PlaceLink } from "./place/ShopLinks";
 import type { Mode } from "../lib/modes";
@@ -34,8 +35,10 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState<string | false>(false);
   const [err, setErr] = useState("");
+  // Photos that looked hard to read on the phone's own check (by file), until the owner removes them or sends anyway.
+  const [unclear, setUnclear] = useState<File[]>([]);
 
-  async function read() {
+  async function read(anyway = false) {
     setErr("");
     setBusy("Reading your list with AI…");
     try {
@@ -43,9 +46,23 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
 
       if (method === "photo") {
         if (!files.length) throw new Error("Add at least one photo or PDF of your menu or price list.");
+        const isPdf = (f: File) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+        if (!anyway) {
+          setBusy("Checking your photos…");
+          const bad: File[] = [];
+          for (const f of files.filter((x) => !isPdf(x))) if (!(await checkReadable(await shrinkImage(f, 1600, 0.8))).ok) bad.push(f);
+          setUnclear(bad);
+          if (bad.length) return;
+        }
+        setUnclear([]);
         const imagePayloads: { data: string; media_type: string }[] = [];
+        const texts: string[] = [];
         for (const file of files) {
-          if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+          if (isPdf(file)) {
+            setBusy("Reading the PDF…");
+            // A PDF with real text goes as text: cheaper than pictures and the prices come out exact.
+            const t = await pdfText(file).catch(() => "");
+            if (t) { texts.push(t); continue; }
             setBusy("Rendering PDF pages…");
             const pageBlobs = await renderPdfPages(file, 4);
             for (const b of pageBlobs) {
@@ -58,8 +75,9 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
             imagePayloads.push({ data, media_type: "image/jpeg" });
           }
         }
-        if (!imagePayloads.length) throw new Error("Could not process the selected files.");
-        payload.images = imagePayloads.slice(0, 4);
+        if (!imagePayloads.length && !texts.length) throw new Error("Could not process the selected files.");
+        if (imagePayloads.length) payload.images = imagePayloads.slice(0, 4);
+        if (texts.length) payload.text = texts.join("\n\n").slice(0, 24000);
         setBusy("Analyzing your list with AI…");
       } else if (method === "url") {
         if (!urlInput.trim()) throw new Error("Enter your website or delivery URL.");
@@ -170,7 +188,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
                   {files.map((f, i) => {
                     const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
                     return (
-                      <span key={i} className="thumb mi-thumb">
+                      <span key={i} className={`thumb mi-thumb ${unclear.includes(f) ? "mi-unclear" : ""}`}>
                         {isPdf ? (
                           <span style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", background: "var(--bg-sub, #f3f4f6)", borderRadius: 8, padding: 4 }}>
                             <Icon name="fileText" size={24} />
@@ -179,7 +197,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
                         ) : (
                           <img src={URL.createObjectURL(f)} alt={`Page ${i + 1}`} />
                         )}
-                        <button className="mi-x" aria-label="Remove" onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}><Icon name="close" size={14} /></button>
+                        <button className="mi-x" aria-label="Remove" onClick={() => { setFiles((fs) => fs.filter((_, j) => j !== i)); setUnclear((u) => u.filter((x) => x !== f)); }}><Icon name="close" size={14} /></button>
                       </span>
                     );
                   })}
@@ -189,6 +207,13 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
                     </button>
                   )}
                 </div>
+                {unclear.length > 0 && (
+                  <div className="notice warn stack" style={{ gap: 8 }} role="alert">
+                    <span className="row" style={{ gap: 8 }}><Icon name="alert" size={18} /><b className="grow">{unclear.length === 1 ? "One photo looks hard to read" : `${unclear.length} photos look hard to read`}</b></span>
+                    <span className="small">It may be blurry, dark or taken from too far. A sharper photo, close up and in good light, gives a much better list. Remove it and add a new one, or send it as it is.</span>
+                    <button type="button" className="btn small ghost" onClick={() => read(true)}>Send anyway</button>
+                  </div>
+                )}
               </>
             )}
 
@@ -228,7 +253,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
             <button
               className="btn green block"
               disabled={(method === "photo" && !files.length) || (method === "url" && !urlInput.trim()) || (method === "text" && !rawText.trim())}
-              onClick={read}
+              onClick={() => read()}
               style={{ marginTop: 8 }}
             >
               <Icon name="spark" size={18} />

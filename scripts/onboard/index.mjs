@@ -22,7 +22,7 @@ import { loadEnv, root, slugify } from "./lib/common.mjs";
 import { amenitiesFromTags, categoryFor, composeAbout, storyFromTags, cleanUrl, linkKind, currencyFor, mergeLinks, osmHoursToApp, socialUrl, telLink } from "./lib/normalize.mjs";
 import { discoverOsm, geocodeCity, osmArea, osmRichness, reverseArea } from "./sources/osm.mjs";
 import { googleDetails, googlePhoto, matchGooglePlace } from "./sources/google.mjs";
-import { fetchMenuFile, pdfText, readMenu } from "./sources/menus.mjs";
+import { embedItems, fetchMenuFile, pdfText, readMenu } from "./sources/menus.mjs";
 import { readMarketplaceMenu } from "./sources/marketplaces.mjs";
 import { readWebsite } from "./sources/website.mjs";
 import { commonsFileFor, commonsImage } from "./sources/commons.mjs";
@@ -297,6 +297,13 @@ async function main() {
       if (m.blocked.length) row.menuBlocked = m.blocked;
       if (row.items) console.log(`  ✓ ${b.name}: ${row.items} items from ${m.from}`);
     });
+  }
+
+  // "Similar dishes" vectors for every place that now has products.
+  const withItems = o.dryRun ? [] : results.filter((r) => r.placeId && r.items > 0);
+  if (withItems.length && ctx.env.ONBOARD_TOKEN) {
+    console.log(`\n🔗 Linking similar dishes at ${withItems.length} places...`);
+    await pool(withItems, 3, async (row) => { row.embedded = await embedItems(ctx.env, row.placeId).catch(() => 0); });
   }
 
   const dir = join(root, "scripts", "onboard", "out");

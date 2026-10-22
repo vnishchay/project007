@@ -1,6 +1,6 @@
 import { clearFocusShop, setFocusShop } from "../lib/focus";
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { deviceId } from "../lib/device";
 import { supabase, errorText } from "../lib/supabase";
 import { lastGuestError, useAuth } from "../lib/auth";
@@ -52,6 +52,9 @@ function friendly(e: unknown): string {
 /** Landing for a table QR (/q/:token) or a shop's one-time review link (/r/:token). Both unlock a visit. */
 export default function QrLanding({ link = false }: { link?: boolean }) {
   const { token = "" } = useParams();
+  // An NFC table tag opens this same page with a one-time signed tap (picc + cmac) instead of a plain scan.
+  const [search] = useSearchParams();
+  const tap = !link && search.get("picc") && search.get("cmac") ? { picc: search.get("picc")!, cmac: search.get("cmac")! } : null;
   const { session, loading, startGuest } = useAuth();
   const navTo = useNavigate();
   const [starting, setStarting] = useState(false);
@@ -87,6 +90,15 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     if (link) {
       const r = await supabase.rpc(unlockFn, { p_token: token, p_device: deviceId() });
       return r.error?.code === "PGRST202" ? supabase.rpc(unlockFn, { p_token: token }) : r;
+    }
+    if (tap) {
+      // A genuine tap proves the phone is at the table, so no location is asked for.
+      const t = await supabase.rpc("tap_nfc", { p_token: token, p_picc: tap.picc, p_cmac: tap.cmac });
+      if (t.error?.code !== "PGRST202") {
+        // Drop the one-time values from the address, so sharing it shares the plain page.
+        if (!t.error) navTo(`/q/${token}`, { replace: true });
+        return t;
+      }
     }
     const at = await getLocation();
     const r = await supabase.rpc(unlockFn, { p_token: token, p_lat: at?.lat ?? null, p_lng: at?.lng ?? null });

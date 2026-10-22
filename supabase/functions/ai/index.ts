@@ -11,10 +11,15 @@
 //   about     shop owner: the shop's About text
 //   insights  shop owner: what customers love and what to fix
 //   summary   anyone: "What people say" for a shop, stored for a day in place_ai_summaries
+//   embed     anyone (and the onboarding script): meaning vectors for a shop's products that have none yet, made by
+//             Supabase's built-in gte-small model (no AI company involved, no allowance used), for "Similar dishes"
 //
 // Every signed-in call counts against a daily allowance (ai_take), so nobody can burn tokens, and against
 // an overall daily ceiling for everyone (app setting ai_daily_ceiling). A call whose AI request fails is given back.
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+
+// Supabase's Edge Runtime ships small AI models (gte-small) that run inside the function itself.
+declare const Supabase: { ai: { Session: new (model: string) => { run: (input: string, o: { mean_pool: boolean; normalize: boolean }) => Promise<unknown> } } };
 
 const AI_URL = (Deno.env.get("DEEPSEEK_BASE_URL") || "https://api.deepseek.com").replace(/\/$/, "");
 const MODEL = Deno.env.get("DEEPSEEK_MODEL") || "deepseek-flash";
@@ -398,6 +403,30 @@ Each point under 90 characters, plain English, grounded in the reviews. If nothi
     return { summary: clean(j.summary, 300), loved: strList(j.loved, 3, 120), fix: strList(j.fix, 3, 120), count: reviews.length };
   },
 
+  // Fills in missing vectors only, at most 60 per call, so asking again costs nothing once a shop is done.
+  async embed(c, b) {
+    const placeId = clean(b.placeId, 40);
+    if (!UUID.test(placeId)) throw new Fail(400, "Missing shop");
+    const { data: items } = await c.admin.from("items").select("id, name, section").eq("place_id", placeId).eq("is_hidden", false).limit(400);
+    const list = (items as { id: string; name: string; section: string | null }[] | null) || [];
+    if (!list.length) return { made: 0, left: 0 };
+    const { data: have } = await c.admin.from("item_embeddings").select("item_id, name").in("item_id", list.map((i) => i.id));
+    const done = new Map(((have as { item_id: string; name: string }[] | null) || []).map((h) => [h.item_id, h.name]));
+    const text = (i: { name: string; section: string | null }) => clean(i.section ? `${i.name} (${i.section})` : i.name, 120);
+    const todo = list.filter((i) => i.name.trim().toLowerCase() !== "overall visit" && done.get(i.id) !== text(i));
+    const batch = todo.slice(0, 60);
+    if (!batch.length) return { made: 0, left: 0 };
+    const model = new Supabase.ai.Session("gte-small");
+    const rows = [];
+    for (const i of batch) {
+      const v = await model.run(text(i), { mean_pool: true, normalize: true }) as number[];
+      rows.push({ item_id: i.id, name: text(i), embedding: JSON.stringify(v), created_at: new Date().toISOString() });
+    }
+    const { error } = await c.admin.from("item_embeddings").upsert(rows, { onConflict: "item_id" });
+    if (error) { console.error("embed", error.message); throw new Fail(503, "Similar dishes aren't set up yet"); }
+    return { made: rows.length, left: todo.length - rows.length };
+  },
+
   // Anyone may ask, but the AI runs at most once a day per shop: the result is stored
   // (place_ai_summaries, readable by everyone) and handed back until it's a day old.
   async summary(c, b) {
@@ -443,7 +472,7 @@ Deno.serve(async (req) => {
     const run = TASKS[String(b.task)];
     if (!run) return json(400, { error: "Unknown task" });
     const c = await context(req);
-    if (c.onboarding && b.task !== "menu") c.onboarding = false; // the onboarding token only reads menus
+    if (c.onboarding && b.task !== "menu" && b.task !== "embed") c.onboarding = false; // the onboarding token only reads menus and fills vectors
     return json(200, await run(c, b));
   } catch (e) {
     if (e instanceof Fail) return json(e.status, { error: e.message });

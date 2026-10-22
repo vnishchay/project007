@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import { supabase, errorText } from "../../lib/supabase";
 import type { Place, QrCode } from "../../lib/types";
 import { qrUrl, QR_STYLES } from "../../lib/util";
-import { Icon, QrImage, qrPngDataUrl, useToast } from "../ui";
+import { BrandQr, brandQrPngDataUrl, Icon, useToast } from "../ui";
+import { NfcSheet } from "./NfcSheet";
+import { WalletButton } from "../WalletButton";
 
 export async function downloadQr(placeName: string, c: QrCode) {
   const col = QR_STYLES[c.style];
-  const url = await qrPngDataUrl(qrUrl(c.token), col.dark, col.light);
+  const url = await brandQrPngDataUrl(qrUrl(c.token), col.dark, col.light);
   const a = document.createElement("a");
   a.href = url;
   a.download = `${placeName}-${c.table_label || "qr"}.png`.replace(/[^\w.-]+/g, "_");
@@ -24,7 +26,7 @@ export function QrPrintSheet({ place, codes, topItem }: { place: Pick<Place, "na
           <div key={c.id} className={`qr-card ${c.style === "paper" ? "" : "neon"}`} style={{ maxWidth: 380, margin: "0 auto" }}>
             <span className="small strong" style={{ opacity: 0.7 }}>{[c.table_label, place.area].filter(Boolean).join(" · ")}</span>
             <span style={{ fontWeight: 800, fontSize: 28, letterSpacing: "-0.02em" }}>{place.name}</span>
-            <QrImage text={qrUrl(c.token)} size={200} dark={col.dark} light={col.light} />
+            <BrandQr text={qrUrl(c.token)} size={200} dark={col.dark} light={col.light} />
             <span className="strong">Scan to see what people love here</span>
             <span className="small" style={{ opacity: 0.7 }}>and rate what you had</span>
             {topItem && <span className="small" style={{ opacity: 0.7 }}>{topItem}</span>}
@@ -67,6 +69,7 @@ function AddQrs({ placeId, active, onMade }: { placeId: string; active: number; 
 /** The shop's table QR codes if this account can read them, else a way to get some. */
 export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boolean; onCodes: (c: QrCode[]) => void }) {
   const [codes, setCodes] = useState<QrCode[] | null>(null);
+  const [nfcFor, setNfcFor] = useState<QrCode | null>(null);
   const load = useCallback(() => {
     supabase.from("qr_codes").select("id, place_id, token, style, table_label, active").eq("place_id", place.id).order("created_at")
       .then(({ data }) => { const c = (data as QrCode[]) || []; setCodes(c); onCodes(c); });
@@ -104,17 +107,26 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
           const col = QR_STYLES[c.style];
           return (
             <div key={c.id} className={`mg-qr ${c.style === "paper" ? "" : "dark"}`}>
-              <QrImage text={qrUrl(c.token)} size={132} dark={col.dark} light={col.light} />
-              <div className="row between">
-                <span className="small strong ellipsis">{c.table_label || "Table"}</span>
-                <button className="mg-act" aria-label={`Download ${c.table_label || "QR"}`} onClick={() => downloadQr(place.name, c)}><Icon name="download" size={16} /></button>
+              <BrandQr text={qrUrl(c.token)} size={132} dark={col.dark} light={col.light} />
+              <span className="small strong ellipsis" style={{ maxWidth: "100%" }}>{c.table_label || "Table"}</span>
+              <div className="row" style={{ justifyContent: "center" }}>
+                <span className="mg-acts">
+                  <WalletButton compact pass={{ kind: "shop", qrId: c.id }} label={`Add ${c.table_label || "this code"} to your wallet`} />
+                  <button className="mg-act" aria-label={`NFC tag for ${c.table_label || "this table"}`} title="NFC tag" onClick={() => setNfcFor(c)}><Icon name="nfc" size={16} /></button>
+                  <button className="mg-act" aria-label={`Download ${c.table_label || "QR"}`} onClick={() => downloadQr(place.name, c)}><Icon name="download" size={16} /></button>
+                </span>
               </div>
             </div>
           );
         })}
       </div>
       <AddQrs placeId={place.id} active={active.length} onMade={load} />
+      <div className="notice row" style={{ gap: 10 }}>
+        <span className="icon-chip sm sky"><Icon name="nfc" size={16} /></span>
+        <span className="grow">Want tap-to-review too? Tap <Icon name="nfc" size={13} /> on a table to set up an NFC tag next to its QR.</span>
+      </div>
       {isAdmin && <Link to={`/admin/place/${place.id}`} className="link-btn"><Icon name="settings" size={15} />Add or turn off codes</Link>}
+      {nfcFor && <NfcSheet code={nfcFor} onClose={() => setNfcFor(null)} />}
     </div>
   );
 }

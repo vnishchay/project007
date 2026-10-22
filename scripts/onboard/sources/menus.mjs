@@ -24,6 +24,25 @@ export async function readMenu(env, placeId, { text, images = [] }) {
   return (j.items || []).map((i) => ({ name: i.name, price: i.price_inr, section: i.section || null, description: i.description || null, diet: i.diet || [] }));
 }
 
+/** Asks ai/embed to make "Similar dishes" vectors for one place's products (free, built-in model). Returns how many. */
+export async function embedItems(env, placeId) {
+  const token = env.ONBOARD_TOKEN, url = env.SUPABASE_URL;
+  if (!token || !url) return 0;
+  let made = 0;
+  for (let round = 0; round < 8; round++) {
+    const res = await http(`${url.replace(/\/$/, "")}/functions/v1/ai`, {
+      method: "POST", timeout: 120000, retries: 1,
+      headers: { "Content-Type": "application/json", "x-onboard-token": token, apikey: env.SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || "" },
+      body: JSON.stringify({ task: "embed", placeId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { console.warn(`    similar dishes: ${j.error || res.status}`); return made; }
+    made += j.made || 0;
+    if (!j.left) return made;
+  }
+  return made;
+}
+
 /** Text of a PDF menu (pdfjs-dist, already an app dependency). */
 export async function pdfText(buf) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");

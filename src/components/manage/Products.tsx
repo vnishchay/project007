@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ensureEmbeddings } from "../../lib/dishes";
 import { supabase, errorText } from "../../lib/supabase";
 import { isStockPhoto, uploadPlaceMedia } from "../../lib/media";
 import { addPhotos } from "../../lib/assist";
@@ -197,7 +198,7 @@ export function Products({ placeId, isAdmin, mode, links = [], currency, onCount
 
       {importing !== null && (
         <MenuImport placeId={placeId} mode={mode} links={links} currency={currency} start={importing} nextSort={(items || []).reduce((m, i) => Math.max(m, i.sort_order), 0) + 1}
-          onClose={() => setImporting(null)} onSaved={() => { setImporting(null); setN((x) => x + 1); }} />
+          onClose={() => setImporting(null)} onSaved={() => { setImporting(null); setN((x) => x + 1); ensureEmbeddings(placeId, true); }} />
       )}
 
       {anyStock && <p className="mg-credit">Stock pictures from <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer">Pexels</a></p>}
@@ -208,7 +209,7 @@ export function Products({ placeId, isAdmin, mode, links = [], currency, onCount
           nextSort={nextSort} defaultTopic={defaultTopic} canRename={isAdmin}
           taken={(items || []).filter((x) => x.id !== sheetItem?.id).map((x) => x.name)}
           onClose={() => setEditing(null)}
-          onSaved={(it, isNew) => { setItems((xs) => isNew ? [...(xs || []), it] : (xs || []).map((x) => (x.id === it.id ? it : x))); setEditing(null); }}
+          onSaved={(it, isNew) => { ensureEmbeddings(placeId, true); setItems((xs) => isNew ? [...(xs || []), it] : (xs || []).map((x) => (x.id === it.id ? it : x))); setEditing(null); }}
           onDeleted={(id) => { setItems((xs) => (xs || []).filter((x) => x.id !== id)); setEditing(null); }}
         />
       )}

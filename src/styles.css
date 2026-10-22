@@ -261,6 +261,7 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 /* Menu photo import */
 .mi-thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .mi-thumb { position: relative; aspect-ratio: 3 / 4; width: 100%; border: 0; }
+.mi-thumb.mi-unclear { outline: 3px solid #ff9500; outline-offset: -3px; border-radius: 10px; }
 .mi-add { display: grid; place-items: center; align-content: center; gap: 4px; border: 1.5px dashed var(--line); cursor: pointer; color: var(--green-dark); background: var(--green-soft); }
 .mi-x { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, 0.6); color: #fff; display: grid; place-items: center; cursor: pointer; }
 .mi-rows { display: flex; flex-direction: column; overflow-y: auto; max-height: 50dvh; margin: 0 -20px; padding: 0 20px; }
@@ -322,3 +323,5 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 .install-steps li { display: flex; align-items: center; gap: 12px; font-size: 15px; line-height: 1.35; }
 .install-steps li svg { vertical-align: -2px; }
 .install-steps .n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); color: var(--green-dark); font-weight: 700; font-size: 14px; }
+/* Turnstile's check box, only visible on the rare occasions it needs a tap */
+.ts-box { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; }

@@ -18,6 +18,8 @@ import { DietDot, loadShopItems, missingColumn, shopLook, sortShopItems, type Sh
 import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
+import { SimilarDishes } from "../components/place/SimilarDishes";
+import { ensureEmbeddings } from "../lib/dishes";
 import { parsePlaceAbout, PlatformRatingsCard, AmenitiesCard } from "../components/place/PlatformRatings";
 import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
@@ -178,6 +180,8 @@ export default function PlacePage() {
     return () => { alive = false; };
   }, [me, id]);
 
+  // Lets this shop's products show up in "Similar dishes" elsewhere (fills in only what's missing).
+  useEffect(() => { if (place?.id && place.status === "live") ensureEmbeddings(place.id); }, [place?.id, place?.status]);
   const look = shopLook(place?.category, place?.kind);
   const stats = useMemo(() => {
     if (itemStats) return itemStats;
@@ -507,6 +511,10 @@ export default function PlacePage() {
             })}
           </div>
         )}
+        {!shopMode && filter.startsWith("item:") && (() => {
+          const it = reviewedItems.find((i) => `item:${i.id}` === filter);
+          return it ? <SimilarDishes itemId={it.id} name={it.name} /> : null;
+        })()}
         {reviews.length === 0 ? (
           <Link to={canRate ? rateUrl : backToCode || "#"} replace={Boolean(backToCode)} className="pl-empty-reviews" onClick={canRate || backToCode ? undefined : (e) => e.preventDefault()}>
             <span className="icon-chip lg amber"><Icon name="star" size={26} fill="currentColor" /></span>

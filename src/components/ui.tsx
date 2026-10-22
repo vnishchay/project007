@@ -24,6 +24,7 @@ const ICONS = {
   zap: L.Zap, flag: L.Flag, wallet: L.Wallet, dashboard: L.LayoutDashboard, chart: L.ChartBar, filter: L.Filter, list: L.List,
   grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, cake: L.CakeSlice, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,
   gift: L.Gift, chevronRight: L.ChevronRight, arrowLeft: L.ArrowLeft, fileText: L.FileText,
+  key: L.KeyRound, fingerprint: L.Fingerprint, nfc: L.Nfc, walletCards: L.WalletCards,
   dollar: L.DollarSign, euro: L.Euro, pound: L.PoundSterling, yen: L.JapaneseYen, banknote: L.Banknote, reply: L.Reply,
 } satisfies Record<string, L.LucideIcon>;
 export type IconName = keyof typeof ICONS;
@@ -178,6 +179,34 @@ export function QrImage({ text, size = 200, dark = "#1d1b22", light = "#FFFFFF" 
     QRCode.toDataURL(text, { width: size * 2, margin: 1, errorCorrectionLevel: "M", color: { dark, light } }).then(setSrc);
   }, [text, size, dark, light]);
   return src ? <img src={src} width={size} height={size} alt="QR code" /> : <div style={{ width: size, height: size }} />;
+}
+
+/** The printed-stand look: rounded dots, soft corners and the Trusted Picks mark in the middle (high error correction keeps it scannable). */
+export async function brandQrPngDataUrl(text: string, dark = "#1d1b22", light = "#FFFFFF", size = 1200): Promise<string> {
+  const { default: QRCodeStyling } = await import("qr-code-styling");
+  const qr = new QRCodeStyling({
+    width: size, height: size, margin: Math.round(size / 30), type: "canvas", data: text, image: "/icon-192.png",
+    qrOptions: { errorCorrectionLevel: "H" },
+    imageOptions: { margin: Math.round(size / 120), imageSize: 0.22, hideBackgroundDots: true, crossOrigin: "anonymous" },
+    dotsOptions: { type: "rounded", color: dark },
+    cornersSquareOptions: { type: "extra-rounded", color: dark },
+    cornersDotOptions: { type: "dot", color: dark },
+    backgroundOptions: { color: light },
+  });
+  const blob = await qr.getRawData("png");
+  if (!(blob instanceof Blob)) return qrPngDataUrl(text, dark, light);
+  return new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.readAsDataURL(blob); });
+}
+
+/** A branded QR (see brandQrPngDataUrl); shows the plain one while the styled one is drawn, or if drawing fails. */
+export function BrandQr({ text, size = 200, dark = "#1d1b22", light = "#FFFFFF" }: { text: string; size?: number; dark?: string; light?: string }) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    let alive = true;
+    brandQrPngDataUrl(text, dark, light, Math.max(size * 3, 480)).then((u) => { if (alive) setSrc(u); }, () => {});
+    return () => { alive = false; };
+  }, [text, size, dark, light]);
+  return src ? <img src={src} width={size} height={size} alt="QR code" /> : <QrImage text={text} size={size} dark={dark} light={light} />;
 }
 
 export async function qrPngDataUrl(text: string, dark = "#1d1b22", light = "#FFFFFF"): Promise<string> {

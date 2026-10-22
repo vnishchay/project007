@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { captchaToken } from "./turnstile";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, PROFILE_COLS, urlAuthError } from "./supabase";
 import type { Profile } from "./types";
@@ -100,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         guestInFlight = (async () => {
           try {
             if ((await supabase.auth.getSession()).data.session) return true;
-            const { error } = await supabase.auth.signInAnonymously();
+            const { error } = await supabase.auth.signInAnonymously({ options: { captchaToken: await captchaToken() } });
             if (error) { lastGuestError = error.message; console.warn("Guest sign-in failed:", error.message); setAuthError(null); return false; }
             lastGuestError = "";
             return true;
