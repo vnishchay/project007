@@ -6,12 +6,13 @@ import { supabase, searchPlaces, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type Place, type ReviewRow, type SearchResult } from "../lib/types";
 import { googleConfigured, type GoogleRating } from "../lib/google";
-import { googleMapsUrl, initials, todaysHours } from "../lib/util";
+import { googleMapsUrl, todaysHours } from "../lib/util";
 import { formatPrice, priceLevelText } from "../lib/money";
 import { isStockPhoto, placeMediaUrl } from "../lib/media";
 import { isDemoPhoto } from "../lib/demoArt";
 import { shareLink, shareOrCopy } from "../lib/invite";
-import { Avatar, Icon, Spinner, Stars, TopBar, useToast } from "../components/ui";
+import { Avatar, Icon, Spinner, Stars, TopBar, useTabKeys, useToast } from "../components/ui";
+import { GoogleG, Retry } from "../components/home/Kit";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED, reviewPhotoUrl } from "../components/ReviewCard";
 import { ItemThumb } from "../components/place/ItemThumb";
 import { DietDot, loadShopItems, missingColumn, shopLook, sortShopItems, type ShopItem } from "../components/place/shop";
@@ -19,7 +20,7 @@ import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
 import { SimilarDishes } from "../components/place/SimilarDishes";
-import { ensureEmbeddings } from "../lib/dishes";
+import { ensureEmbeddings, openNow } from "../lib/dishes";
 import { parsePlaceAbout, PlatformRatingsCard, AmenitiesCard } from "../components/place/PlatformRatings";
 import { deviceId } from "../lib/device";
 import { placeSummary, type PlaceSummary } from "../lib/assist";
@@ -93,7 +94,21 @@ export default function PlacePage() {
   const [canManage, setCanManage] = useState(false);
   // Reviewing is only open during a visit started by scanning this shop's table QR.
   const [canRate, setCanRate] = useState(false);
-  const [google, setGoogle] = useState<GoogleRating | null>(null);
+  const [google] = useState<GoogleRating | null>(null);
+  // Google's rating and count, saved by onboarding (migration 42). Older databases simply don't show it.
+  const [gStat, setGStat] = useState<{ rating: number; count: number } | null>(null);
+  // An item nobody has rated yet: a small sheet says so, instead of a tap that does nothing.
+  const [peek, setPeek] = useState<ShopItem | null>(null);
+  useEffect(() => {
+    setGStat(null);
+    if (!isUuid(id)) return;
+    let alive = true;
+    supabase.from("places").select("google_rating, google_rating_count").eq("id", id).maybeSingle().then(({ data, error }) => {
+      const g = data as { google_rating: number | null; google_rating_count: number | null } | null;
+      if (alive && !error && g?.google_rating != null) setGStat({ rating: Number(g.google_rating), count: g.google_rating_count ?? 0 });
+    }, () => {});
+    return () => { alive = false; };
+  }, [id]);
   const [summary, setSummary] = useState<SearchResult | null>(null);
   const [experts, setExperts] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
@@ -103,6 +118,7 @@ export default function PlacePage() {
   const tabChosen = useRef(false);
   const pickTab = (t: typeof tab) => { tabChosen.current = true; setTab(t); };
   useEffect(() => { tabChosen.current = false; setTab("reviews"); }, [id]);
+  const tabKeys = useTabKeys(["reviews", "menu", "photos", "about"] as const, tab, pickTab);
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<ReviewSort>("useful");
   const [coverOk, setCoverOk] = useState(true);
@@ -211,7 +227,7 @@ export default function PlacePage() {
     : filter.startsWith("stars:") ? r.rating === Number(filter.slice(6)) : r.item_id === filter.slice(5));
 
   async function toggleSave() {
-    if (!me) { toast("Sign in to save places"); return; }
+    if (!me) { toast("Sign in to save places", { label: "Sign in", to: `/signin?next=${encodeURIComponent(`/p/${id}`)}` }); return; }
     if (saved) {
       const { error } = await supabase.from("saved_places").delete().eq("user_id", me).eq("place_id", id);
       if (error) toast(errorText(error)); else { setSaved(false); toast("Removed from saved"); }
@@ -227,7 +243,9 @@ export default function PlacePage() {
   }
 
   if (place === undefined) return <div className="page"><Spinner /></div>;
-  if (!place) return <div className="page"><TopBar /><div className="empty"><h2>This place isn't listed</h2><p>{err || "It may have been removed or its listing has lapsed."}</p></div></div>;
+  // A failed load is not the same as a shop that isn't listed: offer a retry instead of a dead end.
+  if (!place && err) return <div className="page"><TopBar /><Retry msg={`Couldn't load this place. Check your connection and try again. (${err})`} onRetry={() => setAttempt((n) => n + 1)} /></div>;
+  if (!place) return <div className="page"><TopBar /><div className="empty"><Icon name="store" size={32} /><h2>This place isn't listed</h2><p>It may have been removed or its listing has ended.</p><Link to="/" className="btn small ghost"><Icon name="search" size={16} />Search places</Link></div></div>;
 
   const cover = coverOk ? placeMediaUrl(place.cover_path, 1200) : null;
   const logo = placeMediaUrl(place.logo_path);
@@ -237,6 +255,7 @@ export default function PlacePage() {
   const friendNamed = (summary?.friend_ids || []).map((fid) => reviews.find((r) => r.user_id === fid)).filter((r): r is ReviewRow => Boolean(r));
   const friendCount = Math.max(summary?.friend_count ?? 0, friendNamed.length);
   const today = place.hours && Object.keys(place.hours).length ? todaysHours(place.hours) ?? "Closed today" : null;
+  const isOpen = openNow(place.hours);
   const photoCount = reviews.filter((r) => r.photo_path).length;
   const friendReviews = reviews.filter(isFriend).length;
   // What friends (people you're connected with through an invite link) loved here. Only reviews
@@ -299,7 +318,7 @@ export default function PlacePage() {
           {logo && <span className="pn-logo"><Img src={logo} alt={`${place.name} logo`} /></span>}
           <span className="grow" />
           {canManage && <Link to={`/manage/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}
-          <button className="pn-glass" aria-label={saved ? "Unsave" : "Save"} aria-pressed={saved} onClick={toggleSave}><Icon name="heart" fill={saved ? "currentColor" : undefined} /></button>
+          <button className="pn-glass" aria-label={saved ? "Saved. Tap to remove" : "Save this place"} aria-pressed={saved} onClick={toggleSave}><Icon name="bookmark" fill={saved ? "currentColor" : undefined} /></button>
           <button className="pn-glass" aria-label="Share" onClick={share}><Icon name="share" /></button>
         </div>
         <div className="pn-title">
@@ -310,10 +329,11 @@ export default function PlacePage() {
             {score != null
               ? <span className="pn-chip" aria-label={`Trust score ${score.toFixed(1)} of 5`}><Icon name="star" size={15} fill="currentColor" color="#d9a441" /><b>{score.toFixed(1)}</b><span>{reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span></span>
               : <span className="pn-chip"><Icon name="spark" size={15} color="#d9a441" /><b>New</b><span>on Trusted Picks</span></span>}
-            {today && <button type="button" className="pn-chip" onClick={() => { pickTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }}><span className="pn-dot" />{today}</button>}
+            {gStat && <span className="pn-chip" aria-label={`Google ${gStat.rating.toFixed(1)} stars from ${gStat.count} reviews`}><GoogleG size={14} /><b>{gStat.rating.toFixed(1)}</b><span>{gStat.count.toLocaleString(undefined)} on Google</span></span>}
+            {today && <button type="button" className="pn-chip" onClick={() => { pickTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }}><span className={`pn-dot ${isOpen ? "" : "closed"}`} aria-hidden="true" />{isOpen === true ? "Open · " : isOpen === false ? "Closed · " : ""}{today}</button>}
             {parsedAbout.platformRatings.length > 0 && (
-              <button type="button" className="pn-chip" onClick={() => { pickTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }} aria-label="Verified across platforms">
-                <Icon name="globe" size={15} color="#34a853" /><b>{parsedAbout.platformRatings.length} Platforms</b><span>Verified</span>
+              <button type="button" className="pn-chip" onClick={() => { pickTab("about"); window.setTimeout(() => document.getElementById("pn-tabs")?.scrollIntoView({ behavior: "smooth" }), 80); }} aria-label={`On ${parsedAbout.platformRatings.length} platforms. See ratings`}>
+                <Icon name="globe" size={15} color="#34a853" /><b>On {parsedAbout.platformRatings.length} {parsedAbout.platformRatings.length === 1 ? "platform" : "platforms"}</b>
               </button>
             )}
             {verified > 0 && <span className="pn-chip"><Icon name="verified" size={15} color="#e5c78f" />{verified} verified</span>}
@@ -361,9 +381,9 @@ export default function PlacePage() {
         </section>
       )}
 
-      <div className="pn-tabs" id="pn-tabs" role="tablist" aria-label="Shop sections">
+      <div className="pn-tabs" id="pn-tabs" role="tablist" aria-label="Shop sections" onKeyDown={tabKeys}>
         {tabs.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => pickTab(t.id)}>
+          <button key={t.id} type="button" role="tab" tabIndex={tab === t.id ? 0 : -1} aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => pickTab(t.id)}>
             {t.label}{t.n ? <span>{t.n}</span> : null}
           </button>
         ))}
@@ -410,7 +430,7 @@ export default function PlacePage() {
               const s = stats.get(p.id);
               return (
                 <Link key={p.id} to={canRate ? `${rateUrl}?item=${p.id}` : `#reviews`} className="pl-product" aria-label={canRate ? `Rate ${p.name}` : `Reviews of ${p.name}`}
-                  onClick={canRate ? undefined : (e) => { e.preventDefault(); if (s) { openReviews(`item:${p.id}`); } }}>
+                  onClick={canRate ? undefined : (e) => { e.preventDefault(); if (s) openReviews(`item:${p.id}`); else setPeek(p); }}>
                   <span className="pl-product-img">
                     <ItemThumb path={p.image_path} icon={look.icon} />
                     {s && <span className="pl-product-rate"><Icon name="star" size={12} fill="currentColor" />{s.avg.toFixed(1)}<span>· {s.count}</span></span>}
@@ -470,7 +490,7 @@ export default function PlacePage() {
                 const f = `stars:${n}` as const;
                 return (
                   <button key={n} type="button" className={`rs-bar ${filter === f ? "on" : ""}`} disabled={!c} aria-pressed={filter === f}
-                    aria-label={`${n} stars: ${c}`} onClick={() => setFilter(filter === f ? "all" : f)}>
+                    aria-label={filter === f ? `Showing ${n}-star reviews (${c}). Tap to show all` : `Show ${n}-star reviews (${c})`} onClick={() => setFilter(filter === f ? "all" : f)}>
                     <span>{n}★</span><span className="track"><span className="fill" style={{ width: `${sum.count ? (c / sum.count) * 100 : 0}%` }} /></span><span>{c}</span>
                   </button>
                 );
@@ -488,12 +508,15 @@ export default function PlacePage() {
         {reviews.length > 1 && (
           <div className="row" style={{ gap: 8 }}>
             <span className="small muted">{shown.length === reviews.length ? (moreReviews ? "Newest reviews" : "All reviews") : `${shown.length} of ${reviews.length}`}</span>
-            <select className="select pl-sort" style={{ width: "auto", padding: "6px 10px", fontSize: 13 }} value={sort} onChange={(e) => setSort(e.target.value as ReviewSort)} aria-label="Sort reviews">
+            <span className="grow" />
+            <label className="pl-sortbtn" title="Sort reviews"><Icon name="filter" size={16} /><span className="sr-only">Sort reviews</span>
+            <select value={sort} onChange={(e) => setSort(e.target.value as ReviewSort)} aria-label="Sort reviews">
               <option value="useful">Most useful</option>
               <option value="newest">Newest</option>
               <option value="high">Highest rated</option>
               <option value="low">Lowest rated</option>
             </select>
+            <span aria-hidden="true">{({ useful: "Most useful", newest: "Newest", high: "Highest", low: "Lowest" } as Record<ReviewSort, string>)[sort]}</span><Icon name="down" size={14} /></label>
           </div>
         )}
         {reviews.length > 1 && (
@@ -516,12 +539,17 @@ export default function PlacePage() {
           return it ? <SimilarDishes itemId={it.id} name={it.name} /> : null;
         })()}
         {reviews.length === 0 ? (
-          <Link to={canRate ? rateUrl : backToCode || "#"} replace={Boolean(backToCode)} className="pl-empty-reviews" onClick={canRate || backToCode ? undefined : (e) => e.preventDefault()}>
-            <span className="icon-chip lg amber"><Icon name="star" size={26} fill="currentColor" /></span>
-            <b>No reviews yet</b>
-            <span className="small muted">{canRate || shopMode ? "Be the first to rate what you had" : "Customers review by scanning the QR at the shop"}</span>
-          </Link>
-        ) : shown.length === 0 ? <div className="empty"><Icon name="filter" size={28} /><p className="small">Nothing here</p></div> :
+          canRate || backToCode ? (
+            <Link to={canRate ? rateUrl : backToCode!} replace={Boolean(backToCode)} className="pl-empty-reviews">
+              <span className="icon-chip lg amber"><Icon name="star" size={26} fill="currentColor" /></span>
+              <b>No reviews yet</b>
+              <span className="small muted">Be the first to rate what you had</span>
+            </Link>
+          ) : (
+            // Not a button: nothing happens on tap, so it shouldn't look tappable.
+            <div className="pn-empty"><Icon name="message" size={28} /><b>No reviews yet</b><span className="small">Customers review by scanning the QR on their table</span></div>
+          )
+        ) : shown.length === 0 ? <div className="pn-empty"><Icon name="filter" size={28} /><b>Nothing here</b><button type="button" className="link-btn small" onClick={() => setFilter("all")}>Show all reviews</button></div> :
           shown.map((r) => (
             <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={isFriend(r)} expert={r.user_id ? experts[r.user_id] || null : null}
               itemImage={imageOf.get(r.item_id)} itemIcon={look.icon} />
@@ -555,7 +583,7 @@ export default function PlacePage() {
               <section className="pl-about">
                 <div className="section-title">
                   <span className="icon-chip sm sky"><Icon name="info" size={16} /></span>
-                  <span className="grow">Heritage & Story</span>
+                  <span className="grow">About</span>
                 </div>
                 {parsedAbout.story && <p style={{ whiteSpace: "pre-line", fontSize: 15, lineHeight: 1.6 }}>{parsedAbout.story}</p>}
                 {parsedAbout.fssai && (
@@ -597,10 +625,28 @@ export default function PlacePage() {
         </section>
       )}
 
-      {!shopMode && <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>}
+      {!shopMode && !canManage && <Link to={`/claim/${place.id}`} className="pl-claim tiny muted row"><Icon name="store" size={14} />Own this business? Claim it free</Link>}
 
       {shopMode && (
         <a href="/" target="_blank" rel="noopener" className="pl-claim tiny muted row"><Icon name="search" size={14} />Explore more places on Trusted Picks</a>
+      )}
+
+      {peek && (
+        <div className="sheet-backdrop" onClick={() => setPeek(null)}>
+          <div className="sheet pl-peek" role="dialog" aria-modal="true" aria-labelledby="peek-h" onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === "Escape") setPeek(null); }}>
+            <div className="row" style={{ gap: 12, alignItems: "flex-start" }}>
+              <span className="pl-peek-img"><ItemThumb path={peek.image_path} icon={look.icon} /></span>
+              <div className="grow stack tight">
+                <b id="peek-h" style={{ fontSize: 18 }}><DietDot diet={peek.diet} />{peek.name}</b>
+                {peek.price_inr != null && <span className="small">{formatPrice(peek.price_inr, place.currency)}</span>}
+              </div>
+              <button type="button" className="icon-act" aria-label="Close" autoFocus onClick={() => setPeek(null)}><Icon name="close" size={18} /></button>
+            </div>
+            {peek.description && <p className="small" style={{ margin: 0, color: "var(--ink-2)" }}>{peek.description}</p>}
+            <p className="small muted row" style={{ gap: 6, margin: 0 }}><Icon name="star" size={14} />No ratings yet. People rate it after scanning the QR on their table.</p>
+          </div>
+        </div>
       )}
 
       {canRate ? (

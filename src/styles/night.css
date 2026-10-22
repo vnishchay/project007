@@ -149,3 +149,11 @@ button.pn-chip { cursor: pointer; }
 .pl-night .pn-dock { margin-top: 22px; }
 .pn-credit { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 .pn-credit a { color: inherit; text-decoration: underline; }
+
+/* Shorter hero (UX review): the title flows, so the page reaches the reviews sooner.
+   300px with a cover photo, about 200px without, growing only as much as a long name needs. */
+.pn-hero, .pn-hero:not(.has-cover) { height: auto; min-height: 300px; display: flex; flex-direction: column; justify-content: flex-end; }
+.pn-hero:not(.has-cover) { min-height: 200px; }
+.pn-title { position: relative; left: auto; right: auto; bottom: auto; margin: 0 20px; padding: calc(78px + env(safe-area-inset-top)) 0 22px; }
+.pn-hero .pn-title h1 { font-size: clamp(32px, 9vw, 44px); }
+.pn-dot.closed { background: #8e8e93; animation: none; }

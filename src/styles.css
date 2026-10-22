@@ -344,3 +344,4 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 .install-steps .n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-dark); font-weight: 700; font-size: 14px; }
 /* Turnstile's check box, only visible on the rare occasions it needs a tap */
 .ts-box { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

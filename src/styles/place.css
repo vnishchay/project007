@@ -276,3 +276,10 @@ a.pl-plat-card:active { transform: scale(0.98); }
 .pl-amenity-spark { color: var(--accent); font-weight: 800; font-size: 12px; }
 .pl-fssai-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; background: var(--surface); margin-top: 8px; }
 
+
+/* Sort as a small menu button instead of a form field. The native select sits on top, invisible, so it stays accessible. */
+.pl-sortbtn { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+.pl-sortbtn select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+.pl-sortbtn:focus-within { outline: 3px solid var(--sky); outline-offset: 2px; }
+.pl-peek-img { width: 72px; height: 72px; flex: none; border-radius: 14px; overflow: hidden; background: var(--fill); }
+.pl-peek-img > * { width: 100%; height: 100%; }
