@@ -339,3 +339,8 @@
 .nfc-copy { display: flex; flex-direction: column; gap: 4px; }
 .nfc-copy code { background: var(--fill); border-radius: 10px; padding: 8px 10px; overflow-wrap: anywhere; min-width: 0; }
 .nfc-copy code.nfc-key { letter-spacing: 0.04em; }
+
+/* Footer links on the business page: spaced, wrapped, each a real tap target. */
+.biz-footer-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; padding: 8px 0 16px; }
+.biz-footer-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 14px; color: var(--muted); text-decoration: none; }
+.biz-footer-nav a:hover { color: var(--ink); text-decoration: underline; }

@@ -6,7 +6,7 @@ import { supabase, errorText } from "../lib/supabase";
 import { InstallNudge } from "../components/Install";
 import { useAuth } from "../lib/auth";
 import { placeMediaUrl, shrinkImage } from "../lib/media";
-import { copyText, timeAgo } from "../lib/util";
+import { STATUS_WORDS, copyText, timeAgo } from "../lib/util";
 import { Avatar, Icon, TopBar, useToast } from "../components/ui";
 import { Chip, Cover, Glyph, MenuRow, SectionTitle } from "../components/home/Kit";
 import "../styles/home.css";
@@ -15,8 +15,6 @@ interface MyPlace { id: string; name: string; area: string | null; city: string;
 interface Mine { id: string; place_id: string; verified: boolean; is_public: boolean }
 interface ShopSeen { place_id: string; place_name: string; area: string | null; logo_path: string | null; last_visit: string; hidden: boolean; no_offers: boolean }
 
-/** Plain words for a shop's listing status, for owners. */
-export const STATUS_WORDS: Record<string, string> = { live: "Live", lapsed: "Plan ended", removed: "Taken down" };
 
 /** Your profile and settings. What you rated and saved lives on Your picks (/picks). */
 export default function Me() {

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../../lib/supabase";
 import { loadPlans, payForPlan, type MyPlan, type PlanRow } from "../../lib/billing";
+import { rupees } from "../../lib/util";
 import { Icon, Spinner, useToast } from "../ui";
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
+const inr = rupees;
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 /** The shop's plan: QRs used, whether reviews are on, when it ends, and paying for more. */
@@ -31,13 +32,17 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
       const r = await payForPlan(placeId, placeName, code, interval);
       if (r === "paid") { toast("Paid. Your plan is on. Add QR codes from the QR tab."); await load(); }
       else if (r === "pending") { toast("Payment received. Your plan turns on in a few minutes; no need to pay again."); await load(); }
-    } catch (e) { toast(errorText(e)); }
+    } catch (e) {
+      // Plain words first; the gateway's own message is kept for the team.
+      console.warn("Payment failed:", errorText(e));
+      toast("The payment didn't go through and no money was taken. Try again in a moment.", { label: "Try again", onClick: () => void buy(code) });
+    }
     setBusy("");
   }
 
   if (me === undefined) return <Spinner />;
   if (loadErr) return <div className="notice err row"><span className="grow">Couldn't load your plan: {loadErr}</span><button className="btn small ghost" onClick={() => { setMe(undefined); load(); }}>Try again</button></div>;
-  if (me === null) return <div className="card small muted">Plans will show here once the latest database update is run.</div>;
+  if (me === null) return <div className="card small muted row" style={{ gap: 8 }}><Icon name="info" size={16} />Plans aren't available yet. Check back soon.</div>;
 
   const trial = me.status === "trial";
   const daysLeft = Math.max(0, Math.ceil((new Date(me.period_end).getTime() - Date.now()) / 86400000));
@@ -60,6 +65,7 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
         <span className="tiny muted row" style={{ gap: 4 }}><Icon name="qr" size={12} />{me.qr_used} of {me.qr_limit} review QRs in use</span>
       </div>
 
+      <p className="tiny muted row" style={{ gap: 6, margin: 0 }}><Icon name="rupee" size={13} />Prices and billing are in Indian rupees (INR)</p>
       <div className="pn-seg" role="tablist" aria-label="Pay for">
         {(["year", "month"] as const).map((i) => (
           <button key={i} role="tab" aria-selected={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>

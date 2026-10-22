@@ -160,3 +160,6 @@ export function extractPlaceId(text: string | null | undefined): string | null {
   if (/^[A-Za-z0-9_-]{16,}$/.test(t)) return t;
   return null;
 }
+
+/** Plain words for a shop's listing status, for owners. */
+export const STATUS_WORDS: Record<string, string> = { live: "Live", lapsed: "Plan ended", removed: "Taken down" };

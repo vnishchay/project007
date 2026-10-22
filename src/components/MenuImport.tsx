@@ -7,7 +7,7 @@ import { callAi } from "../lib/assist";
 import type { PlaceLink } from "./place/ShopLinks";
 import type { Mode } from "../lib/modes";
 import { Icon, Spinner, useToast } from "./ui";
-import { DietDot, DIET_OPTIONS } from "./place/shop";
+import { DietDot } from "./place/shop";
 import { currencySymbol } from "../lib/money";
 
 interface Row { name: string; price_inr: number | null; section: string; description: string; diet?: string[]; keep: boolean }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { initials } from "../lib/util";
+import { STATUS_WORDS, initials } from "../lib/util";
 import { Icon, TopBar, type IconName } from "../components/ui";
 import { MediaImg } from "../components/manage/MediaImg";
 import "../styles/manage.css";
@@ -45,8 +45,8 @@ export default function Business() {
                 <span className="thumb"><MediaImg path={s.logo_path || s.cover_path} fallback={initials(s.name)} /></span>
                 <span className="grow stack tight">
                   <span className="strong ellipsis">{s.name}</span>
-                  <span className="mg-meta">{[s.area, s.city].filter(Boolean).join(" · ")}<span className={`badge ${s.status === "live" ? "" : s.status === "lapsed" ? "warn" : "red"}`}>{s.status}</span>
-                    {s.verification === "pending" && <span className="badge gray">Being checked</span>}</span>
+                  <span className="mg-meta">{[s.area, s.city].filter(Boolean).join(" · ")}<span className={`badge ${s.status === "live" ? "" : s.status === "lapsed" ? "warn" : "red"}`}>{STATUS_WORDS[s.status] || s.status}</span>
+                    {s.verification === "pending" && <span className="badge gray">We're checking your details</span>}</span>
                   {s.verification === "rejected" && <span className="tiny" style={{ color: "var(--danger)" }}>Not approved{s.verification_note ? `: ${s.verification_note}` : ""}</span>}
                 </span>
                 <span className="icon-chip sm"><Icon name="edit" size={15} /></span>
@@ -69,7 +69,6 @@ export default function Business() {
               <span className="t">{t}</span>
               <span className="s">{s}</span>
             </div>
-            <Icon name="chevronRight" size={16} color="var(--muted)" />
           </div>
         ))}
       </div>

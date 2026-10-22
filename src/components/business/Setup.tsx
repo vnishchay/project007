@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../../lib/supabase";
-import { useAuth } from "../../lib/auth";
 import { loadPlans, payForPlan, type PlanRow } from "../../lib/billing";
 import { googleConfigured, type GoogleMatch } from "../../lib/google";
 import { goBack } from "../../lib/nav";
 import { extractPlaceId, googleMapsUrl, QR_STYLES, rupees } from "../../lib/util";
 import type { QrStyle } from "../../lib/types";
 import { areaCityFromAddress, GoogleFind, GooglePreview, matchCategory } from "../manage/Google";
-import { Icon, QrImage, useToast } from "../ui";
+import { Icon, QrImage, useConfirm } from "../ui";
 import { LinkIcon, guessLinkKind } from "../LinkIcon";
 import { CurrencyField } from "../manage/CurrencyField";
 import { DEFAULT_CURRENCY, localCurrency } from "../../lib/money";
+import { KINDS, MODES, type Kind } from "../../lib/modes";
+import "../../styles/manage.css";
 import "../../styles/setup.css";
 
 const EMPTY = { business_name: "", category: "", area: "", city: "", phone: "", google_place_id: "", note: "" };
@@ -19,12 +20,46 @@ const TABLE_CHOICES = [1, 3, 5, 10, 15, 25];
 type Interval = "year" | "month";
 const LAST = 5;
 const LINK_FIELDS = [
-  { key: "zomato", label: "Zomato", ph: "Paste your Zomato link" },
-  { key: "swiggy", label: "Swiggy", ph: "Paste your Swiggy link" },
-  { key: "instagram", label: "Instagram", ph: "Paste your Instagram link" },
-  { key: "website", label: "Website", ph: "Paste your website" },
+  { key: "zomato", label: "Zomato", ph: "Paste your Zomato link", only: "food" },
+  { key: "swiggy", label: "Swiggy", ph: "Paste your Swiggy link", only: "food" },
+  { key: "instagram", label: "Instagram", ph: "Paste your Instagram link", only: null },
+  { key: "website", label: "Website", ph: "Paste your website or booking page", only: null },
 ] as const;
 type LinkKey = (typeof LINK_FIELDS)[number]["key"];
+/** Only the link boxes that make sense for this type of business: Zomato and Swiggy are for food. */
+const linkFieldsFor = (kind: Kind | "") => LINK_FIELDS.filter((f) => !f.only || f.only === kind);
+
+/** Phone country codes, with how many digits a local number has there. */
+const DIAL: { region: string; code: string; label: string; digits: [number, number] }[] = [
+  { region: "IN", code: "+91", label: "India", digits: [10, 10] },
+  { region: "US", code: "+1", label: "US / Canada", digits: [10, 10] },
+  { region: "GB", code: "+44", label: "UK", digits: [10, 11] },
+  { region: "AE", code: "+971", label: "UAE", digits: [8, 9] },
+  { region: "SG", code: "+65", label: "Singapore", digits: [8, 8] },
+  { region: "AU", code: "+61", label: "Australia", digits: [9, 10] },
+  { region: "DE", code: "+49", label: "Germany", digits: [6, 11] },
+  { region: "FR", code: "+33", label: "France", digits: [9, 10] },
+  { region: "NP", code: "+977", label: "Nepal", digits: [8, 10] },
+  { region: "LK", code: "+94", label: "Sri Lanka", digits: [9, 10] },
+  { region: "BD", code: "+880", label: "Bangladesh", digits: [10, 10] },
+  { region: "XX", code: "", label: "Other (type +code)", digits: [7, 15] },
+];
+/** The phone's own region picks the starting country code. */
+function localDial(): string {
+  try {
+    for (const tag of [...(navigator.languages || []), navigator.language]) {
+      const r = tag ? new Intl.Locale(tag).region?.toUpperCase() : undefined;
+      if (r && DIAL.some((d) => d.region === r)) return r;
+    }
+  } catch { /* old browser */ }
+  return "IN";
+}
+
+const DRAFT_KEY = "tp-setup-draft";
+interface SetupDraft { kind: Kind | ""; form: typeof EMPTY; urls: Record<LinkKey, string>; extras: string[]; currency: string; dial: string; tables: number; style: QrStyle; plan: string; interval: Interval }
+function readDraft(): SetupDraft | null {
+  try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "null") as SetupDraft | null; } catch { return null; }
+}
 
 /** A pasted address, with https:// added when it is missing; null when it can't be a web address. */
 function cleanUrl(raw: string): string | null {
@@ -42,26 +77,29 @@ function cleanUrl(raw: string): string | null {
  * Every screen flies in from the direction you are travelling.
  */
 export function Setup() {
-  const { session } = useAuth();
-  const toast = useToast();
+  const confirm = useConfirm();
   const nav = useNavigate();
+  // What was typed survives a reload or a trip to another app, for this tab only.
+  const [draft0] = useState(readDraft);
   const [params, setParams] = useSearchParams();
   const step = Math.min(LAST, Math.max(0, parseInt(params.get("s") || "0", 10) || 0));
   const lastStep = useRef(step);
   const dir: "fwd" | "back" = step >= lastStep.current ? "fwd" : "back";
   useEffect(() => { lastStep.current = step; }, [step]);
-  const [urls, setUrls] = useState<Record<LinkKey, string>>({ zomato: "", swiggy: "", instagram: "", website: "" });
-  const [extras, setExtras] = useState<string[]>([]);
-  const [form, setForm] = useState(EMPTY);
+  const [kind, setKind] = useState<Kind | "">(draft0?.kind ?? "");
+  const [urls, setUrls] = useState<Record<LinkKey, string>>(draft0?.urls ?? { zomato: "", swiggy: "", instagram: "", website: "" });
+  const [extras, setExtras] = useState<string[]>(draft0?.extras ?? []);
+  const [form, setForm] = useState(draft0?.form ?? EMPTY);
   // What the shop's prices are in: the phone's region to start (India gives rupees).
-  const [currency, setCurrency] = useState(localCurrency);
+  const [currency, setCurrency] = useState(() => draft0?.currency ?? localCurrency());
+  const [dial, setDial] = useState(() => draft0?.dial ?? localDial());
   const [picked, setPicked] = useState<GoogleMatch | null>(null);
-  const [tables, setTables] = useState(5);
-  const [style, setStyle] = useState<QrStyle>("paper");
+  const [tables, setTables] = useState(draft0?.tables ?? 5);
+  const [style, setStyle] = useState<QrStyle>(draft0?.style ?? "paper");
   const [plans, setPlans] = useState<PlanRow[]>([]);
-  const [plan, setPlan] = useState("");
-  const [manual, setManual] = useState(false);
-  const [interval, setInterval] = useState<Interval>("year");
+  const [plan, setPlan] = useState(draft0?.plan ?? "");
+  const [manual, setManual] = useState(Boolean(draft0?.plan));
+  const [interval, setInterval] = useState<Interval>(draft0?.interval ?? "year");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [shopId, setShopId] = useState<string | null>(null);
@@ -70,6 +108,18 @@ export function Setup() {
   const [payErr, setPayErr] = useState("");
 
   useEffect(() => { loadPlans().then(setPlans); }, []);
+  useEffect(() => {
+    if (shopId) return;
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ kind, form, urls, extras, currency, dial, tables, style, plan, interval } satisfies SetupDraft)); } catch { /* storage blocked */ }
+  }, [kind, form, urls, extras, currency, dial, tables, style, plan, interval, shopId]);
+  const clearDraft = () => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage blocked */ } };
+  const dialRow = DIAL.find((d) => d.region === dial) ?? DIAL[DIAL.length - 1]!;
+  /** The phone as saved: country code first, so owners abroad are reachable too. */
+  const fullPhone = () => {
+    const raw = form.phone.trim();
+    if (raw.startsWith("+") || !dialRow.code) return raw;
+    return `${dialRow.code} ${raw.replace(/^0+/, "")}`;
+  };
   // A reload loses what was typed, so start again from the first screen instead of showing an empty one.
   useEffect(() => { if (step > 0 && !form.business_name.trim() && !outcome) setParams({}, { replace: true }); }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -94,13 +144,16 @@ export function Setup() {
 
   function next() {
     setErr("");
+    if (step === 0 && !kind) { setErr("Pick what kind of business it is."); return; }
     if (step === 0 && !form.business_name.trim()) { setErr("Add your shop's name."); return; }
     if (step === 1) {
       if (!form.category.trim() || !form.city.trim()) { setErr("Add a category and a city."); return; }
-      if (form.phone.replace(/\D/g, "").length < 10) { setErr("Enter a full phone number so we can reach you."); return; }
+      const digits = form.phone.replace(/\D/g, "").replace(/^0+/, "");
+      const [lo, hi] = form.phone.trim().startsWith("+") ? [8, 15] : dialRow.digits;
+      if (digits.length < lo || digits.length > hi) { setErr(lo === hi ? `Enter the ${lo}-digit phone number so we can reach you.` : `Enter a full phone number (${lo} to ${hi} digits) so we can reach you.`); return; }
     }
     if (step === 2) {
-      for (const f of LINK_FIELDS) if (cleanUrl(urls[f.key]) === null) { setErr(`Check the ${f.label} link.`); return; }
+      for (const f of linkFieldsFor(kind)) if (cleanUrl(urls[f.key]) === null) { setErr(`Check the ${f.label} link.`); return; }
       if (extras.some((x) => cleanUrl(x) === null)) { setErr("Check the extra link."); return; }
     }
     if (step === 4 && !chosen) { setErr("Pick a plan."); return; }
@@ -118,7 +171,7 @@ export function Setup() {
     const out: { kind: string; url: string }[] = [];
     const gid = extractPlaceId(form.google_place_id.trim());
     if (gid) out.push({ kind: "maps", url: googleMapsUrl(gid, form.business_name) });
-    for (const f of LINK_FIELDS) { const u = cleanUrl(urls[f.key]); if (u) out.push({ kind: f.key === "website" ? "website" : f.key, url: u }); }
+    for (const f of linkFieldsFor(kind)) { const u = cleanUrl(urls[f.key]); if (u) out.push({ kind: f.key === "website" ? "website" : f.key, url: u }); }
     for (const x of extras) { const u = cleanUrl(x); if (u) out.push({ kind: guessLinkKind(u), url: u }); }
     return out;
   }
@@ -133,14 +186,20 @@ export function Setup() {
         const placeId = raw ? extractPlaceId(raw) : null;
         const note = [form.note.trim(), raw && !placeId ? `Google Maps link: ${raw}` : ""].filter(Boolean).join("\n");
         const ins = await supabase.rpc("list_my_shop", {
-          p_name: form.business_name.trim(), p_category: form.category.trim(), p_city: form.city.trim(), p_phone: form.phone.trim(),
+          p_name: form.business_name.trim(), p_category: form.category.trim(), p_city: form.city.trim(), p_phone: fullPhone(),
           p_area: form.area.trim() || null, p_google_place_id: placeId, p_links: buildLinks(), p_note: note || null,
         });
         if (ins.error) throw ins.error;
         id = (ins.data as { id: string }).id;
         setShopId(id);
-        // New shops start in rupees. Another currency is set straight after; if that fails, it can be changed in Details.
-        if (currency !== DEFAULT_CURRENCY) await supabase.from("places").update({ currency }).eq("id", id);
+        // New shops start in rupees as a general shop. The owner's choices are set straight after; if that fails, they can be changed in Details.
+        const after = { ...(currency !== DEFAULT_CURRENCY ? { currency } : {}), ...(kind ? { kind } : {}) };
+        if (Object.keys(after).length) {
+          const up = await supabase.from("places").update(after).eq("id", id);
+          // An older database without the kind column still takes the currency.
+          if (up.error && after.kind && currency !== DEFAULT_CURRENCY) await supabase.from("places").update({ currency }).eq("id", id);
+        }
+        clearDraft();
         // The free trial QR right away; paid tables come after payment.
         await makeQrs(id);
       }
@@ -167,16 +226,20 @@ export function Setup() {
         <main className="su-body su-card su-done" data-dir="fwd" data-step="7">
           {(outcome === "paid" || outcome === "live") && Array.from({ length: 14 }, (_, i) => <i key={i} className="su-cf" style={{ left: `${6 + i * 6.5}%`, animationDelay: `${(i * 0.23) % 1.6}s`, background: ["#c9604a", "#d9a441", "#c2492b", "#6d5fb0", "#4a78b8", "#2f7d6e"][i % 6] }} />)}
           <span className={`icon-chip lg ${outcome === "unpaid" || outcome === "pending" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" || outcome === "pending" ? "wallet" : "check"} size={26} /></span>
-          <h2>{paid ? "Paid. Your shop is live" : outcome === "live" ? "Your shop is live" : outcome === "pending" ? "Payment received. Your shop is live" : "Your shop is live, payment pending"}</h2>
+          <h2>{paid ? "Paid. Your shop is live" : outcome === "live" ? "Your shop is live" : outcome === "pending" ? "Payment received. Your shop is live" : "Your shop is live. The payment didn't go through"}</h2>
           <p className="small muted">{outcome === "unpaid"
-            ? `${payErr ? payErr + " " : ""}You're on the free trial QR for now. Pay from your shop's Plan tab whenever you're ready.`
+            ? `No money was taken. You're on the free trial QR for now, so customers can already review. Try paying again, or pay later from your shop's Plan tab.`
             : outcome === "pending"
             ? "We're confirming your payment with Razorpay; your plan turns on in a few minutes, so there's no need to pay again. Then add your QR codes from the QR tab."
             : qrCount == null
             ? "Your shop is live, but the QR codes didn't get made. Open your shop and add them from the QR tab."
             : `${qrCount} QR code${qrCount === 1 ? " is" : "s are"} ready to print. We'll check your Google page and links, usually within a day, then show your links on your page.`}</p>
+          {outcome === "unpaid" && payErr && <details className="tiny muted" style={{ textAlign: "left" }}><summary>What went wrong</summary>{payErr}</details>}
         </main>
-        <footer className="su-foot"><button className="btn green block" onClick={() => nav(shopId ? `/manage/${shopId}` : "/business", { replace: true })}><Icon name="store" size={18} />Open my shop</button></footer>
+        <footer className="su-foot">
+          {outcome === "unpaid" && <button className="btn ghost grow" disabled={busy} onClick={() => { setPayErr(""); void finish(); }}><Icon name="refresh" size={18} />{busy ? "One moment…" : "Try again"}</button>}
+          <button className={`btn ${outcome === "unpaid" ? "quiet" : "green"} grow`} onClick={() => nav(shopId ? `/manage/${shopId}` : "/business", { replace: true })}><Icon name="store" size={18} />Open my shop</button>
+        </footer>
       </div>
     );
   }
@@ -184,7 +247,19 @@ export function Setup() {
   const slides: React.ReactNode[] = [
     <>
       <span className="icon-chip lg" style={{ margin: "0 auto" }}><Icon name="store" size={26} /></span>
-      <h2>What's your shop called?</h2>
+      <h2>What kind of business is it?</h2>
+      <div className="mg-kinds" role="radiogroup" aria-label="Business type" style={{ textAlign: "left" }}>
+        {KINDS.map((k) => {
+          const m = MODES[k];
+          return (
+            <button type="button" key={k} role="radio" aria-checked={kind === k} className={`mg-kind ${kind === k ? "on" : ""}`} onClick={() => setKind(k)}>
+              <span className={`icon-chip sm ${m.tint === "green" ? "" : m.tint}`}><Icon name={m.icon} size={16} /></span>
+              <span>{m.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <h2 style={{ fontSize: 20 }}>What's it called?</h2>
       {googleConfigured && (picked ? (
         <div className="stack" style={{ gap: 6, textAlign: "left" }}>
           <GooglePreview id={picked.id} mini />
@@ -208,7 +283,14 @@ export function Setup() {
       <h2>Where are you, and how do we reach you?</h2>
       <div className="stack" style={{ textAlign: "left" }}>
         <div className="field"><label className="mg-label" htmlFor="cat"><Icon name="tag" size={15} />Category</label><input id="cat" className="input" value={form.category} onChange={set("category")} placeholder="Pizzeria, Salon…" /></div>
-        <div className="field"><label className="mg-label" htmlFor="ph"><Icon name="phone" size={15} />Phone</label><input id="ph" className="input" type="tel" value={form.phone} onChange={set("phone")} placeholder="98xxxxxxxx" /></div>
+        <div className="field"><label className="mg-label" htmlFor="ph"><Icon name="phone" size={15} />Phone</label>
+          <div className="su-phone">
+            <select className="select" aria-label="Country code" value={dial} onChange={(e) => setDial(e.target.value)}>
+              {DIAL.map((d) => <option key={d.region} value={d.region}>{d.code ? `${d.code} ${d.label}` : d.label}</option>)}
+            </select>
+            <input id="ph" className="input" type="tel" autoComplete="tel-national" value={form.phone} onChange={set("phone")} placeholder={dialRow.region === "IN" ? "98765 43210" : "Phone number"} />
+          </div>
+        </div>
         <div className="grid2">
           <div className="field"><label className="mg-label" htmlFor="ar"><Icon name="pin" size={15} />Area</label><input id="ar" className="input" value={form.area} onChange={set("area")} placeholder="Koregaon Park" /></div>
           <div className="field"><label className="mg-label" htmlFor="ct"><Icon name="map" size={15} />City</label><input id="ct" className="input" value={form.city} onChange={set("city")} placeholder="Pune" /></div>
@@ -227,7 +309,7 @@ export function Setup() {
           <label className="su-link"><LinkIcon kind="maps" size={40} /><span className="grow"><b className="tiny muted">Google Maps</b>
             <input className="su-input" value={form.google_place_id} onChange={set("google_place_id")} placeholder="Paste your Google Maps link" inputMode="url" /></span></label>
         )}
-        {LINK_FIELDS.map((f) => (
+        {linkFieldsFor(kind).map((f) => (
           <label key={f.key} className={`su-link ${urls[f.key].trim() ? "on" : ""}`}><LinkIcon kind={f.key} size={40} /><span className="grow"><b className="tiny muted">{f.label}</b>
             <input className="su-input" value={urls[f.key]} onChange={(e) => setUrls((u) => ({ ...u, [f.key]: e.target.value }))} placeholder={f.ph} inputMode="url" autoCapitalize="off" /></span></label>
         ))}
@@ -237,7 +319,7 @@ export function Setup() {
         ))}
         {extras.length < 3 && <button type="button" className="su-add" onClick={() => setExtras((a) => [...a, ""])}><Icon name="plus" size={16} />Add another link</button>}
       </div>
-      <p className="tiny muted su-note"><Icon name="info" size={14} />Your Google rating and reviews show on your page by themselves. Zomato and Swiggy appear as buttons because those sites don't share their reviews.</p>
+      <p className="tiny muted su-note"><Icon name="info" size={14} />Your Google rating and reviews show on your page by themselves.{kind === "food" ? " Zomato and Swiggy appear as buttons because those sites don't share their reviews." : ""}</p>
     </>,
     <>
       <span className="icon-chip lg amber" style={{ margin: "0 auto" }}><Icon name="qr" size={26} /></span>
@@ -272,6 +354,7 @@ export function Setup() {
       <span className="icon-chip lg violet" style={{ margin: "0 auto" }}><Icon name="crown" size={26} /></span>
       <h2>Pick a plan</h2>
       <p className="small muted">Your page is free. A plan switches on {tables} review QR{tables === 1 ? "" : "s"}.</p>
+      <p className="tiny muted row" style={{ justifyContent: "center", gap: 6 }}><Icon name="rupee" size={13} />Prices and billing are in Indian rupees (INR)</p>
       <div className="pn-seg" role="tablist" aria-label="Pay for">
         {(["year", "month"] as const).map((i) => (
           <button key={i} type="button" role="tab" aria-selected={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>{i === "year" ? "Yearly (2 months free)" : "Monthly"}</button>
@@ -316,7 +399,12 @@ export function Setup() {
   /** Leave the setup from any screen: back to where it was started, asking first when something was typed. */
   function discard() {
     const typed = form.business_name.trim() || form.phone.trim() || form.category.trim();
-    if (typed && !shopId && !window.confirm("Discard your shop setup? What you typed will be lost.")) return;
+    if (typed && !shopId) {
+      void confirm({ title: "Discard your shop setup?", body: "What you typed will be lost.", ok: "Discard", cancel: "Keep going", danger: true })
+        .then((ok) => { if (ok) { clearDraft(); goBack(nav, "/business"); } });
+      return;
+    }
+    clearDraft();
     goBack(nav, "/business");
   }
   return (
@@ -336,7 +424,7 @@ export function Setup() {
       <footer className="su-foot">
         {step > 0 && <button type="button" className="icon-btn su-back" aria-label="Back" disabled={busy} onClick={() => go(-1)}><Icon name="back" /></button>}
         {final
-          ? <button className="btn green grow" disabled={busy} onClick={finish}><Icon name={price > 0 ? "wallet" : "send"} size={18} />{busy ? "One moment…" : price > 0 ? `Pay ${rupees(price)} with Razorpay` : "Send for review"}</button>
+          ? <button className="btn green grow" disabled={busy} onClick={finish}><Icon name={price > 0 ? "wallet" : "check"} size={18} />{busy ? "One moment…" : price > 0 ? `Pay ${rupees(price)} with Razorpay` : "Start free"}</button>
           : <button className="btn green grow su-cta" onClick={next}>Next<Icon name="chev" size={18} /></button>}
       </footer>
     </div>

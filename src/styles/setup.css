@@ -79,3 +79,6 @@
 .su-foot .su-back { width: 54px; height: 54px; border-radius: 18px; }
 .su-done { position: relative; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .su-screen { animation: none; } }
+/* Phone with its country code. */
+.su-phone { display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 1fr); gap: 8px; }
+.su-phone .select { padding-right: 24px; }
