@@ -394,9 +394,11 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
               <div className="rvx-perk"><span className="ci"><Icon name="user" size={17} /></span>No account needed</div>
               <div className="rvx-perk"><span className="ci"><Icon name="eyeOff" size={17} /></span>Anonymous unless you choose otherwise</div>
               <div className="rvx-perk"><span className="ci"><Icon name="verified" size={17} /></span>Marked as a verified visit</div>
+              <div className="rvx-perk"><span className="ci"><Icon name="store" size={17} /></span>The shop sees you visited as "Guest", never your review</div>
             </div>
           )}
         </div>
+        {session && visit && <SeenByShop placeId={peek.place_id} shop={peek.place_name} />}
         {guestErr && <div className="notice err" role="alert">{guestErr}</div>}
         <Link to={`/p/${peek.place_id}`} className="rvx-more"><Icon name="eye" size={18} />See all reviews</Link>
       </section>
@@ -432,6 +434,37 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Tells a diner the shop can see this visit, with one tap to hide from it (which also stops its offers). */
+function SeenByShop({ placeId, shop }: { placeId: string; shop: string }) {
+  const [hidden, setHidden] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    supabase.rpc("my_shop_privacy", { p_place: placeId }).then(({ data, error }) => {
+      if (alive && !error) setHidden(Boolean(((data as { hidden: boolean }[]) || [])[0]?.hidden));
+    }, () => {});
+    return () => { alive = false; };
+  }, [placeId]);
+  if (hidden === null) return null;
+  async function flip() {
+    setBusy(true);
+    const next = !hidden;
+    const { error } = await supabase.rpc("set_shop_privacy", { p_place: placeId, p_hidden: next, p_no_offers: next });
+    setBusy(false);
+    if (!error) setHidden(next);
+  }
+  return (
+    <div className="rvx-status rvx-seen" role="status">
+      <Icon name={hidden ? "eyeOff" : "eye"} size={20} />
+      <span className="grow">
+        <b>{hidden ? `Hidden from ${shop}` : `${shop} can see you visited`}</b>
+        <small>{hidden ? "They can't see you or send you offers." : "Your name and table, so they can send you offers. Never your review."}</small>
+      </span>
+      <button type="button" className="rvx-tool" disabled={busy} onClick={flip}>{hidden ? "Show" : "Hide me"}</button>
     </div>
   );
 }
