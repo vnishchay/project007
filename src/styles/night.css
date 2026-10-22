@@ -2,7 +2,7 @@
    names the older dark design used (lime, gold, pink, ember) map to the one accent and the star colour. */
 
 .pl-night {
-  --gold: var(--star); --lime: var(--green); --ember: var(--green); --pink: #d30f45;
+  --gold: var(--star); --lime: var(--accent); --ember: var(--accent); --pink: #d30f45;
   gap: 0; padding-top: 0; position: relative;
 }
 .pl-night > * + * { margin-top: 18px; }
@@ -11,7 +11,7 @@
 }
 .pl-night .rc, .pl-night .rs, .pl-night .gg, .pl-night .pl-about { border-radius: var(--radius-card); }
 .pl-night .section-title { font-size: 22px; }
-.pn-lime { color: var(--green); font-weight: 700; }
+.pn-lime { color: var(--accent); font-weight: 700; }
 
 /* ---------- Hero: the cover photo under a dark fade, so white text always reads ---------- */
 .pn-hero { position: relative; margin: 0 -20px; height: 480px; overflow: hidden; background: #1c1c1e; color: #fff; border-radius: 0 0 28px 28px; }
@@ -23,7 +23,7 @@
   background: rgba(60, 60, 67, 0.55); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); color: #fff; font: inherit; font-weight: 600; font-size: 15px; transition: transform 0.3s var(--ease); }
 .pn-glass:hover { color: #fff; } .pn-glass:active { transform: scale(0.92); }
 .pn-glass[aria-pressed="true"] { color: #ff6b81; animation: pn-beat 0.8s ease; }
-.pn-glass.pill { padding: 0 16px; border-radius: 99px; color: #fff; background: var(--green); }
+.pn-glass.pill { padding: 0 16px; border-radius: 99px; color: #fff; background: var(--accent); }
 .pn-logo { width: 44px; height: 44px; border-radius: 12px; overflow: hidden; background: #fff; display: grid; place-items: center; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1); }
 .pn-logo img { width: 100%; height: 100%; object-fit: cover; }
 .pn-title { position: absolute; z-index: 2; left: 20px; right: 20px; bottom: 24px; display: flex; flex-direction: column; gap: 12px; }
@@ -44,12 +44,12 @@ button.pn-chip { cursor: pointer; }
 
 /* No cover photo: a light, tinted hero with dark text instead of a black block */
 .pn-hero:not(.has-cover) { height: 420px; color: var(--ink); border-radius: 0 0 28px 28px;
-  background: radial-gradient(120% 90% at 85% 0%, var(--green-soft), transparent 60%), linear-gradient(180deg, var(--card), var(--bg)); box-shadow: 0 0.5px 0 var(--line); }
+  background: radial-gradient(120% 90% at 85% 0%, var(--accent-soft), transparent 60%), linear-gradient(180deg, var(--card), var(--bg)); box-shadow: 0 0.5px 0 var(--line); }
 .pn-hero:not(.has-cover) .pn-aur { background: none; }
 .pn-hero:not(.has-cover) .pn-fade { display: none; }
 .pn-hero:not(.has-cover) .pn-glass:not(.pill) { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
 .pn-hero:not(.has-cover) .pn-glass[aria-pressed="true"] { color: var(--pink); }
-.pn-hero:not(.has-cover) .pn-eyebrow { color: var(--green); }
+.pn-hero:not(.has-cover) .pn-eyebrow { color: var(--accent); }
 .pn-hero:not(.has-cover) .pn-title h1, .pn-hero:not(.has-cover) .pn-title h1 i { color: var(--ink); }
 .pn-hero:not(.has-cover) .pn-tag { color: var(--ink-2); }
 .pn-hero:not(.has-cover) .pn-chip { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
@@ -64,13 +64,13 @@ button.pn-chip { cursor: pointer; }
 .pn-dock { display: flex; justify-content: space-around; padding: 10px 0 0; }
 .pn-act { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--ink-2); animation: pn-rise 0.6s var(--ease) both; transition: transform 0.25s var(--ease); }
 .pn-act:nth-child(2) { animation-delay: 0.06s; } .pn-act:nth-child(3) { animation-delay: 0.12s; } .pn-act:nth-child(4) { animation-delay: 0.18s; }
-.pn-act > span { width: 60px; height: 60px; border-radius: 18px; display: grid; place-items: center; color: var(--green); background: var(--card); box-shadow: var(--shadow); }
-.pn-act > span.hot { background: var(--green); color: #fff; }
+.pn-act > span { width: 60px; height: 60px; border-radius: 18px; display: grid; place-items: center; color: var(--accent); background: var(--card); box-shadow: var(--shadow); }
+.pn-act > span.hot { background: var(--accent); color: #fff; }
 .pn-act:hover { color: var(--ink); } .pn-act:active { transform: scale(0.93); }
 
 /* ---------- Section headings ---------- */
 .pn-sig h2, .pn-friends h2, .pn-links h2 { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.024em; margin: 0 0 14px; }
-.pn-sig h2 i, .pn-friends h2 i, .pn-links h2 i { color: var(--green); }
+.pn-sig h2 i, .pn-friends h2 i, .pn-links h2 i { color: var(--accent); }
 
 /* ---------- Signature picks ---------- */
 .pn-sig-row { display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 4px 20px 14px; scroll-snap-type: x mandatory; scrollbar-width: none; scroll-padding-inline: 20px; }
@@ -85,7 +85,7 @@ button.pn-chip { cursor: pointer; }
 .pn-sig-name { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.014em; line-height: 1.2; padding: 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pn-sig-foot { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 4px; }
 .pn-sig-foot b { color: var(--ink); font-size: 15px; font-weight: 600; }
-.pn-sig-foot .pn-lime { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #fff; background: var(--green); padding: 5px 10px; border-radius: 99px; }
+.pn-sig-foot .pn-lime { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #fff; background: var(--accent); padding: 5px 10px; border-radius: 99px; }
 
 /* ---------- Friends liked ---------- */
 .pn-fr-row { display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 2px 20px 10px; scrollbar-width: none; }
@@ -123,7 +123,7 @@ button.pn-chip { cursor: pointer; }
 .pn-links .pl-link:hover { box-shadow: var(--shadow-lg); }
 .pl-night .pl-claim { color: var(--muted); }
 .pn-foot { position: sticky; bottom: 14px; z-index: 7; margin-top: 22px; }
-.pn-foot-btn { display: flex; align-items: center; gap: 13px; padding: 12px 16px; border-radius: 22px; background: var(--green); color: #fff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
+.pn-foot-btn { display: flex; align-items: center; gap: 13px; padding: 12px 16px; border-radius: 22px; background: var(--accent); color: #fff; font-size: 13px; line-height: 1.35; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
 .pn-foot-btn:hover { color: #fff; }
 .pn-foot-btn b { font-size: 16px; font-weight: 600; }
 .pn-pulse { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none; background: rgba(255, 255, 255, 0.2); color: #fff; }
@@ -149,3 +149,11 @@ button.pn-chip { cursor: pointer; }
 .pl-night .pn-dock { margin-top: 22px; }
 .pn-credit { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 .pn-credit a { color: inherit; text-decoration: underline; }
+
+/* Shorter hero (UX review): the title flows, so the page reaches the reviews sooner.
+   300px with a cover photo, about 200px without, growing only as much as a long name needs. */
+.pn-hero, .pn-hero:not(.has-cover) { height: auto; min-height: 300px; display: flex; flex-direction: column; justify-content: flex-end; }
+.pn-hero:not(.has-cover) { min-height: 200px; }
+.pn-title { position: relative; left: auto; right: auto; bottom: auto; margin: 0 20px; padding: calc(78px + env(safe-area-inset-top)) 0 22px; }
+.pn-hero .pn-title h1 { font-size: clamp(32px, 9vw, 44px); }
+.pn-dot.closed { background: #8e8e93; animation: none; }

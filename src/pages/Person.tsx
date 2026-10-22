@@ -8,7 +8,7 @@ import type { Profile, ReviewRow } from "../lib/types";
 import { Avatar, Icon, Spinner, TopBar, useToast } from "../components/ui";
 import { EmptyArt, Retry } from "../components/home/Kit";
 import "../styles/home.css";
-import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
+import { ReviewCard, REVIEW_SELECT } from "../components/ReviewCard";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,7 +23,6 @@ export default function Person() {
   const { following, toggleFollow, pending } = useFollowing(me);
   const [p, setP] = useState<Profile | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
-  const [followers, setFollowers] = useState<number | null>(null);
   const [expertOn, setExpertOn] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [key, setKey] = useState(0);
@@ -36,16 +35,13 @@ export default function Person() {
     Promise.all([
       supabase.from("profiles").select(PROFILE_COLS).eq("id", id).maybeSingle(),
       supabase.rpc("person_reviews", { p_user: id, p_limit: 50 }).select(REVIEW_SELECT),
-      // Only signed-in people may read the follow graph.
-      supabase.rpc("person_stats", { p_user: id }),
       supabase.from("user_topic_stats").select("review_count, is_expert, topics(name)").eq("user_id", id).eq("is_expert", true),
-    ]).then(([pr, rv, fl, ts]) => {
+    ]).then(([pr, rv, ts]) => {
       if (!alive) return;
       const e = pr.error || rv.error;
       if (e) { setErr(errorText(e)); return; }
       setP((pr.data as Profile) ?? null);
       setReviews((rv.data as unknown as ReviewRow[]) || []);
-      setFollowers(fl.error ? null : (((fl.data as { followers: number }[] | null) || [])[0]?.followers ?? 0));
       setExpertOn(ts.error ? [] : ((ts.data || []) as unknown as TopicStat[]).map((t) => t.topics?.name || "").filter(Boolean));
     });
     return () => { alive = false; };
@@ -80,7 +76,7 @@ export default function Person() {
   async function toggle() {
     if (!me) { toast("Sign in to follow people"); return; }
     const e = await toggleFollow(id);
-    if (e) toast(e); else setFollowers((n) => (n == null ? n : Math.max(0, n + (on ? -1 : 1))));
+    if (e) toast(e);
   }
 
   return (
@@ -108,7 +104,7 @@ export default function Person() {
         )}
         <div className="stat-tiles">
           <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{reviews.length}{reviews.length >= 50 ? "+" : ""}</span><span className="l">reviews</span></div>
-          <div className="stat-tile"><span className="n"><Icon name="people" size={16} />{followers ?? "–"}</span><span className="l">followers</span></div>
+          <div className="stat-tile"><span className="n"><Icon name="store" size={16} />{new Set(reviews.map((r) => r.place_id)).size}</span><span className="l">places</span></div>
           <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{verified}</span><span className="l">verified</span></div>
         </div>
       </header>

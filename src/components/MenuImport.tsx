@@ -7,7 +7,7 @@ import { callAi } from "../lib/assist";
 import type { PlaceLink } from "./place/ShopLinks";
 import type { Mode } from "../lib/modes";
 import { Icon, Spinner, useToast } from "./ui";
-import { DietDot, DIET_OPTIONS } from "./place/shop";
+import { DietDot } from "./place/shop";
 import { currencySymbol } from "../lib/money";
 
 interface Row { name: string; price_inr: number | null; section: string; description: string; diet?: string[]; keep: boolean }
@@ -144,30 +144,33 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
           </div>
         ) : !rows ? (
           <>
-            <div className="pn-seg" role="tablist" aria-label="Import source" style={{ marginBottom: 12 }}>
+            <div className="pn-seg" role="radiogroup" aria-label="Import from" style={{ marginBottom: 12 }}>
               <button
-                role="tab"
-                aria-selected={method === "photo"}
+                type="button"
+                role="radio"
+                aria-checked={method === "photo"}
                 className={method === "photo" ? "on" : ""}
                 onClick={() => setMethod("photo")}
               >
                 <Icon name="camera" size={14} /> Photo / PDF
               </button>
               <button
-                role="tab"
-                aria-selected={method === "url"}
+                type="button"
+                role="radio"
+                aria-checked={method === "url"}
                 className={method === "url" ? "on" : ""}
                 onClick={() => setMethod("url")}
               >
-                <Icon name="globe" size={14} /> Website / Delivery URL
+                <Icon name="globe" size={14} /> Website or delivery link
               </button>
               <button
-                role="tab"
-                aria-selected={method === "text"}
+                type="button"
+                role="radio"
+                aria-checked={method === "text"}
                 className={method === "text" ? "on" : ""}
                 onClick={() => setMethod("text")}
               >
-                <Icon name="edit" size={14} /> Paste Text
+                <Icon name="edit" size={14} /> Paste text
               </button>
             </div>
 
@@ -192,7 +195,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
                         {isPdf ? (
                           <span style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", background: "var(--bg-sub, #f3f4f6)", borderRadius: 8, padding: 4 }}>
                             <Icon name="fileText" size={24} />
-                            <span className="tiny ellipsis" style={{ maxWidth: 60, marginTop: 2, fontSize: 10 }}>PDF</span>
+                            <span className="tiny ellipsis" style={{ maxWidth: 60, marginTop: 2, fontSize: 12 }}>PDF</span>
                           </span>
                         ) : (
                           <img src={URL.createObjectURL(f)} alt={`Page ${i + 1}`} />

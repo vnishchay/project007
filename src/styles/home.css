@@ -33,16 +33,16 @@
 .loc-btn:hover { background: rgba(120, 120, 128, 0.2); color: var(--ink); }
 
 .glass-btn {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px;
   background: rgba(255, 255, 255, 0.16); border: 0; color: #fff; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   font-weight: 600; font-size: 15px; cursor: pointer; max-width: 100%;
 }
 .glass-btn:hover { background: rgba(255, 255, 255, 0.2); color: #fff; }
-.glass-btn.round { width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; flex: none; }
+.glass-btn.round { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 50%; flex: none; }
 .hero .avatar { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4); }
 
 .mic-btn { width: 36px; height: 36px; border-radius: 50%; border: 0; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; flex: none; }
-.mic-btn.on { background: var(--green); color: #fff; animation: pulse 1s ease-in-out infinite; }
+.mic-btn.on { background: var(--accent); color: #fff; animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(201, 96, 74, 0.16); } }
 
 /* ---------- Category tiles ---------- */
@@ -72,7 +72,7 @@ a.place-card:active { transform: scale(0.985); }
 .place-card .meta > span { display: inline-flex; align-items: center; gap: 3px; }
 .place-card .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .thumb-fallback { width: 100%; height: 100%; display: grid; place-items: center; }
-.thumb-fallback.green { background: var(--green-soft); color: var(--green-dark); }
+.thumb-fallback.green { background: var(--accent-soft); color: var(--accent-dark); }
 .thumb-fallback.amber { background: var(--amber-soft); color: #8a5300; }
 .thumb-fallback.coral { background: var(--coral-soft); color: #a81f08; }
 .thumb-fallback.sky { background: var(--sky-soft); color: #0062cc; }
@@ -83,7 +83,7 @@ a.place-card:active { transform: scale(0.985); }
 .pill.verified { background: var(--sky-soft); color: #0062cc; }
 .pill.loved { background: var(--amber-soft); color: #8a5300; max-width: 100%; }
 .pill.loved span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pill.green { background: var(--green-soft); color: var(--green-dark); }
+.pill.green { background: var(--accent-soft); color: var(--accent-dark); }
 .pill.gray { background: var(--fill); color: var(--muted); }
 .pill.coral { background: var(--coral-soft); color: #a81f08; }
 .pill.white { background: rgba(255, 255, 255, 0.22); color: #fff; }
@@ -100,7 +100,7 @@ a.pick-card:hover { color: inherit; }
 .place-card .rank-badge { position: absolute; top: 6px; left: 6px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; }
 .diary-card { width: 160px; }
 .diary-card .thumb { height: 96px; }
-.dish-card.more-card { width: 140px; display: grid; place-items: center; padding: 16px; color: var(--green-dark); text-align: center; }
+.dish-card.more-card { width: 140px; display: grid; place-items: center; padding: 16px; color: var(--accent-dark); text-align: center; }
 
 /* ---------- Generic blocks ---------- */
 .count-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: var(--fill); font-size: 12px; font-weight: 600; color: var(--ink-2); }
@@ -109,7 +109,7 @@ a.pick-card:hover { color: inherit; }
 .callout.violet { background: var(--violet-soft); color: #3634a3; }
 .callout.sky { background: var(--sky-soft); color: #0040dd; }
 .callout.coral { background: var(--coral-soft); color: #7e3a29; }
-.callout.green { background: var(--green-soft); color: var(--green-dark); }
+.callout.green { background: var(--accent-soft); color: var(--accent-dark); }
 a.callout:hover { color: inherit; filter: brightness(0.98); }
 .callout .icon-chip { background: rgba(255, 255, 255, 0.7); }
 
@@ -131,17 +131,17 @@ a.menu-row:hover { color: inherit; }
 .empty-art .icon-chip { width: 64px; height: 64px; border-radius: 16px; }
 .empty-art h2 { color: var(--ink); }
 
-.icon-act { width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--fill); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; flex: none; }
+.icon-act { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--fill); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; flex: none; }
 .icon-act:hover { background: rgba(120, 120, 128, 0.2); color: var(--ink); }
 .icon-act.danger { color: var(--danger); background: var(--danger-soft); }
-.icon-act.green { color: var(--green-dark); background: var(--green-soft); }
+.icon-act.green { color: var(--accent-dark); background: var(--accent-soft); }
 .icon-act.sky { color: #0062cc; background: var(--sky-soft); }
 .icon-act.violet { color: #4a48c8; background: var(--violet-soft); }
 .icon-act.amber { color: #8a5300; background: var(--amber-soft); }
 .icon-act:disabled { opacity: 0.5; cursor: default; }
 
-.btn.white { background: #fff; color: var(--green-dark); }
-.btn.white:hover { background: #f2f2f7; color: var(--green-dark); }
+.btn.white { background: #fff; color: var(--accent-dark); }
+.btn.white:hover { background: #f2f2f7; color: var(--accent-dark); }
 .btn.glass { background: rgba(255, 255, 255, 0.2); color: #fff; border: 0; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
 .btn.glass:hover { background: rgba(255, 255, 255, 0.3); }
 
@@ -167,7 +167,7 @@ a.menu-row:hover { color: inherit; }
 .success-burst { width: 72px; height: 72px; border-radius: 24px; background: rgba(255, 255, 255, 0.22); display: grid; place-items: center; }
 
 .photo-drop { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border-radius: 16px; border: 1px dashed var(--line); background: var(--card); cursor: pointer; text-align: left; font-weight: 700; font-size: 14px; }
-.photo-drop:hover { border-color: var(--green); }
+.photo-drop:hover { border-color: var(--accent); }
 .photo-drop:disabled { opacity: 0.6; cursor: default; }
 
 /* Keep the first card off the screen edge when the strip snaps. */
@@ -191,3 +191,18 @@ a.news-card:hover { color: inherit; }
 .me-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: none; border: 0; transition: transform 0.2s var(--ease); flex: none; }
 .me-btn:active { transform: scale(0.94); }
 .me-btn .avatar { width: 36px; height: 36px; font-size: 14px; }
+
+/* Review actions with words, not icons alone (Your picks). 44px tall for thumbs. */
+.act-btn { min-height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--fill); color: var(--ink-2); font: inherit; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; }
+.act-btn.danger { color: var(--danger); background: var(--danger-soft); }
+.act-btn.green { color: var(--accent-dark); background: var(--accent-soft); }
+.act-btn.sky { color: var(--sky); background: var(--sky-soft); }
+
+/* The four review faces, for editing a review later. */
+.face-pick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.face-pick button { min-height: 76px; padding: 8px 4px; border: 0; border-radius: 14px; background: var(--fill); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; text-align: center; }
+.face-pick button svg { color: var(--muted); }
+.face-pick button small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.face-pick button.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent-dark); }
+.face-pick button.on svg { color: var(--accent); }
+

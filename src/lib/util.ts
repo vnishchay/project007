@@ -55,7 +55,7 @@ export function timeAgo(iso: string): string {
   if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
   const d = Math.floor(s / 86400);
   if (d < 30) return d === 1 ? "yesterday" : `${d} days ago`;
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** Plan prices and payments (billing is in rupees). Shop prices use formatPrice() in money.ts. */
@@ -160,3 +160,6 @@ export function extractPlaceId(text: string | null | undefined): string | null {
   if (/^[A-Za-z0-9_-]{16,}$/.test(t)) return t;
   return null;
 }
+
+/** Plain words for a shop's listing status, for owners. */
+export const STATUS_WORDS: Record<string, string> = { live: "Live", lapsed: "Plan ended", removed: "Taken down" };

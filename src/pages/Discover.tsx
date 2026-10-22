@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase, searchPlaces, PROFILE_COLS, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import type { Profile, SearchResult, Topic } from "../lib/types";
-import { useWhere, whereLabel } from "../lib/location";
+import { rememberCity, useWhere, whereLabel } from "../lib/location";
 import { fetchGoogleRating } from "../lib/google";
 import { placeMediaUrl } from "../lib/media";
 import { Avatar, Icon } from "../components/ui";
@@ -18,17 +18,18 @@ import { defaultRadius, distanceText, radiusChoices } from "../lib/util";
 import { InstallNudge } from "../components/Install";
 import "../styles/home.css";
 
-interface Cat { label: string; q: string; icon: GlyphName; tone: Tone }
+/** Sub-categories, shown once their type is picked, so there is one filter strip instead of two. */
+interface Cat { label: string; q: string; icon: GlyphName; tone: Tone; kind: Kind }
 const CATS: Cat[] = [
-  { label: "Food", q: "restaurant", icon: "food", tone: "green" },
-  { label: "Coffee", q: "coffee", icon: "coffee", tone: "amber" },
-  { label: "Bakery", q: "bakery", icon: "croissant", tone: "amber" },
-  { label: "Pizza", q: "pizza", icon: "pizza", tone: "coral" },
-  { label: "Biryani", q: "biryani", icon: "soup", tone: "coral" },
-  { label: "Dessert", q: "dessert", icon: "cake", tone: "violet" },
-  { label: "Salon", q: "salon", icon: "scissors", tone: "violet" },
-  { label: "Spa", q: "spa", icon: "spa", tone: "sky" },
-  { label: "Shopping", q: "shop", icon: "bag", tone: "sky" },
+  { label: "Coffee", q: "coffee", icon: "coffee", tone: "amber", kind: "food" },
+  { label: "Bakery", q: "bakery", icon: "croissant", tone: "amber", kind: "food" },
+  { label: "Pizza", q: "pizza", icon: "pizza", tone: "coral", kind: "food" },
+  { label: "Biryani", q: "biryani", icon: "soup", tone: "coral", kind: "food" },
+  { label: "Dessert", q: "dessert", icon: "cake", tone: "violet", kind: "food" },
+  { label: "Salon", q: "salon", icon: "scissors", tone: "violet", kind: "beauty" },
+  { label: "Spa", q: "spa", icon: "spa", tone: "sky", kind: "beauty" },
+  { label: "Clothes", q: "clothes", icon: "bag", tone: "sky", kind: "store" },
+  { label: "Groceries", q: "grocery", icon: "bag", tone: "green", kind: "store" },
 ];
 
 // Voice search, where the browser supports speech recognition.
@@ -44,7 +45,7 @@ export default function Discover() {
   const type = params.get("type") || "";
   const [text, setText] = useState(q);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const { where, effective, coords, locating, denied, setWhere } = useWhere(profile?.city);
+  const { where, effective, coords, locating, slow, denied, setWhere } = useWhere(profile?.city);
   const [picking, setPicking] = useState(false);
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [people, setPeople] = useState<Record<string, Profile>>({});
@@ -168,7 +169,7 @@ export default function Discover() {
   function voiceSearch() {
     if (!SR) return;
     const rec = new SR();
-    rec.lang = "en-IN";
+    rec.lang = navigator.language || "en";
     rec.interimResults = false;
     rec.onresult = (e) => {
       const said = e.results[0]?.[0]?.transcript?.trim().replace(/[.?!]$/, "") || "";
@@ -203,11 +204,18 @@ export default function Discover() {
   const firstName = (profile?.display_name || "").split(" ")[0];
   const hi = greeting();
   const cover = (id: string) => placeMediaUrl(media[id]?.cover_path) || placeMediaUrl(media[id]?.logo_path);
+  // Remember where "near you" was, so a slow GPS next time still opens on the right city.
+  useEffect(() => { if (nearYou && dishes?.[0]?.city) rememberCity(dishes[0].city); }, [nearYou, dishes]);
   const shownDishes = (dishes || []).filter((d) => !openOnly || openNow(d.hours) !== false);
   const dishCity = effective.kind === "city" || effective.kind === "area" ? effective.city : dishes?.[0]?.city;
   const kindMode = type && type in MODES ? MODES[type as Kind] : null;
   const dishTitle = q ? `Best ${q}` : kindMode && type !== "food" ? `Most loved ${kindMode.itemPlural}` : `${type === "food" ? mealNow() : "Top"} picks ${nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}`.trim();
   const extraTopics = topics.filter((t) => !CATS.some((c) => c.label.toLowerCase() === t.name.toLowerCase() || c.q === t.name.toLowerCase()));
+  // Topics are dish names, so they sit with Food.
+  const subCats: { label: string; q: string; icon: GlyphName }[] = [
+    ...CATS.filter((c) => c.kind === type),
+    ...(type === "food" ? extraTopics.map((t) => ({ label: t.name, q: t.name, icon: lookFor(t.name).icon })) : []),
+  ];
 
   return (
     <div className="page" style={{ gap: 18 }}>
@@ -236,31 +244,37 @@ export default function Discover() {
 
       {picking && <LocationPicker current={where} onPick={setWhere} onClose={() => setPicking(false)} denied={denied} radius={radius} choices={choices} onRadius={setRadius} />}
 
-      <nav className="chips scroll type-strip" aria-label="Type of business">
-        <button type="button" className={`chip ${!type ? "on" : ""}`} aria-pressed={!type} onClick={() => setType("")}><Icon name="grid" size={15} />All</button>
-        {KINDS.filter((k) => k !== "other").map((k) => (
-          <button key={k} type="button" className={`chip ${type === k ? "on" : ""}`} aria-pressed={type === k} onClick={() => setType(type === k ? "" : k)}>
-            <Icon name={MODES[k].icon} size={15} />{MODES[k].label}
+      {/* One filter strip: business types first; a picked type opens its own sub-categories in the same row. */}
+      <nav className="chips scroll type-strip" aria-label={type ? `${kindMode?.label ?? "Type"} filters` : "Type of business"}>
+        {!type ? <>
+          <button type="button" className="chip on" aria-pressed="true" onClick={() => setType("")}><Icon name="grid" size={15} />All</button>
+          {KINDS.filter((k) => k !== "other").map((k) => (
+            <button key={k} type="button" className="chip" aria-pressed="false" onClick={() => setType(k)}>
+              <Icon name={MODES[k].icon} size={15} />{MODES[k].label}
+            </button>
+          ))}
+        </> : <>
+          <button type="button" className="chip on" aria-label={`${kindMode?.label ?? "Type"}: clear this filter`} onClick={() => { setText(""); setParams({}, { replace: true }); }}>
+            {kindMode && <Icon name={kindMode.icon} size={15} />}{kindMode?.label ?? type}<Icon name="close" size={14} />
           </button>
-        ))}
+          {subCats.map((c) => {
+            const on = q.toLowerCase() === c.q.toLowerCase();
+            return (
+              <button key={c.q} type="button" className={`chip ${on ? "on" : ""}`} aria-pressed={on} onClick={() => go(c.q)}>
+                <Glyph name={c.icon} size={15} />{c.label}
+              </button>
+            );
+          })}
+        </>}
       </nav>
 
-      <nav className="cat-strip" aria-label="Categories">
-        {CATS.map((c) => (
-          <button key={c.label} type="button" className={`cat ${q.toLowerCase() === c.q ? "on" : ""}`} aria-pressed={q.toLowerCase() === c.q} onClick={() => go(c.q)}>
-            <Chip icon={c.icon} tone={c.tone} iconSize={24} /><span className="l">{c.label}</span>
-          </button>
-        ))}
-        {extraTopics.map((t) => {
-          const look = lookFor(t.name);
-          const on = q.toLowerCase() === t.name.toLowerCase();
-          return (
-            <button key={t.id} type="button" className={`cat ${on ? "on" : ""}`} aria-pressed={on} onClick={() => go(t.name)}>
-              <Chip icon={look.icon} tone={look.tone} iconSize={24} /><span className="l">{t.name}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {(slow || denied) && where.kind === "near" && (
+        <div className="notice small row" role="status" style={{ gap: 8 }}>
+          <Icon name="pin" size={14} />
+          <span className="grow">{denied ? "Location is off." : "Still finding you."} Showing {whereLabel(effective)}.</span>
+          <button type="button" className="link-btn small" onClick={() => setWhere({ kind: "near" })}><Icon name="locate" size={14} />Use my location</button>
+        </div>
+      )}
 
       {gap && (
         <Link to={`/p/${gap.id}`} className="callout coral">
@@ -273,7 +287,7 @@ export default function Discover() {
         <section className="stack" style={{ gap: 10 }} aria-label={dishTitle}>
           <SectionTitle icon={q ? "trophy" : "food"} tone={q ? "amber" : "coral"} right={
             <button type="button" className={`chip ${openOnly ? "on" : ""}`} aria-pressed={openOnly} onClick={() => setOpenOnly((v) => !v)}><Icon name="clock" size={14} />Open now</button>
-          }>{dishTitle}</SectionTitle>
+          }>{q ? dishTitle : "Dishes people love"}</SectionTitle>
           {shownDishes.length > 0 ? (
             <div className="hscroll">
               {shownDishes.map((d) => <DishCard key={d.item_id} d={d} />)}
@@ -285,7 +299,8 @@ export default function Discover() {
 
       {!q && <InstallNudge look="callout" returning title="Get Trusted Picks on your home screen" sub="Open it like an app, no store needed." />}
 
-      {signedIn && !q && <NewsStrip userId={session!.user.id} />}
+      {/* Guests can get offers too (owners see guest visitors), so the strip shows for any session. */}
+      {session && !q && <NewsStrip userId={session.user.id} />}
 
       {picks.length > 0 && (
         <section className="stack" style={{ gap: 10 }} aria-label="Friends' picks">
@@ -300,7 +315,7 @@ export default function Discover() {
         <SectionTitle icon={q ? "trophy" : "flame"} tone={q ? "amber" : "coral"} right={results && results.length > 0 ? (
           <span className="count-pill"><Icon name="store" size={13} />{results.length}{hasMore ? "+" : ""}{nearYou && farthest > 0 ? <> · <Icon name="navigate" size={11} />{distanceText(farthest)}</> : null}</span>
         ) : null}>
-          {q ? "Ranked by people you trust" : "Top picks"}
+          {q ? `Places for ${q}` : "Places"}
         </SectionTitle>
 
         {!loading && !signedIn && (

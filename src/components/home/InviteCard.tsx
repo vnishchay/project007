@@ -23,7 +23,7 @@ export function InviteCard() {
 
   return (
     <div className="card invite">
-      <div className="row" style={{ gap: 8 }}><Icon name="userPlus" size={18} color="var(--green)" /><span className="strong">Invite friends</span></div>
+      <div className="row" style={{ gap: 8 }}><Icon name="userPlus" size={18} color="var(--accent)" /><span className="strong">Invite friends</span></div>
       <div className="link-box" aria-label="Your invite link">
         <Icon name="link" size={16} />
         <span>{link ? link.replace(/^https?:\/\//, "") : "Making your link…"}</span>
@@ -32,12 +32,12 @@ export function InviteCard() {
         <button type="button" className="btn green grow" style={{ height: 46 }} onClick={share} disabled={!link}><Icon name="share" size={18} />Share invite</button>
         <button type="button" className="icon-btn" onClick={copy} disabled={!link} aria-label="Copy invite link" title="Copy"><Icon name="copy" size={18} /></button>
         <button type="button" className="icon-btn" onClick={() => setQr((v) => !v)} aria-pressed={qr} aria-label="My QR" title="My QR"
-          style={qr ? { background: "var(--green-soft)", color: "var(--green-dark)", borderColor: "var(--green)" } : undefined}><Icon name="qr" size={18} /></button>
+          style={qr ? { background: "var(--accent-soft)", color: "var(--accent-dark)", borderColor: "var(--accent)" } : undefined}><Icon name="qr" size={18} /></button>
       </div>
       {qr && qrLink && (
         <div className="qr-pop">
           <QrImage text={qrLink} size={196} />
-          <span className="small strong row" style={{ gap: 6 }}><Icon name="scan" size={16} color="var(--green)" />Scan to become friends</span>
+          <span className="small strong row" style={{ gap: 6 }}><Icon name="scan" size={16} color="var(--accent)" />Scan to become friends</span>
           <WalletButton pass={{ kind: "invite" }} />
         </div>
       )}

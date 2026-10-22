@@ -10,6 +10,13 @@ export const NEGATIVE_TAGS = new Set([
 
 export const isNegativeTag = (label: string) => NEGATIVE_TAGS.has(label);
 
+/**
+ * One set of words for a rating, used by the review faces, review cards, diary shelves and the
+ * owner's screens, so a review always says what the diner chose. Index = stars.
+ */
+export const RATING_WORDS = ["", "Bad", "Not for me", "It was OK", "Good", "Loved it"] as const;
+export const ratingWord = (r: number) => RATING_WORDS[Math.min(5, Math.max(0, Math.round(r)))] || "";
+
 /** The hidden item a review of the whole visit is filed under, so it works like any other review (migration 36). */
 export const VISIT_ITEM = "Overall visit";
 export const isVisitItem = (name?: string | null) => name === VISIT_ITEM;

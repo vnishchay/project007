@@ -4,19 +4,19 @@ import { googleConfigured } from "../../lib/google";
 import type { Place } from "../../lib/types";
 import { Icon, Stars, type IconName } from "../ui";
 import { MediaImg } from "./MediaImg";
-import { GoogleMark } from "./Google";
-import { ShopReviews } from "./ShopReviews";
 import { assist } from "../../lib/assist";
+import { modeOf } from "../../lib/modes";
+import { REVIEW_FEED } from "../ReviewCard";
 
 interface ShopStats { reviews: number; avg_rating: number | null; reviews_30d: number; verified: number; google_handoffs: number; google_handoffs_30d: number; scans_30d: number; saves: number; items_rated: number; link_visits_30d?: number }
 interface ItemStat { item_id: string; name: string; image_path: string | null; reviews: number; avg_rating: number; low_ratings: number }
 
-export type ManageTab = "insights" | "products" | "links" | "updates" | "visitors" | "details" | "qr" | "plan";
+export type ManageTab = "insights" | "plan" | "reviews" | "visitors" | "updates" | "products" | "details" | "links" | "qr";
 
-const n = (x: number | null | undefined) => (x ?? 0).toLocaleString("en-IN");
+const n = (x: number | null | undefined) => (x ?? 0).toLocaleString(undefined);
 
 /** What the app brings the shop: counts only, never who. */
-export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) => void }) {
+export function Insights({ place, onGo, hasPin }: { place: Place; onGo: (t: ManageTab) => void; hasPin: boolean | null }) {
   const [stats, setStats] = useState<ShopStats | null | undefined>(undefined);
   const [items, setItems] = useState<ItemStat[]>([]);
   const [err, setErr] = useState("");
@@ -25,6 +25,9 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   const [hasInsights, setHasInsights] = useState<boolean | null>(null);
   const [hasAi, setHasAi] = useState<boolean | null>(null);
   const [planCode, setPlanCode] = useState<string>("trial");
+  const [itemCount, setItemCount] = useState<number | null>(null);
+  const [qrCount, setQrCount] = useState<number | null>(null);
+  const [needReply, setNeedReply] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -35,7 +38,10 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
       supabase.rpc("place_has_feature", { p_place: place.id, p_feature: "insights" }),
       supabase.rpc("place_has_feature", { p_place: place.id, p_feature: "ai_insights" }),
       supabase.rpc("my_plan", { p_place: place.id }),
-    ]).then(([s, i, fi, fa, mp]) => {
+      supabase.from("items").select("id", { count: "exact", head: true }).eq("place_id", place.id),
+      supabase.from("qr_codes").select("id", { count: "exact", head: true }).eq("place_id", place.id).eq("active", true),
+      supabase.from(REVIEW_FEED).select("id", { count: "exact", head: true }).eq("place_id", place.id).eq("status", "published").is("owner_reply", null),
+    ]).then(([s, i, fi, fa, mp, ic, qc, nr]) => {
       if (!alive) return;
       if (s.error?.code === "PGRST202") { setOld(true); setStats(null); return; }
       if (s.error) { setErr(errorText(s.error)); setStats(null); return; }
@@ -45,6 +51,9 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
       if (!fa.error && typeof fa.data === "boolean") setHasAi(fa.data);
       const plan = (mp.data as { plan?: string }[] | null)?.[0]?.plan;
       if (plan) setPlanCode(plan);
+      setItemCount(ic.error ? null : ic.count ?? 0);
+      setQrCount(qc.error ? null : qc.count ?? 0);
+      setNeedReply(nr.error ? null : nr.count ?? 0);
     });
     return () => { alive = false; };
   }, [place.id, attempt]);
@@ -52,7 +61,7 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   if (stats === undefined) return (
     <div className="stack"><div className="skeleton" style={{ height: 132, borderRadius: 24 }} /><div className="grid2"><div className="skeleton" style={{ height: 96 }} /><div className="skeleton" style={{ height: 96 }} /></div></div>
   );
-  if (old) return <div className="notice warn row" style={{ gap: 8 }}><Icon name="info" size={16} /><span className="grow">Insights need a quick database update. We're on it.</span></div>;
+  if (old) return <div className="notice warn row" style={{ gap: 8 }}><Icon name="info" size={16} /><span className="grow">This isn't available yet. Check back soon.</span></div>;
   if (err) return <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={() => setAttempt((x) => x + 1)}><Icon name="refresh" size={15} />Retry</button></div>;
 
   const s = stats ?? { reviews: 0, avg_rating: null, reviews_30d: 0, verified: 0, google_handoffs: 0, google_handoffs_30d: 0, scans_30d: 0, saves: 0, items_rated: 0 };
@@ -60,33 +69,42 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
   const isPro = hasAi ?? (planCode === "pro" || planCode === "growth_pro" || planCode === "autopilot_vip");
   const best = items.filter((i) => i.reviews > 0 && Number(i.avg_rating) >= 3.5).slice(0, 3);
   const attention = items.filter((i) => i.low_ratings > 0).sort((a, b) => b.low_ratings - a.low_ratings || Number(a.avg_rating) - Number(b.avg_rating)).slice(0, 3);
-  const nudgeGoogle = googleConfigured && !place.google_place_id;
 
   return (
     <div className="stack" style={{ gap: 14 }}>
+      <SetupList steps={[
+        { done: hasPin === true, label: "Put your shop on the map", icon: "pin", go: "details" },
+        ...(googleConfigured ? [{ done: Boolean(place.google_place_id), label: "Connect your Google profile", icon: "globe" as const, go: "details" as const }] : []),
+        { done: (itemCount ?? 0) >= 5, label: `Add 5 things to your ${modeOf(place.kind, place.category).catalog.toLowerCase()}${itemCount ? ` (${Math.min(itemCount, 5)} of 5)` : ""}`, icon: "box", go: "products" },
+        { done: (qrCount ?? 0) > 0 && printed(place.id), label: "Print your table QR codes", icon: "print", go: "qr" },
+        { done: s.reviews > 0, label: "Get your first review", icon: "star", go: "qr" },
+      ]} onGo={onGo} loading={itemCount === null && qrCount === null} />
+
+      {/* What matters most first: reviews this month and the average. */}
       <div className="in-hero">
-        <span className="in-hero-art" aria-hidden="true"><Icon name="send" size={120} width={1.4} /></span>
-        <span className="row tiny strong" style={{ gap: 6, opacity: 0.95 }}><Icon name="star" size={14} fill="#fff" />Opened Google to post</span>
-        <span className="in-hero-n">{n(s.google_handoffs)}</span>
-        <span className="small" style={{ opacity: 0.92 }}>
-          {s.google_handoffs_30d > 0 ? <><b>+{n(s.google_handoffs_30d)}</b> in the last 30 days</> : "Happy customers can post their review on Google too"}
+        <span className="in-hero-art" aria-hidden="true"><Icon name="star" size={120} width={1.4} /></span>
+        <span className="row tiny strong" style={{ gap: 6, opacity: 0.95 }}><Icon name="star" size={14} fill="#fff" />Reviews this month</span>
+        <span className="in-hero-n">{n(s.reviews_30d)}</span>
+        <span className="small row" style={{ gap: 6, opacity: 0.92 }}>
+          {s.avg_rating != null ? <><b>{Number(s.avg_rating).toFixed(1)}</b><Stars value={Number(s.avg_rating)} size={12} />average from {n(s.reviews)} reviews</> : "Customers review after scanning your table QR"}
         </span>
       </div>
 
-      <div className="in-tiles">
-        <Tile icon="star" cls="amber" value={n(s.reviews)} label="reviews" sub={s.avg_rating != null ? <span className="row" style={{ gap: 4 }}><b>{Number(s.avg_rating).toFixed(1)}</b><Stars value={Number(s.avg_rating)} size={10} /></span> : s.reviews_30d ? `+${s.reviews_30d} this month` : null} />
-        <Tile icon="verified" cls="" value={n(s.verified)} label="visits with a review" sub="from a QR code or review link" />
-        <Tile icon="scan" cls="violet" value={n(s.scans_30d)} label="QR scans" sub={s.link_visits_30d ? `last 30 days · +${n(s.link_visits_30d)} via links` : "last 30 days"} />
-        <Tile icon="bookmark" cls="sky" value={n(s.saves)} label="saves" sub="get your updates" />
-      </div>
-
-      {nudgeGoogle && (
-        <button type="button" className="in-nudge" onClick={() => onGo("details")}>
-          <span className="icon-chip sm sky"><Icon name="globe" size={16} /></span>
-          <span className="grow">Connect your <GoogleMark /> profile</span>
+      {needReply != null && needReply > 0 && (
+        <button type="button" className="in-nudge" onClick={() => onGo("reviews")}>
+          <span className="icon-chip sm amber"><Icon name="reply" size={16} /></span>
+          <span className="grow">{needReply} {needReply === 1 ? "review needs" : "reviews need"} a reply</span>
           <Icon name="chev" size={18} />
         </button>
       )}
+
+      <div className="in-tiles">
+        <Tile icon="verified" cls="" value={n(s.verified)} label="visits with a review" sub="from a QR code or review link" />
+        <Tile icon="scan" cls="violet" value={n(s.scans_30d)} label="QR scans" sub={s.link_visits_30d ? `last 30 days · +${n(s.link_visits_30d)} via links` : "last 30 days"} />
+        <Tile icon="bookmark" cls="sky" value={n(s.saves)} label="saves" sub="get your updates" />
+        <Tile icon="external" cls="amber" value={n(s.google_handoffs)} label="opened Google to post" sub={s.google_handoffs_30d ? `+${n(s.google_handoffs_30d)} in 30 days` : null} />
+      </div>
+
 
       {s.reviews === 0 ? (
         <div className="mg-empty">
@@ -111,7 +129,7 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
             <div style={{ position: "relative" }}>
               <div style={{ filter: "blur(4.5px)", pointerEvents: "none", userSelect: "none", opacity: 0.6 }}>
                 <ItemBlock
-                  title="Most loved (Sample)"
+                  title="Most loved (example)"
                   icon="trophy"
                   cls="amber"
                   rows={[
@@ -123,8 +141,8 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
               <div className="callout violet" style={{ margin: "10px 0", alignItems: "flex-start" }}>
                 <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
                 <div className="grow stack tight">
-                  <strong>Item-Level Ratings & Insights</strong>
-                  <span className="tiny">Standard and Growth Pro plans unlock detailed ratings for every item, low-rating warnings, and sentiment ranking.</span>
+                  <strong>Ratings for every item</strong>
+                  <span className="tiny">Bigger plans show how each item is rated and warn you about low ratings.</span>
                   <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
                     <Icon name="crown" size={14} />See plans
                   </button>
@@ -132,70 +150,11 @@ export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) =
               </div>
             </div>
           )}
-          <PrivateNotes placeId={place.id} onGo={onGo} />
-          <ShopReviews placeId={place.id} shopName={place.name} />
           {s.reviews >= 3 && <AiTips placeId={place.id} isPro={isPro} onGo={onGo} />}
         </>
       )}
-      <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Customers stay private.</p>
+      <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="lock" size={13} />Reviews stay anonymous. You see counts, never who wrote what.</p>
     </div>
-  );
-}
-
-interface NoteRow { id: string; item_name: string | null; created_at: string; read_at: string | null; locked: boolean; body: string | null; contact: string | null }
-
-/** Private notes from customers at the shop. The server withholds the text and contact until the plan includes notes. */
-function PrivateNotes({ placeId, onGo }: { placeId: string; onGo: (t: ManageTab) => void }) {
-  const [notes, setNotes] = useState<NoteRow[] | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    supabase.rpc("my_owner_notes", { p_place: placeId }).then(({ data, error }) => {
-      if (alive) setNotes(error ? [] : ((data as NoteRow[]) || []));
-    });
-    return () => { alive = false; };
-  }, [placeId]);
-
-  async function markRead(id: string) {
-    const { error } = await supabase.rpc("mark_note_read", { p_note: id });
-    if (!error) setNotes((prev) => (prev || []).map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)));
-  }
-
-  if (!notes || notes.length === 0) return null;
-  const locked = notes.some((n) => n.locked);
-  const unread = notes.filter((n) => !n.read_at).length;
-
-  return (
-    <section className="mg-section" style={{ gap: 10 }}>
-      <div className="mg-section-head">
-        <span className="icon-chip sm coral"><Icon name="message" size={16} /></span>
-        <span className="grow strong">Private notes</span>
-        {unread > 0 && <span className="badge coral">{unread} new</span>}
-      </div>
-      <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>Customers at your shop can send you a note. You never see who sent it, unless they leave a phone or email for a reply.</p>
-      <div className="stack" style={{ gap: 8 }}>
-        {notes.slice(0, 10).map((n) => (
-          <div key={n.id} className="card" style={{ padding: 12 }}>
-            <div className="row" style={{ alignItems: "center", gap: 6, marginBottom: 4 }}>
-              {n.item_name && <strong className="small grow ellipsis">{n.item_name}</strong>}
-              <span className="tiny muted" style={{ marginLeft: "auto" }}>{new Date(n.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
-            </div>
-            {n.locked ? (
-              <p className="small" aria-hidden="true" style={{ margin: 0, filter: "blur(5px)", userSelect: "none" }}>A private note is waiting for you. Upgrade your plan to read it.</p>
-            ) : (
-              <>
-                <p className="small" style={{ margin: 0, color: "var(--ink-2)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{n.body}</p>
-                {n.contact && <p className="tiny muted" style={{ margin: "6px 0 0" }}>Reply to: <strong style={{ color: "var(--ink)" }}>{n.contact}</strong></p>}
-                {!n.read_at && <button type="button" className="btn ghost small" style={{ marginTop: 8 }} onClick={() => markRead(n.id)}><Icon name="check" size={14} />Mark as read</button>}
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-      {locked && (
-        <button type="button" className="btn green small" style={{ alignSelf: "flex-start" }} onClick={() => onGo("plan")}><Icon name="crown" size={14} />See plans</button>
-      )}
-    </section>
   );
 }
 
@@ -218,8 +177,8 @@ function AiTips({ placeId, isPro, onGo }: { placeId: string; isPro: boolean; onG
         <div className="callout violet" style={{ margin: "4px 0", alignItems: "flex-start" }}>
           <span className="icon-chip sm violet"><Icon name="lock" size={16} /></span>
           <div className="grow stack tight">
-            <strong style={{ fontSize: 14 }}>AI Review Analysis & Tips</strong>
-            <span className="tiny">AI reads your customer reviews to highlight what customers love and what to fix first on Pro and Growth Pro plans.</span>
+            <strong style={{ fontSize: 14 }}>AI tips from your reviews</strong>
+            <span className="tiny">On the top plans, AI reads your reviews and tells you what customers love and what to fix first.</span>
             <button type="button" className="btn green small" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={() => onGo("plan")}>
               <Icon name="crown" size={14} />See plans
             </button>
@@ -233,7 +192,7 @@ function AiTips({ placeId, isPro, onGo }: { placeId: string; isPro: boolean; onG
       ) : (
         <>
           {tips.summary && <p className="small">{tips.summary}</p>}
-          {tips.loved.length > 0 && <ul className="ai-list">{tips.loved.map((t) => <li key={t}><Icon name="heart" size={15} color="var(--green)" />{t}</li>)}</ul>}
+          {tips.loved.length > 0 && <ul className="ai-list">{tips.loved.map((t) => <li key={t}><Icon name="heart" size={15} color="var(--accent)" />{t}</li>)}</ul>}
           {tips.fix.length > 0 && <ul className="ai-list">{tips.fix.map((t) => <li key={t}><Icon name="zap" size={15} color="#c2410c" />{t}</li>)}</ul>}
         </>
       )}
@@ -277,5 +236,29 @@ function ItemBlock({ title, icon, cls, rows, low = false }: { title: string; ico
         );
       })}
     </div>
+  );
+}
+
+/** Remembered on this phone once the owner prints their QR sheet. */
+export const printed = (placeId: string) => { try { return localStorage.getItem(`tp-printed:${placeId}`) === "1"; } catch { return false; } };
+export const markPrinted = (placeId: string) => { try { localStorage.setItem(`tp-printed:${placeId}`, "1"); } catch { /* storage blocked */ } };
+
+/** First things to do, ticked off as they happen. Hidden once everything is done. */
+function SetupList({ steps, onGo, loading }: { steps: { done: boolean; label: string; icon: IconName; go: ManageTab }[]; onGo: (t: ManageTab) => void; loading: boolean }) {
+  const left = steps.filter((x) => !x.done).length;
+  if (loading || !left) return null;
+  return (
+    <section className="mg-section" style={{ gap: 8 }} aria-labelledby="setup-h">
+      <div className="mg-section-head"><span className="icon-chip sm"><Icon name="checkCircle" size={16} /></span><span className="grow" id="setup-h">Get set up</span><span className="badge gray">{steps.length - left} of {steps.length}</span></div>
+      <div className="mg-setup">
+        {steps.map((x) => (
+          <button key={x.label} type="button" className={`mg-setup-row ${x.done ? "done" : ""}`} onClick={() => onGo(x.go)} disabled={x.done}>
+            <span className="tick" aria-hidden="true">{x.done ? <Icon name="check" size={14} width={3} /> : <Icon name={x.icon} size={15} />}</span>
+            <span className="grow">{x.label}</span>
+            {x.done ? <span className="sr-only">Done</span> : <Icon name="chev" size={16} color="var(--muted)" />}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }

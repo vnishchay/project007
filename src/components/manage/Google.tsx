@@ -93,11 +93,11 @@ export function GooglePreview({ id, mini = false, note = "Shown live on your pag
       <span className="grow stack tight" style={{ minWidth: 0 }}>
         <span className="strong ellipsis">{d.name}</span>
         {d.rating != null
-          ? <span className="row tiny" style={{ gap: 6 }}><b>{d.rating.toFixed(1)}</b><Stars value={d.rating} size={12} /><span className="muted">{d.count.toLocaleString("en-IN")}</span></span>
+          ? <span className="row tiny" style={{ gap: 6 }}><b>{d.rating.toFixed(1)}</b><Stars value={d.rating} size={12} /><span className="muted">{d.count.toLocaleString(undefined)}</span></span>
           : <span className="tiny muted">No Google rating yet</span>}
         <span className="tiny muted row" style={{ gap: 4 }}>Live from <GoogleMark /></span>
       </span>
-      <Icon name="checkCircle" size={22} color="var(--green)" />
+      <Icon name="checkCircle" size={22} color="var(--accent)" />
     </div>
   );
 
@@ -109,7 +109,7 @@ export function GooglePreview({ id, mini = false, note = "Shown live on your pag
           {d.address && <span className="tiny muted ellipsis">{d.address}</span>}
         </span>
         {d.rating != null && (
-          <span className="gp-rating"><b>{d.rating.toFixed(1)}</b><Stars value={d.rating} size={11} /><span className="tiny muted">{d.count.toLocaleString("en-IN")} reviews</span></span>
+          <span className="gp-rating"><b>{d.rating.toFixed(1)}</b><Stars value={d.rating} size={11} /><span className="tiny muted">{d.count.toLocaleString(undefined)} reviews</span></span>
         )}
       </div>
       {photos.length > 0 && (

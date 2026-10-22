@@ -20,6 +20,7 @@ import Review from "./pages/Review";
 import Saved from "./pages/Saved";
 import Person from "./pages/Person";
 import Me from "./pages/Me";
+import Picks from "./pages/Picks";
 import Business from "./pages/Business";
 import BusinessSetup from "./pages/BusinessSetup";
 import Admin from "./pages/Admin";
@@ -65,6 +66,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/saved/:reviewId" element={<RequireAuth guestOk><Saved /></RequireAuth>} />
                 <Route path="/circle" element={<Navigate to="/me" replace />} />
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
+                <Route path="/picks" element={<RequireAuth allowGuest><Picks /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
                 <Route path="/business/setup" element={<RequireAuth><BusinessSetup /></RequireAuth>} />
                 <Route path="/manage/:placeId" element={<RequireAuth><Manage /></RequireAuth>} />

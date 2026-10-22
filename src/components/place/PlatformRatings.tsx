@@ -64,7 +64,7 @@ export function parsePlaceAbout(rawAbout?: string | null, links: PlaceLink[] = [
         platformRatings.push({
           platform: platformName,
           rating: "Verified",
-          details: "Official Listing",
+          details: "Official listing",
           kind: l.kind
         });
       }
@@ -133,7 +133,7 @@ export function PlatformRatingsCard({
     <section className="pl-about pl-multiplatform" aria-label="Verified across platforms">
       <div className="section-title">
         <span className="icon-chip sm emerald"><Icon name="verified" size={16} /></span>
-        <span className="grow">Verified Across Platforms</span>
+        <span className="grow">Ratings on other platforms</span>
         <span className="muted tiny">{list.length} networks</span>
       </div>
       <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>

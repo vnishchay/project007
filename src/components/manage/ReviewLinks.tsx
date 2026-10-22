@@ -25,7 +25,7 @@ export function ReviewLinks({ placeId, placeName, live }: { placeId: string; pla
     setBusy(true); setErr("");
     const { data, error } = await supabase.rpc("create_review_link", { p_place: placeId });
     setBusy(false);
-    if (error) { setErr(/could not find the function/i.test(error.message) ? "Review links need the latest database update." : errorText(error)); return; }
+    if (error) { setErr(/could not find the function/i.test(error.message) ? "Review links aren't available yet." : errorText(error)); return; }
     const row = ((data as { token: string; expires_at: string }[]) || [])[0];
     if (!row) return;
     setLink({ url: `${window.location.origin}/r/${row.token}`, expires: row.expires_at });
@@ -33,7 +33,7 @@ export function ReviewLinks({ placeId, placeName, live }: { placeId: string; pla
   }
 
   const message = link ? `Thanks for choosing ${placeName}! Tell us how it was (takes a minute, no account needed): ${link.url}` : "";
-  const until = link ? new Date(link.expires).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "";
+  const until = link ? new Date(link.expires).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "";
 
   return (
     <section className="card stack" style={{ gap: 12 }}>

@@ -7,7 +7,7 @@ import { useSettings, type AppSettings } from "../lib/settings";
 import type { Place, ReviewRow, Topic } from "../lib/types";
 import { rupees, timeAgo, parseCoords, extractPlaceId } from "../lib/util";
 import { syncPinFromGoogle } from "../lib/pin";
-import { Icon, TopBar, useToast, type IconName } from "../components/ui";
+import { Icon, TopBar, useToast, type IconName, useConfirm, useTabKeys } from "../components/ui";
 import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
 import { CoordsField } from "../components/CoordsField";
 import { GoogleFind, areaCityFromAddress, matchCategory } from "../components/manage/Google";
@@ -23,6 +23,7 @@ export default function Admin() {
   const [sum, setSum] = useState<Summary | null>(null);
   const [n, setN] = useState(0);
   const refresh = () => setN((x) => x + 1);
+  const tabKeys = useTabKeys(TABS.map(([k]) => k), tab, setTab);
 
   useEffect(() => {
     supabase.rpc("admin_summary").then(({ data }) => setSum(((data as Summary[]) || [])[0] ?? null));
@@ -41,9 +42,9 @@ export default function Admin() {
         <div className="kpi ad-kpi"><span className="icon-chip sm"><Icon name="store" size={16} /></span><div className="n">{sum?.live_places ?? "–"}</div><div className="l">live places</div></div>
         <div className="kpi ad-kpi"><span className="icon-chip sm sky"><Icon name="wallet" size={16} /></span><div className="n">{sum ? rupees(sum.collected_inr) : "–"}</div><div className="l">collected</div></div>
       </div>
-      <div className="tabs ad-tabs" role="tablist">
+      <div className="tabs ad-tabs" role="tablist" aria-label="Admin sections" onKeyDown={tabKeys}>
         {TABS.map(([k, icon, label]) => (
-          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}><Icon name={icon} size={18} />{label}</button>
+          <button key={k} role="tab" tabIndex={tab === k ? 0 : -1} aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}><Icon name={icon} size={18} />{label}</button>
         ))}
       </div>
       {tab === "verify" && <Verify key={n} onChange={refresh} />}
@@ -247,7 +248,7 @@ function Places({ onChange }: { onChange: () => void }) {
                   const sub = subOf(p);
                   if (!sub || sub.plan === "trial" || sub.status === "expired") return null;
                   const end = sub.period_end;
-                  return <span className={`tiny ${soon(end) ? "strong" : "muted"}`} style={soon(end) ? { color: "#7a5410" } : undefined}>{sub.plan} until {new Date(end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>;
+                  return <span className={`tiny ${soon(end) ? "strong" : "muted"}`} style={soon(end) ? { color: "#7a5410" } : undefined}>{sub.plan} until {new Date(end).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>;
                 })()}
               </span>
             </Link>
@@ -293,6 +294,7 @@ function Settings() {
 /* ---------- Reviews (moderation) ---------- */
 function Reviews() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
   const [show, setShow] = useState<"recent" | "hidden">("recent");
   const [err, setErr] = useState("");
@@ -356,10 +358,10 @@ function Reviews() {
             <div className="row between">
               {r.status === "hidden" ? <span className="badge red">Hidden</span> : <span className="badge gray">Published</span>}
               <span className="row" style={{ gap: 8 }}>
-                {r.owner_reply && <button className="btn small ghost" onClick={() => { if (confirm("Remove the owner's reply?")) removeReply(r); }}><Icon name="trash" size={15} />Remove reply</button>}
+                {r.owner_reply && <button className="btn small ghost" onClick={() => void confirm({ title: "Remove the owner's reply?", ok: "Remove", danger: true }).then((ok) => { if (ok) removeReply(r); })}><Icon name="trash" size={15} />Remove reply</button>}
                 {r.status === "hidden"
                   ? <button className="btn small ghost" onClick={() => setStatus(r, "published")}>Restore</button>
-                  : <button className="btn small danger" onClick={() => { if (confirm("Hide this review from everyone?")) setStatus(r, "hidden"); }}>Hide</button>}
+                  : <button className="btn small danger" onClick={() => void confirm({ title: "Hide this review from everyone?", ok: "Hide", danger: true }).then((ok) => { if (ok) setStatus(r, "hidden"); })}>Hide</button>}
               </span>
             </div>
           </ReviewCard>
@@ -378,6 +380,7 @@ const ALERT_LOOK: Record<string, [IconName, string]> = {
 
 function Alerts() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<Alert[] | null>(null);
   const [err, setErr] = useState("");
   const load = () => {
@@ -390,7 +393,7 @@ function Alerts() {
   useEffect(load, []);
 
   async function act(a: Alert, hide: boolean) {
-    if (hide && !confirm("Hide this review from everyone?")) return;
+    if (hide && !(await confirm({ title: "Hide this review from everyone?", ok: "Hide", danger: true }))) return;
     if (hide) {
       const { error } = await supabase.from("reviews").update({ status: "hidden" }).eq("id", a.review_id!);
       if (error) { toast(errorText(error)); return; }
@@ -444,6 +447,7 @@ function ClaimPhoto({ path }: { path: string }) {
 
 function Claims() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<ClaimRow[] | null>(null);
   const [err, setErr] = useState("");
   const load = () => {
@@ -454,7 +458,7 @@ function Claims() {
   };
   useEffect(load, []);
   async function decide(c: ClaimRow, ok: boolean) {
-    if (ok && c.has_owner && !confirm("This shop already has an owner. Give it to this person instead?")) return;
+    if (ok && c.has_owner && !(await confirm({ title: "This shop already has an owner", body: "Give it to this person instead?", ok: "Give it to them", danger: true }))) return;
     const { error } = await supabase.rpc("decide_claim", { p_claim: c.id, p_approve: ok });
     if (error) toast(errorText(error)); else { toast(ok ? "Approved. They can manage the shop now." : "Rejected"); load(); }
   }
@@ -652,7 +656,7 @@ function ShopPlans() {
           <button className="row" style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", gap: 10 }} onClick={() => setOpen(open === r.place_id ? null : r.place_id)}>
             <span className={`icon-chip sm ${r.reviews_open ? "" : "coral"}`}><Icon name={r.reviews_open ? "check" : "clock"} size={15} /></span>
             <span className="grow stack tight"><span className="strong">{r.place_name}</span>
-              <span className="tiny muted">{r.plan_name} · {r.status === "expired" ? "ended" : `until ${new Date(r.period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`} · {r.qr_used}/{r.qr_limit} QRs</span></span>
+              <span className="tiny muted">{r.plan_name} · {r.status === "expired" ? "ended" : `until ${new Date(r.period_end).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`} · {r.qr_used}/{r.qr_limit} QRs</span></span>
             <span className={`badge ${r.reviews_open ? "" : "warn"}`}>{r.reviews_open ? "Reviews on" : "Paused"}</span>
           </button>
           {open === r.place_id && (
@@ -721,6 +725,7 @@ function PlanPrices() {
 /* ---------- Topics and tags ---------- */
 function Vocabulary() {
   const toast = useToast();
+  const confirm = useConfirm();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [tags, setTags] = useState<{ id: number; label: string }[]>([]);
   const [newTopic, setNewTopic] = useState("");
@@ -739,7 +744,7 @@ function Vocabulary() {
     if (error) toast(errorText(error)); else { done(); load(); toast("Added"); }
   }
   async function remove(table: "topics" | "tags", id: number, name: string) {
-    if (!confirm(`Remove “${name}”? It comes off every item or review that uses it.`)) return;
+    if (!(await confirm({ title: `Remove “${name}”?`, body: "It comes off every item or review that uses it.", ok: "Remove", danger: true }))) return;
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) toast(errorText(error)); else load();
   }

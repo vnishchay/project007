@@ -1,27 +1,22 @@
 import { InviteCard } from "../components/home/InviteCard";
 import { PasskeysCard } from "../components/Passkeys";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
-import { isVisitItem, itemLabel, olderThan } from "../lib/reviews";
-import { ItemThumb } from "../components/place/ItemThumb";
 import { InstallNudge } from "../components/Install";
 import { useAuth } from "../lib/auth";
-import type { ReviewRow } from "../lib/types";
 import { placeMediaUrl, shrinkImage } from "../lib/media";
-import { copyText } from "../lib/util";
-import { triggerConfetti } from "../lib/confetti";
-import { Avatar, Icon, Spinner, StarInput, TopBar, useToast } from "../components/ui";
-import { ReviewCard, REVIEW_SELECT, REVIEW_FEED } from "../components/ReviewCard";
-import { Chip, Cover, EmptyArt, Glyph, MenuRow, Retry, SectionTitle, lookFor } from "../components/home/Kit";
+import { STATUS_WORDS, copyText, timeAgo } from "../lib/util";
+import { Avatar, Icon, TopBar, useToast } from "../components/ui";
+import { Chip, Cover, Glyph, MenuRow, SectionTitle } from "../components/home/Kit";
 import "../styles/home.css";
 
-interface SavedRow { place_id: string; places: { name: string; area: string | null; category: string } | null }
-interface Draft { id: string; rating: number; body: string }
 interface MyPlace { id: string; name: string; area: string | null; city: string; status: string; cover_path: string | null; logo_path: string | null }
+interface Mine { id: string; place_id: string; verified: boolean; is_public: boolean }
+interface ShopSeen { place_id: string; place_name: string; area: string | null; logo_path: string | null; last_visit: string; hidden: boolean; no_offers: boolean }
 
-interface OpenVisit { place_id: string; expires_at: string; places: { name: string; area: string | null; category: string } | null }
 
+/** Your profile and settings. What you rated and saved lives on Your picks (/picks). */
 export default function Me() {
   const { session, profile, refreshProfile, signOut, isAdmin, isGuest } = useAuth();
   const me = session!.user.id;
@@ -33,66 +28,29 @@ export default function Me() {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [reviews, setReviews] = useState<ReviewRow[] | null>(null);
-  const [reviewsErr, setReviewsErr] = useState<string | null>(null);
-  const PAGE = 30;
-  const [moreReviews, setMoreReviews] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [saved, setSaved] = useState<SavedRow[] | null>(null);
-  const [savedErr, setSavedErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<"reviews" | "saved">("reviews");
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [savingReview, setSavingReview] = useState(false);
+  const [mine, setMine] = useState<Mine[] | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [friendCount, setFriendCount] = useState<number | null>(null);
   const [shops, setShops] = useState<MyPlace[]>([]);
+  const [badges, setBadges] = useState<string[]>([]);
+  const [seenBy, setSeenBy] = useState<ShopSeen[] | null>(null);
 
   useEffect(() => { setName(profile?.display_name || ""); setCity(profile?.city || ""); }, [profile]);
 
-  const loadReviews = useCallback(() => {
-    setReviewsErr(null);
-    supabase.rpc("my_reviews", { p_limit: PAGE + 1 }).select(REVIEW_SELECT)
-      .then(({ data, error }) => {
-        if (error) { setReviewsErr(errorText(error)); return; }
-        const all = (data as unknown as ReviewRow[]) || [];
-        setMoreReviews(all.length > PAGE);
-        setReviews(all.slice(0, PAGE));
-      });
-  }, [me]);
-  async function showMoreReviews() {
-    const last = reviews?.[reviews.length - 1];
-    if (!last || loadingMore) return;
-    setLoadingMore(true);
-    const { data, error } = await supabase.rpc("my_reviews", { p_before_created: last.created_at, p_before_id: last.id, p_limit: PAGE + 1 }).select(REVIEW_SELECT);
-    setLoadingMore(false);
-    if (error) { toast(errorText(error)); return; }
-    const all = (data as unknown as ReviewRow[]) || [];
-    setMoreReviews(all.length > PAGE);
-    setReviews((rs) => { const seen = new Set((rs || []).map((x) => x.id)); return [...(rs || []), ...all.slice(0, PAGE).filter((x) => !seen.has(x.id))]; });
-  }
-  const loadSaved = useCallback(() => {
-    setSavedErr(null);
-    supabase.from("saved_places").select("place_id, places(name, area, category)").eq("user_id", me).order("created_at", { ascending: false }).limit(300)
-      .then(({ data, error }) => { if (error) setSavedErr(errorText(error)); else setSaved((data as unknown as SavedRow[]) || []); });
-  }, [me]);
-  useEffect(() => { loadReviews(); loadSaved(); }, [loadReviews, loadSaved]);
-
-  // Shops you scanned into recently and can still review (the visit is open).
-  const [openVisits, setOpenVisits] = useState<OpenVisit[]>([]);
   useEffect(() => {
-    supabase.from("visits").select("place_id, expires_at, places(name, area, category)").eq("user_id", me)
-      .gt("expires_at", new Date().toISOString()).order("scanned_at", { ascending: false }).limit(10)
-      .then(({ data }) => {
-        const seen = new Set<string>();
-        setOpenVisits(((data as unknown as OpenVisit[]) || []).filter((v) => v.places && !seen.has(v.place_id) && seen.add(v.place_id)));
-      });
+    supabase.rpc("my_reviews", { p_limit: 500 }).select("id, place_id, verified, is_public")
+      .then(({ data, error }) => setMine(error ? [] : ((data as unknown as Mine[]) || [])));
+    // Shops that saw your visits, with your Hide and Offers switches for each.
+    supabase.rpc("my_shop_privacy_list").then(({ data, error }) => setSeenBy(error ? [] : ((data as ShopSeen[]) || [])), () => setSeenBy([]));
   }, [me]);
 
-  // Friends and your shops. Both quietly stay empty on a database without them.
+  // Friends, your shops and topic badges. All quietly stay empty on a database without them.
   useEffect(() => {
     if (isGuest) return;
     supabase.rpc("my_friends").then(({ data, error }) => { if (!error) setFriendCount(((data as unknown[]) || []).length); });
     supabase.rpc("my_places").then(({ data, error }) => { if (!error) setShops((data as MyPlace[]) || []); });
+    supabase.from("user_topic_stats").select("topics(name)").eq("user_id", me).eq("is_expert", true)
+      .then(({ data, error }) => { if (!error && data) setBadges((data as unknown as { topics: { name: string } | null }[]).map((t) => t.topics?.name || "").filter(Boolean)); });
   }, [me, isGuest]);
 
   async function saveProfile(e: React.FormEvent) {
@@ -122,35 +80,19 @@ export default function Me() {
     }
   }
 
-  async function setVisibility(id: string, isPublic: boolean) {
-    const { data, error } = await supabase.from("reviews").update({ is_public: isPublic }).eq("id", id).select("id");
-    if (error) { toast(errorText(error)); return; }
-    if (!data?.length) { toast("Couldn't change this review"); return; }
-    setReviews((rs) => (rs || []).map((x) => (x.id === id ? { ...x, is_public: isPublic } : x)));
-    toast(isPublic ? "Your name now shows on this review" : "This review is now anonymous");
+  async function shareProfile() {
+    // The public page shows only reviews you chose to put your name on.
+    const url = `${window.location.origin}/u/${me}`;
+    const text = `My picks on Trusted Picks`;
+    if (navigator.share) { try { await navigator.share({ title: text, url }); } catch { /* dismissed */ } return; }
+    toast(await copyText(url) ? "Profile link copied" : url);
   }
 
-  async function remove(id: string) {
-    if (!confirm("Delete this review?")) return;
-    const { data, error } = await supabase.from("reviews").delete().eq("id", id).select("id");
-    if (error) toast(errorText(error));
-    else if (!data?.length) toast(isGuest ? "Sign in to delete reviews" : "Couldn't delete this review");
-    else { setReviews((rs) => (rs || []).filter((r) => r.id !== id)); if (draft?.id === id) setDraft(null); toast("Review deleted"); }
-  }
-
-  async function saveReview(e: React.FormEvent) {
-    e.preventDefault();
-    if (!draft) return;
-    if (draft.rating < 1 || draft.rating > 5) { toast("Pick 1 to 5 stars"); return; }
-    setSavingReview(true);
-    const body = draft.body.trim();
-    const { data, error } = await supabase.from("reviews").update({ rating: draft.rating, body }).eq("id", draft.id).select("id");
-    setSavingReview(false);
-    if (error) { toast(errorText(error)); return; }
-    if (!data?.length) { toast("Couldn't save this review"); return; }
-    setReviews((rs) => (rs || []).map((r) => (r.id === draft.id ? { ...r, rating: draft.rating, body } : r)));
-    setDraft(null);
-    toast("Review updated");
+  async function setShop(s: ShopSeen, patch: { hidden?: boolean; no_offers?: boolean }) {
+    const prev = seenBy;
+    setSeenBy((xs) => (xs || []).map((x) => (x.place_id === s.place_id ? { ...x, ...patch } : x)));
+    const { error } = await supabase.rpc("set_shop_privacy", { p_place: s.place_id, ...(patch.hidden !== undefined ? { p_hidden: patch.hidden } : {}), ...(patch.no_offers !== undefined ? { p_no_offers: patch.no_offers } : {}) });
+    if (error) { setSeenBy(prev); toast("Couldn't change that. Try again."); }
   }
 
   async function doSignOut() {
@@ -158,26 +100,34 @@ export default function Me() {
     try { await signOut(); } catch (e) { toast(errorText(e)); setSigningOut(false); }
   }
 
-  const verified = (reviews || []).filter((r) => r.verified).length;
-  const named = (reviews || []).filter((r) => r.is_public).length;
+  const list = mine || [];
+  const verified = list.filter((r) => r.verified).length;
+  const places = new Set(list.map((r) => r.place_id)).size;
+  const named = list.filter((r) => r.is_public).length;
+  const n = (v: number | null | undefined) => (mine === null || v == null ? "–" : v);
+  // One row of numbers, the same for guests and members.
+  const stats = (
+    <div className="stat-tiles">
+      <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{n(list.length)}</span><span className="l">reviews</span></div>
+      <div className="stat-tile"><span className="n"><Icon name="store" size={16} />{n(places)}</span><span className="l">places</span></div>
+      <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{n(verified)}</span><span className="l">verified</span></div>
+      {!isGuest && <div className="stat-tile"><span className="n"><Icon name="people" size={16} />{friendCount ?? "–"}</span><span className="l">{friendCount === 1 ? "friend" : "friends"}</span></div>}
+    </div>
+  );
 
   return (
     <div className="page" style={{ gap: 18 }}>
-      <TopBar title="Your profile" tone={isGuest ? "sunset" : "hero"} />
+      <TopBar title="Profile" tone={isGuest ? "sunset" : "hero"} />
       {isGuest ? (
         <header className="hero sunset">
           <div className="row" style={{ gap: 12 }}>
             <span className="success-burst"><Glyph name="ghost" size={34} color="#fff" /></span>
             <div className="grow stack tight">
               <h1 style={{ fontSize: 24 }}>Guest</h1>
-              <span className="hero-sub"><Icon name="eyeOff" size={16} />Your reviews are anonymous</span>
+              <span className="hero-sub"><Icon name="eyeOff" size={16} />Your reviews are anonymous and kept on this phone</span>
             </div>
           </div>
-          <div className="stat-tiles">
-            <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{reviews?.length ?? "–"}</span><span className="l">reviews</span></div>
-            <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
-            <div className="stat-tile"><span className="n"><Icon name="lock" size={16} /></span><span className="l">this device</span></div>
-          </div>
+          {stats}
           <Link to="/signin" className="btn white block" style={{ color: "#9c4733" }}><Icon name="login" size={18} />Keep my picks diary (optional)</Link>
         </header>
       ) : (
@@ -194,7 +144,7 @@ export default function Me() {
                 <span style={{ opacity: uploading ? 0.5 : 1, display: "block" }}>
                   <Avatar id={me} name={profile?.display_name} path={profile?.avatar_path} size="lg" />
                 </span>
-                <span aria-hidden="true" style={{ position: "absolute", right: -4, bottom: -4, width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", color: "var(--green-dark)" }}>
+                <span aria-hidden="true" style={{ position: "absolute", right: -4, bottom: -4, width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", color: "var(--accent-dark)" }}>
                   <Icon name="camera" size={13} width={2.4} />
                 </span>
               </button>
@@ -215,11 +165,12 @@ export default function Me() {
                 <Icon name={editing ? "close" : "edit"} size={18} />
               </button>
             </div>
-            <div className="stat-tiles">
-              <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{reviews?.length ?? "–"}</span><span className="l">reviews</span></div>
-              <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{reviews ? verified : "–"}</span><span className="l">verified</span></div>
-              <div className="stat-tile"><span className="n"><Icon name="people" size={16} />{friendCount ?? "–"}</span><span className="l">{friendCount === 1 ? "friend" : "friends"}</span></div>
-            </div>
+            {stats}
+            {badges.length > 0 && (
+              <div className="chips" aria-label="Community badges">
+                {badges.map((b) => <span key={b} className="chip"><Icon name="trophy" size={12} />{b} expert</span>)}
+              </div>
+            )}
           </header>
 
           {editing && (
@@ -233,7 +184,10 @@ export default function Me() {
             </form>
           )}
 
-          <FoodPassport reviews={reviews || []} city={profile?.city} userId={me} />
+          <div className="menu">
+            <MenuRow to="/picks" icon="heart" tone="coral" title="Your picks" sub="Ready to rate, your diary, reviews and saved places" />
+            <MenuRow icon="share" tone="sky" title="Share your profile" sub={named ? `Shows the ${named} review${named === 1 ? "" : "s"} with your name` : "Only reviews with your name show on it"} onClick={shareProfile} />
+          </div>
 
           <InviteCard />
 
@@ -243,7 +197,7 @@ export default function Me() {
                 <span className="thumb" style={{ width: 40, height: 40, borderRadius: 12 }}><Cover url={placeMediaUrl(s.logo_path) || placeMediaUrl(s.cover_path)} category={s.name} size={20} /></span>
                 <span className="grow stack tight" style={{ minWidth: 0 }}>
                   <span className="t ellipsis">{s.name}</span>
-                  <span className="s ellipsis row" style={{ gap: 4 }}><Icon name="store" size={12} />Your shop{s.area ? ` · ${s.area}` : ""}{s.status !== "live" ? ` · ${s.status}` : ""}</span>
+                  <span className="s ellipsis row" style={{ gap: 4 }}><Icon name="store" size={12} />Your shop{s.area ? ` · ${s.area}` : ""}{s.status !== "live" ? ` · ${STATUS_WORDS[s.status] || s.status}` : ""}</span>
                 </span>
                 <Icon name="settings" size={18} color="var(--muted)" />
               </Link>
@@ -251,118 +205,40 @@ export default function Me() {
             <MenuRow to="/business" icon={shops.length ? "plus" : "store"} tone="amber" title={shops.length ? "Add another business" : "List your business"} />
             {isAdmin && <MenuRow to="/admin" icon="shield" tone="sky" title="Admin" />}
           </div>
-
-          <div className="callout green">
-            <Chip icon={named ? "eye" : "eyeOff"} size="sm" />
-            <span className="small grow">{named ? `${named} review${named === 1 ? " shows" : "s show"} your name. The rest are anonymous.` : "All your reviews are anonymous. You can show your name on any of them."}</span>
-          </div>
         </>
       )}
 
-      {reviews && <FoodDiary reviews={reviews} />}
-
-      <InstallNudge look="row" title="Add to home screen" sub="Open Trusted Picks like an app" />
-
-      {openVisits.length > 0 && (
-        <section className="stack" style={{ gap: 10 }}>
-          <SectionTitle icon="star" tone="amber">Ready to rate</SectionTitle>
+      {/* Every shop that saw a visit of yours, with the two switches in one place. */}
+      {seenBy && seenBy.length > 0 && (
+        <section className="stack" style={{ gap: 10 }} aria-labelledby="seen-h">
+          <SectionTitle icon="eye" tone="violet"><span id="seen-h">Shops that can see you</span></SectionTitle>
+          <p className="small muted" style={{ margin: 0 }}>When you scan a table QR, that shop sees your name or "Guest" and when you came. They never see which review is yours.</p>
           <div className="menu">
-            {openVisits.map((v) => (
-              <Link key={v.place_id} to={`/review/${v.place_id}`} className="menu-row">
-                <Chip icon={lookFor(v.places!.category).icon} tone={lookFor(v.places!.category).tone} />
+            {seenBy.map((s) => (
+              <div key={s.place_id} className="menu-row seen-row">
+                <span className="thumb" style={{ width: 40, height: 40, borderRadius: 12 }}><Cover url={placeMediaUrl(s.logo_path)} category={s.place_name} size={20} /></span>
                 <span className="grow stack tight" style={{ minWidth: 0 }}>
-                  <span className="t ellipsis">{v.places!.name}</span>
-                  <span className="s ellipsis">{[v.places!.area, "you scanned here"].filter(Boolean).join(" · ")}</span>
+                  <Link to={`/p/${s.place_id}`} className="t ellipsis" style={{ color: "inherit" }}>{s.place_name}</Link>
+                  <span className="s ellipsis">Last visit {timeAgo(s.last_visit)}{s.area ? ` · ${s.area}` : ""}</span>
                 </span>
-                <span className="pill verified"><Icon name="star" size={13} />Rate now</span>
-              </Link>
+                <span className="stack tight seen-switches">
+                  <label className="switch-row"><input type="checkbox" role="switch" checked={!s.hidden} onChange={(e) => void setShop(s, { hidden: !e.target.checked })} /><span>{s.hidden ? "Hidden" : "Visible"}</span></label>
+                  <label className="switch-row"><input type="checkbox" role="switch" checked={!s.no_offers} onChange={(e) => void setShop(s, { no_offers: !e.target.checked })} /><span>{s.no_offers ? "No offers" : "Offers"}</span></label>
+                </span>
+              </div>
             ))}
           </div>
         </section>
       )}
 
-      <div className="tabs" role="tablist" aria-label="Your activity">
-        <button type="button" role="tab" aria-selected={tab === "reviews"} className={tab === "reviews" ? "on" : ""} onClick={() => setTab("reviews")}>
-          <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="star" size={16} />Reviews{reviews ? ` ${reviews.length}${moreReviews ? "+" : ""}` : ""}</span>
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "saved"} className={tab === "saved" ? "on" : ""} onClick={() => setTab("saved")}>
-          <span className="row" style={{ gap: 6, justifyContent: "center" }}><Icon name="bookmark" size={16} />Saved{saved ? ` ${saved.length}` : ""}</span>
-        </button>
-      </div>
-
-      {tab === "reviews" ? (
-        reviewsErr ? <Retry msg={`Couldn't load your reviews: ${reviewsErr}`} onRetry={loadReviews} /> :
-        reviews === null ? <Spinner /> :
-        reviews.length === 0 ? (
-          <div className="card">
-            <EmptyArt icon="star" tone="amber" title="No reviews yet">
-              <span className="small muted">At a shop, point your phone camera at the QR on your table to review.</span>
-            </EmptyArt>
-          </div>
-        ) : (
-          <div className="stack">
-            {reviews.map((r) => {
-              const editingThis = draft?.id === r.id;
-              const what = itemLabel(r.items?.name) || "this item";
-              return (
-                <ReviewCard key={r.id} r={editingThis ? { ...r, rating: draft.rating, body: "" } : r} mine showPlace>
-                  {editingThis ? (
-                    <form className="stack" onSubmit={saveReview}>
-                      <StarInput value={draft.rating} onChange={(v) => setDraft({ ...draft, rating: v })} />
-                      <div className="field">
-                        <label htmlFor={`body-${r.id}`}>Your review</label>
-                        <textarea id={`body-${r.id}`} className="textarea" value={draft.body} maxLength={2000}
-                          onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
-                        <span className="tiny muted" style={{ alignSelf: "flex-end" }}>{draft.body.length}/2000</span>
-                      </div>
-                      <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                        <button type="button" className="icon-act" onClick={() => setDraft(null)} disabled={savingReview} aria-label="Cancel" title="Cancel"><Icon name="close" size={18} /></button>
-                        <button className="btn small green" disabled={savingReview}><Icon name="check" size={16} />{savingReview ? "Saving…" : "Save"}</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <div className="row" style={{ gap: 8 }}>
-                      {r.status === "hidden" ? <span className="badge red" style={{ marginRight: "auto" }}><Icon name="eyeOff" size={12} />Hidden</span> : <span className="grow" />}
-                      {r.status === "published" && (
-                        <Link to={`/saved/${r.id}`} className="icon-act sky" aria-label={`Post review of ${what} on Google`} title="Post on Google"><Icon name="external" size={18} /></Link>
-                      )}
-                      {!isGuest && (
-                        <button type="button" className={`icon-act ${r.is_public ? "green" : ""}`} onClick={() => setVisibility(r.id, !r.is_public)}
-                          aria-label={r.is_public ? `Make review of ${what} anonymous` : `Show your name on review of ${what}`}
-                          title={r.is_public ? "Name shown. Tap to hide" : "Anonymous. Tap to show name"}>
-                          <Icon name={r.is_public ? "eye" : "eyeOff"} size={18} />
-                        </button>
-                      )}
-                      <button type="button" className="icon-act" onClick={() => setDraft({ id: r.id, rating: r.rating, body: r.body || "" })}
-                        aria-label={`Edit review of ${what}`} title="Edit"><Icon name="edit" size={18} /></button>
-                      {isGuest ? <Link to="/signin" className="tiny muted">Sign in to delete</Link> : (
-                        <button type="button" className="icon-act danger" onClick={() => remove(r.id)}
-                          aria-label={`Delete review of ${what}`} title="Delete"><Icon name="trash" size={18} /></button>
-                      )}
-                    </div>
-                  )}
-                </ReviewCard>
-              );
-            })}
-            {moreReviews && <button type="button" className="btn ghost block" disabled={loadingMore} onClick={showMoreReviews}><Icon name="down" size={18} />{loadingMore ? "Loading…" : "Show older reviews"}</button>}
-          </div>
-        )
-      ) : (
-        savedErr ? <Retry msg={`Couldn't load saved places: ${savedErr}`} onRetry={loadSaved} /> :
-        saved === null ? <Spinner /> :
-        saved.length === 0 ? (
-          <div className="card">
-            <EmptyArt icon="bookmark" tone="sky" title="Nothing saved">
-              <Link to="/" className="btn small ghost"><Icon name="search" size={16} />Discover places</Link>
-            </EmptyArt>
-          </div>
-        ) : (
-          <div className="menu">{saved.map((s) => {
-            const look = lookFor(s.places?.category);
-            return <MenuRow key={s.place_id} to={`/p/${s.place_id}`} icon={look.icon} tone={look.tone} title={s.places?.name || "Place no longer listed"} sub={[s.places?.category, s.places?.area].filter(Boolean).join(" · ")} />;
-          })}</div>
-        )
+      {!isGuest && (
+        <div className="callout green">
+          <Chip icon={named ? "eye" : "eyeOff"} size="sm" />
+          <span className="small grow">{named ? `${named} review${named === 1 ? " shows" : "s show"} your name. The rest are anonymous.` : "All your reviews are anonymous. You can show your name on any of them in Your picks."}</span>
+        </div>
       )}
+
+      <InstallNudge look="row" title="Add to home screen" sub="Open Trusted Picks like an app" />
 
       {!isGuest && <PasskeysCard />}
 
@@ -372,166 +248,5 @@ export default function Me() {
         </div>
       )}
     </div>
-  );
-}
-
-function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: string | null; userId?: string }) {
-  const toast = useToast();
-  const [expertBadges, setExpertBadges] = useState<string[]>([]);
-  const verifiedCount = reviews.filter((r) => r.verified).length;
-  const placeCount = new Set(reviews.map((r) => r.place_id)).size;
-  const mustTryCount = reviews.filter((r) => r.rating === 5).length;
-
-  useEffect(() => {
-    if (!userId) return;
-    supabase
-      .from("user_topic_stats")
-      .select("review_count, is_expert, topics(name)")
-      .eq("user_id", userId)
-      .eq("is_expert", true)
-      .then(({ data, error }) => {
-        if (!error && data) {
-          const list = (data as unknown as { topics: { name: string } | null }[])
-            .map((t) => t.topics?.name || "")
-            .filter(Boolean);
-          setExpertBadges(list);
-        }
-      });
-  }, [userId]);
-
-  const areas = Array.from(
-    new Set(reviews.map((r) => r.places?.area).filter(Boolean))
-  ).slice(0, 4) as string[];
-
-  async function sharePassport() {
-    const text = `My Picks Journal on Trusted Picks: ${reviews.length} things reviewed across ${placeCount} local spots.`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "My Picks Journal", text, url: window.location.href });
-      } catch {
-        /* dismissed */
-      }
-    } else {
-      await copyText(`${text}\n${window.location.href}`);
-      toast("Profile summary link copied");
-    }
-  }
-
-  return (
-    <div className="card" style={{ padding: 18 }}>
-      <div className="row between" style={{ alignItems: "center" }}>
-        <div className="stack tight">
-          <span className="strong" style={{ fontSize: 17 }}>Picks Journal</span>
-          <span className="tiny muted">{city ? `${city} Chapter` : "Verified Activity"}</span>
-        </div>
-        <span className="badge green">
-          <Icon name="verified" size={13} />
-          <span>{verifiedCount} Verified</span>
-        </span>
-      </div>
-
-      <div className="stats" style={{ margin: "4px 0", borderTop: "0.5px solid var(--line-soft)", borderBottom: "0.5px solid var(--line-soft)" }}>
-        <div className="stack tight center">
-          <span className="n">{reviews.length}</span>
-          <span className="l">Things Rated</span>
-        </div>
-        <div className="stack tight center">
-          <span className="n">{placeCount}</span>
-          <span className="l">Spots Visited</span>
-        </div>
-        <div className="stack tight center">
-          <span className="n">{mustTryCount}</span>
-          <span className="l">Must-Tries</span>
-        </div>
-      </div>
-
-      {expertBadges.length > 0 && (
-        <div className="stack tight" style={{ marginTop: 2 }}>
-          <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 10 }}>
-            <Icon name="award" size={11} color="var(--amber)" /> Community Badges
-          </span>
-          <div className="chips" style={{ gap: 6 }}>
-            {expertBadges.map((b) => (
-              <span key={b} className="badge amber" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", fontSize: 12 }}>
-                <Icon name="trophy" size={12} />
-                <span>{b} Expert</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {areas.length > 0 && (
-        <div className="chips" style={{ marginTop: expertBadges.length > 0 ? 4 : 0 }}>
-          {areas.map((a) => (
-            <span key={a} className="chip">
-              <Icon name="pin" size={12} />
-              <span>{a}</span>
-            </span>
-          ))}
-        </div>
-      )}
-
-      <button
-        type="button"
-        className="btn ghost small block"
-        style={{ marginTop: 2 }}
-        onClick={sharePassport}
-      >
-        <Icon name="share" size={15} />
-        <span>Share Picks Summary</span>
-      </button>
-    </div>
-  );
-}
-
-type DiaryShelf = "loved" | "liked" | "skip";
-const SHELVES: { id: DiaryShelf; label: string; icon: "heart" | "thumbs" | "thumbsDown"; fits: (r: number) => boolean }[] = [
-  { id: "loved", label: "Loved", icon: "heart", fits: (r) => r >= 5 },
-  { id: "liked", label: "Liked", icon: "thumbs", fits: (r) => r === 4 },
-  { id: "skip", label: "Skip next time", icon: "thumbsDown", fits: (r) => r <= 2 },
-];
-
-/** Everything you rated, sorted onto shelves, so "what did I love at that place?" has an answer. */
-function FoodDiary({ reviews }: { reviews: ReviewRow[] }) {
-  const things = reviews.filter((r) => !isVisitItem(r.items?.name) && r.status === "published");
-  const [shelf, setShelf] = useState<DiaryShelf>("loved");
-  const [photos, setPhotos] = useState<Record<string, string | null>>({});
-  const ids = [...new Set(things.map((r) => r.item_id))].slice(0, 200);
-  const idKey = ids.join(",");
-  useEffect(() => {
-    if (!ids.length) return;
-    let alive = true;
-    supabase.from("items").select("id, image_path").in("id", ids).then(({ data }) => {
-      if (alive && data) setPhotos(Object.fromEntries((data as { id: string; image_path: string | null }[]).map((i) => [i.id, i.image_path])));
-    });
-    return () => { alive = false; };
-  }, [idKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!things.length) return null;
-  const counts = Object.fromEntries(SHELVES.map((x) => [x.id, things.filter((r) => x.fits(r.rating)).length])) as Record<DiaryShelf, number>;
-  const current = counts[shelf] ? shelf : SHELVES.find((x) => counts[x.id])?.id ?? "loved";
-  const shown = things.filter((r) => SHELVES.find((x) => x.id === current)!.fits(r.rating));
-  return (
-    <section className="stack" style={{ gap: 10 }} aria-label="Your picks diary">
-      <SectionTitle icon="heart" tone="coral" right={<span className="count-pill"><Icon name="star" size={13} />{things.length}</span>}>Your picks diary</SectionTitle>
-      <div className="chips scroll" role="tablist" aria-label="Diary shelves">
-        {SHELVES.filter((x) => counts[x.id]).map((x) => (
-          <button key={x.id} type="button" role="tab" aria-selected={current === x.id} className={`chip ${current === x.id ? "on" : ""}`} onClick={() => setShelf(x.id)}>
-            <Icon name={x.icon} size={14} />{x.label} {counts[x.id]}
-          </button>
-        ))}
-      </div>
-      <div className="hscroll">
-        {shown.map((r) => (
-          <Link key={r.id} to={`/p/${r.place_id}`} className="pick-card dish-card diary-card">
-            <span className="thumb"><ItemThumb path={photos[r.item_id]} /></span>
-            <span className="pc-body">
-              <span className="strong ellipsis">{itemLabel(r.items?.name)}</span>
-              <span className="tiny muted ellipsis">{[r.places?.name, r.places?.area].filter(Boolean).join(" · ")}</span>
-            </span>
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 }

@@ -3,7 +3,7 @@
 
 .su-bar { display: flex; align-items: center; gap: 6px; }
 .su-bar > span { flex: 1; height: 7px; border-radius: 99px; background: var(--line); position: relative; overflow: hidden; }
-.su-bar > span::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--green); transform: scaleX(0); transform-origin: left; }
+.su-bar > span::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--accent); transform: scaleX(0); transform-origin: left; }
 .su-bar > span.done::after { transform: scaleX(1); }
 .su-bar > span.now::after { animation: su-fill 0.7s cubic-bezier(0.34, 1.2, 0.5, 1) 0.15s both; }
 .su-bar > b { font-size: 13px; color: var(--muted); margin-left: 6px; min-width: 28px; text-align: right; }
@@ -28,7 +28,7 @@
 @keyframes su-rise { from { opacity: 0; transform: translateY(26px) scale(0.94); } to { opacity: 1; transform: none; } }
 .su-card .icon-chip.lg { animation: su-pop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both; }
 @keyframes su-pop { 0% { opacity: 0; transform: scale(0.3) rotate(-16deg); } 60% { transform: scale(1.18) rotate(6deg); } 100% { opacity: 1; transform: none; } }
-.su-card .btn.green { background: var(--green); }
+.su-card .btn.green { background: var(--accent); }
 .su-card .btn.green:not(:disabled) { animation: su-rise 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both; }
 .su-card .btn:active, .su-add:active, .chip:active, .su-link:active { transform: scale(0.95); }
 
@@ -45,15 +45,15 @@
 
 /* Links slide. */
 .su-link { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1.5px solid var(--line); border-radius: 18px; padding: 8px 12px; transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.su-link:focus-within { border-color: var(--green); box-shadow: 0 0 0 4px rgba(194, 73, 43, 0.15); transform: scale(1.02); }
+.su-link:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(194, 73, 43, 0.15); transform: scale(1.02); }
 .su-link.on { border-color: var(--good); }
 .su-link .grow { min-width: 0; }
 .su-input { width: 100%; border: 0; outline: 0; background: transparent; font: inherit; font-weight: 700; font-size: 16px; color: var(--ink); padding: 2px 0; }
 .su-input::placeholder { color: #a39cbd; font-weight: 600; }
 .su-found { width: 26px; height: 26px; border-radius: 99px; background: var(--good); color: #fff; display: grid; place-items: center; animation: su-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both; }
 .su-add { display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border-radius: 16px; border: 2px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
-.su-add:hover { border-color: var(--green); color: var(--green); }
-.su-note { display: flex; gap: 8px; text-align: left; align-items: flex-start; background: var(--green-soft); color: #a81f08; border-radius: 14px; padding: 10px 12px; line-height: 1.45; }
+.su-add:hover { border-color: var(--accent); color: var(--accent); }
+.su-note { display: flex; gap: 8px; text-align: left; align-items: flex-start; background: var(--accent-soft); color: #a81f08; border-radius: 14px; padding: 10px 12px; line-height: 1.45; }
 .su-note svg { flex: none; margin-top: 1px; }
 .su-skip { align-self: center; color: var(--muted); font-weight: 700; }
 
@@ -79,3 +79,6 @@
 .su-foot .su-back { width: 54px; height: 54px; border-radius: 18px; }
 .su-done { position: relative; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .su-screen { animation: none; } }
+/* Phone with its country code. */
+.su-phone { display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 1fr); gap: 8px; }
+.su-phone .select { padding-right: 24px; }

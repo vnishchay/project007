@@ -27,11 +27,11 @@
 .rvx-dots { flex: 1; display: flex; gap: 6px; justify-content: center; }
 .rvx-dots i { height: 4px; flex: 1; max-width: 40px; border-radius: 4px; background: var(--line); transition: background 0.25s; }
 .rvx-dots i.done { background: var(--ink); }
-.rvx-dots i.now { background: var(--green); }
+.rvx-dots i.now { background: var(--accent); }
 
 /* Shop heading, as on the shop page: accent eyebrow, large title, quiet badges. */
 .rvx-head, .rvx-hero { display: flex; flex-direction: column; gap: 8px; padding: 6px 20px 0; }
-.rvx-kicker { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--green); }
+.rvx-kicker { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
 .rvx-hero h1, .rvx-head h1 { margin: 0; font-size: 34px; line-height: 1.08; font-weight: 700; letter-spacing: -0.026em; overflow-wrap: anywhere; }
 .rvx-meta { display: flex; flex-wrap: wrap; gap: 8px; }
 .rvx-pill, .rvx-verified { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); font-size: 13px; font-weight: 600; color: var(--ink-2); }
@@ -49,13 +49,13 @@
 .rvx-hint.c { text-align: center; margin: 0; }
 
 /* Three choices: how did it go? White tiles, the chosen one gets the accent ring and a filled mark. */
-.rvx-faces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rvx-faces { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .rvx-face-btn { position: relative; min-height: 88px; padding: 12px 6px; border: 0; border-radius: 18px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); font-size: 15px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: box-shadow 0.2s var(--rv-ease), background 0.2s var(--rv-ease), transform 0.2s var(--rv-ease); }
 .rvx-face-btn svg { color: var(--muted); transition: color 0.2s, transform 0.25s var(--rv-ease); }
 .rvx-face-btn:active { transform: scale(0.97); }
-.rvx-face-btn.on { background: var(--green-soft); box-shadow: inset 0 0 0 2px var(--green); color: var(--green-dark); }
-.rvx-face-btn.on svg { color: var(--green); transform: scale(1.1); }
-.rvx-face-btn .mark { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; }
+.rvx-face-btn.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent-dark); }
+.rvx-face-btn.on svg { color: var(--accent); transform: scale(1.1); }
+.rvx-face-btn .mark { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; }
 .rvx-face-btn .mark svg, .rvx-face-btn.on .mark svg { color: #fff; transform: none; }
 
 /* Tags: the app's chips. Chosen ones turn dark and show a tick, so it isn't colour alone. */
@@ -66,7 +66,7 @@
 .rvx-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .rvx-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 15px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background 0.2s var(--rv-ease), transform 0.2s var(--rv-ease); }
 .rvx-chip:active { transform: scale(0.96); }
-.rvx-chip.on { background: var(--ink); color: #fff; }
+.rvx-chip.on { background: var(--ink); color: var(--on-ink, #fff); }
 .rvx-chip.dash { background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .rvx-chip.static { cursor: default; min-height: 26px; padding: 0 10px; font-size: 13px; }
 .rvx-chips.sm { gap: 6px; }
@@ -79,15 +79,15 @@
 .rvx-write .box { position: relative; display: block; }
 .rvx-text { display: block; width: 100%; min-height: 132px; padding: 13px 54px 13px 14px; font-size: 17px; line-height: 1.45; resize: vertical; }
 .rvx-text.sm { min-height: 104px; }
-.rvx-text.typing { box-shadow: inset 0 0 0 2px var(--green); }
+.rvx-text.typing { box-shadow: inset 0 0 0 2px var(--accent); }
 .rvx-mic { position: absolute; right: 8px; bottom: 8px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--fill); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
-.rvx-mic.hot { background: var(--green); color: #fff; }
+.rvx-mic.hot { background: var(--accent); color: #fff; }
 .rvx-mic:disabled { opacity: 0.4; cursor: default; }
 .rvx-count { font-size: 13px; color: var(--muted); }
 
 /* AI helper: a quiet tinted button, a small card of questions, then adjust-or-undo chips. */
 .rvx-aiwrap { display: flex; flex-direction: column; gap: 10px; }
-.rvx-aibtn { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--green-soft); color: var(--green-dark); font-size: 15px; font-weight: 600; cursor: pointer; }
+.rvx-aibtn { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-size: 15px; font-weight: 600; cursor: pointer; }
 .rvx-aibtn:disabled { background: var(--fill); color: var(--muted); cursor: default; }
 .rvx-aibtn .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: rvx-spin 0.8s linear infinite; }
 .rvx-aiask { padding: 16px; border-radius: 20px; background: var(--card); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
@@ -96,9 +96,9 @@
 .rvx-q > span { font-size: 13px; color: var(--muted); }
 .rvx-opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .rvx-opt { min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-.rvx-opt.on { background: var(--ink); color: #fff; }
+.rvx-opt.on { background: var(--ink); color: var(--on-ink, #fff); }
 .rvx-aigo { display: flex; gap: 8px; align-items: center; }
-.rvx-aigo .go { flex: 1; height: 44px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+.rvx-aigo .go { flex: 1; height: 44px; border: 0; border-radius: 999px; background: var(--ink); color: var(--on-ink, #fff); font-size: 15px; font-weight: 600; cursor: pointer; }
 .rvx-aigo .skip { height: 44px; padding: 0 14px; border: 0; background: none; color: var(--muted); font-size: 15px; font-weight: 600; cursor: pointer; }
 .rvx-refine { display: flex; flex-direction: column; gap: 8px; }
 .rvx-aifine { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
@@ -113,7 +113,7 @@
 /* Which ones did you have? */
 .rvx-mrow:disabled { cursor: default; opacity: 0.55; }
 .rvx-other-th { display: grid; place-items: center; background: var(--fill); color: var(--muted); }
-.rvx-mrow.on .rvx-other-th { background: var(--green-soft); color: var(--green); }
+.rvx-mrow.on .rvx-other-th { background: var(--accent-soft); color: var(--accent); }
 .rvx-add { display: flex; gap: 10px; }
 .rvx-add .input { flex: 1; min-width: 0; }
 
@@ -127,15 +127,15 @@
 .rvx-rcard p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink-2); overflow-wrap: anywhere; white-space: pre-wrap; }
 .rvx-rcard p.none { color: var(--muted); }
 .rvx-badge { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.rvx-badge.meh { background: var(--fill); color: var(--ink-2); }
+.rvx-badge.meh, .rvx-badge.ok { background: var(--fill); color: var(--ink-2); }
 .rvx-badge.good { background: var(--good-soft); color: var(--good-dark); }
-.rvx-badge.love { background: var(--green-soft); color: var(--green-dark); }
-.rvx-edit { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; padding: 2px 0; border: 0; background: none; color: var(--green); font-size: 15px; font-weight: 600; cursor: pointer; }
+.rvx-badge.love { background: var(--accent-soft); color: var(--accent-dark); }
+.rvx-edit { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; padding: 2px 0; border: 0; background: none; color: var(--accent); font-size: 15px; font-weight: 600; cursor: pointer; }
 .rvx-edit.done { color: var(--good-dark); cursor: default; }
 .rvx-more { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 17px; font-weight: 600; letter-spacing: -0.014em; cursor: pointer; text-decoration: none; }
 .rvx-more:hover { color: var(--ink); background: rgba(120, 120, 128, 0.2); }
 .rvx-more:active { transform: scale(0.98); }
-.rvx-link { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border: 0; background: none; color: var(--green); font-size: 15px; font-weight: 600; cursor: pointer; }
+.rvx-link { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border: 0; background: none; color: var(--accent); font-size: 15px; font-weight: 600; cursor: pointer; }
 .rvx-anon { display: flex; align-items: center; gap: 10px; margin: 0 20px; padding: 12px 14px; border-radius: 14px; background: var(--fill); color: var(--ink-2); font-size: 15px; }
 
 /* Post as: the system segmented control. */
@@ -151,8 +151,8 @@
 
 /* Bottom action bar: the app's glass, one accent button. */
 .rvx-foot { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: min(100%, 520px); z-index: 25; display: flex; flex-direction: column; gap: 2px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px); box-shadow: 0 -0.5px 0 var(--line); }
-.rvx-cta { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--green); color: #fff; font-size: 17px; font-weight: 600; letter-spacing: -0.014em; cursor: pointer; text-align: center; transition: background 0.2s var(--rv-ease), transform 0.2s var(--rv-ease), opacity 0.2s; }
-.rvx-cta:hover { background: var(--green-dark); color: #fff; }
+.rvx-cta { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font-size: 17px; font-weight: 600; letter-spacing: -0.014em; cursor: pointer; text-align: center; transition: background 0.2s var(--rv-ease), transform 0.2s var(--rv-ease), opacity 0.2s; }
+.rvx-cta:hover { background: var(--accent-dark); color: #fff; }
 .rvx-cta:active { transform: scale(0.98); }
 .rvx-cta:disabled { opacity: 0.4; cursor: default; }
 .rvx-cta.idle, .rvx-cta.idle:hover { background: var(--fill); color: var(--muted); }
@@ -160,7 +160,7 @@
 .rvx-cta .grow { flex: 1; line-height: 1.2; text-align: left; }
 .rvx-skip { border: 0; background: none; color: var(--muted); font-size: 15px; font-weight: 600; padding: 8px; cursor: pointer; }
 .rvx-pipe { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; font-size: 15px; font-weight: 600; color: var(--ink-2); }
-.rvx-pipe .spin { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--green); animation: rvx-spin 0.8s linear infinite; }
+.rvx-pipe .spin { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--accent); animation: rvx-spin 0.8s linear infinite; }
 @keyframes rvx-spin { to { transform: rotate(360deg); } }
 .rvx-foot.inline { position: static; transform: none; width: auto; padding: 0 20px calc(24px + env(safe-area-inset-bottom)); background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; gap: 8px; }
 .rvx[data-stage="preview"], .rvx[data-stage="sending"], .rvx[data-stage="done"] { padding-bottom: 32px; }
@@ -184,7 +184,7 @@
 .rvx-gs { color: var(--star); letter-spacing: 1px; }
 .rvx-two { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
 .rvx-tool { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; }
-.rvx-tool.dark { background: var(--ink); color: #fff; }
+.rvx-tool.dark { background: var(--ink); color: var(--on-ink, #fff); }
 .rvx-tool:disabled { opacity: 0.5; cursor: default; }
 .rvx-warn { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--warn-soft); color: #8a5300; font-size: 13px; }
 .rvx-fine { margin: 0; font-size: 13px; color: var(--muted); }
@@ -200,13 +200,13 @@
 .premeal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 button.premeal-card { position: relative; display: flex; flex-direction: column; width: 100%; padding: 0; border: 0; border-radius: 18px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); color: var(--ink); text-align: left; cursor: pointer; transition: box-shadow 0.2s var(--rv-ease), transform 0.2s var(--rv-ease); }
 button.premeal-card:active { transform: scale(0.98); }
-button.premeal-card.selected { box-shadow: inset 0 0 0 2px var(--green), var(--shadow); }
+button.premeal-card.selected { box-shadow: inset 0 0 0 2px var(--accent), var(--shadow); }
 .premeal-thumb-wrap { position: relative; height: 100px; width: 100%; overflow: hidden; background: var(--fill); }
 .premeal-info { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 2px; }
 .premeal-name { font-size: 15px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; display: flex; align-items: center; gap: 6px; }
 .premeal-info .tiny { font-size: 13px; color: var(--muted); }
-.premeal-cta-pill { margin-top: 6px; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--green); }
-.premeal-card.selected .premeal-cta-pill { color: var(--green-dark); }
+.premeal-cta-pill { margin-top: 6px; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--accent); }
+.premeal-card.selected .premeal-cta-pill { color: var(--accent-dark); }
 .premeal-rank { position: absolute; top: 8px; left: 8px; z-index: 2; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, 0.92); color: var(--ink); }
 
 /* Sideways rows of small cards: they keep photos without a tall grid. */
@@ -215,11 +215,11 @@ button.premeal-card.selected { box-shadow: inset 0 0 0 2px var(--green), var(--s
 .rvx-pcard { position: relative; flex: none; width: 136px; display: flex; flex-direction: column; padding: 0; border: 0; border-radius: 16px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); color: var(--ink); text-align: left; cursor: pointer; scroll-snap-align: start; transition: box-shadow 0.2s var(--rv-ease), transform 0.2s var(--rv-ease); }
 .rvx-pcard:active { transform: scale(0.97); }
 .rvx-pcard:disabled { opacity: 0.55; cursor: default; }
-.rvx-pcard.on { box-shadow: inset 0 0 0 2px var(--green), var(--shadow); }
+.rvx-pcard.on { box-shadow: inset 0 0 0 2px var(--accent), var(--shadow); }
 .rvx-pcard .ph { position: relative; height: 84px; background: var(--fill); }
 .rvx-pcard .ph .item-thumb { width: 100%; height: 100%; border-radius: 0; }
 .rvx-pcard .rvx-add-btn { position: absolute; right: 8px; bottom: 8px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); color: var(--ink); }
-.rvx-pcard.on .rvx-add-btn { background: var(--green); color: #fff; }
+.rvx-pcard.on .rvx-add-btn { background: var(--accent); color: #fff; }
 .rvx-pcard .rvx-rated { position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--good-soft); color: var(--good-dark); }
 .rvx-pcard .tx { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px 10px; }
 .rvx-pcard .tx b { display: flex; align-items: center; gap: 5px; font-size: 15px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -227,7 +227,7 @@ button.premeal-card.selected { box-shadow: inset 0 0 0 2px var(--green), var(--s
 
 /* What you picked, removable in one tap. */
 .rvx-tray { display: flex; flex-wrap: wrap; gap: 8px; }
-.rvx-tok { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 4px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: 15px; font-weight: 500; cursor: pointer; }
+.rvx-tok { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 4px; border: 0; border-radius: 999px; background: var(--ink); color: var(--on-ink, #fff); font-size: 15px; font-weight: 500; cursor: pointer; }
 .rvx-tok .item-thumb { width: 28px; height: 28px; border-radius: 50%; flex: none; }
 .rvx-tok.plain { padding-left: 14px; }
 
@@ -237,7 +237,7 @@ button.premeal-card.selected { box-shadow: inset 0 0 0 2px var(--green), var(--s
 .rvx-loved .face .item-thumb { width: 32px; height: 32px; border-radius: 50%; }
 .rvx-loved .face .ok { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #fff; }
 .rvx-loved button span.pct { color: var(--muted); font-size: 13px; }
-.rvx-loved button.on { background: var(--ink); color: #fff; box-shadow: none; }
+.rvx-loved button.on { background: var(--ink); color: var(--on-ink, #fff); box-shadow: none; }
 .rvx-loved button.on span.pct { color: rgba(255, 255, 255, 0.75); }
 
 .rvx-menu { display: flex; flex-direction: column; border-radius: 20px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
@@ -249,7 +249,7 @@ button.premeal-card.selected { box-shadow: inset 0 0 0 2px var(--green), var(--s
 .rvx-mrow .tx b { display: flex; align-items: center; gap: 6px; font-size: 17px; font-weight: 500; letter-spacing: -0.014em; overflow-wrap: anywhere; }
 .rvx-mrow .tx small { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rvx-add-btn { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--muted); transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
-.rvx-mrow.on .rvx-add-btn, button.premeal-card .rvx-add-btn.on { background: var(--green); color: #fff; box-shadow: none; }
+.rvx-mrow.on .rvx-add-btn, button.premeal-card .rvx-add-btn.on { background: var(--accent); color: #fff; box-shadow: none; }
 .rvx-msearch { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--fill); color: var(--muted); }
 .rvx-msearch input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 17px; color: var(--ink); }
 .rvx-msearch input::-webkit-search-cancel-button { cursor: pointer; }
@@ -281,16 +281,62 @@ a.rvx-cta[aria-disabled="true"] { opacity: 0.4; }
 .taste-ring svg { transform: rotate(-90deg); }
 .taste-ring circle { fill: none; stroke-width: 3; }
 .taste-ring .track { stroke: var(--line); }
-.taste-ring .fill { stroke: var(--green); stroke-linecap: round; }
-.wax-stamp { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--green-soft); color: var(--green-dark); font-size: 12px; font-weight: 600; }
+.taste-ring .fill { stroke: var(--accent); stroke-linecap: round; }
+.wax-stamp { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-size: 12px; font-weight: 600; }
 .wax-stamp.ok { background: var(--good-soft); color: var(--good-dark); }
 .wax-stamp.bad { background: var(--fill); color: var(--ink-2); }
 .rvx-vibes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .rvx-vibe-pill { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 64px; justify-content: center; border: 0; border-radius: 18px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; }
-.rvx-vibe-pill.on { background: var(--green-soft); box-shadow: inset 0 0 0 2px var(--green); }
+.rvx-vibe-pill.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
 
 @media (prefers-reduced-motion: reduce) {
   .rvx *, .rvx *::before, .rvx *::after { animation: none !important; transition: none !important; }
 }
 .rvx-face-btn:disabled { opacity: 0.6; cursor: default; }
-.rvx-said { display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; color: #8a5300; font-weight: 600; }
+.rvx-said { display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; color: var(--said, #8a5300); font-weight: 600; }
+
+/* Dark mode for the screens people use at the table, often in a dim room: the QR landing and
+   the review flow. Same layout, darker tokens; the accent is lifted so it still reads on black. */
+@media (prefers-color-scheme: dark) {
+  .rvx {
+    color-scheme: dark;
+    --bg: #000000; --card: #1c1c1e; --surface: #2c2c2e; --line: #38383a; --line-soft: #2c2c2e;
+    --fill: rgba(120, 120, 128, 0.28); --glass: rgba(18, 18, 20, 0.78);
+    --ink: #f5f5f7; --ink-2: #d1d1d6; --muted: #a1a1a6; --on-ink: #000000;
+    --accent: #ff5a3c; --accent-dark: #ff7a60; --accent-soft: rgba(255, 90, 60, 0.18);
+    --good: #4cd964; --good-dark: #7ee08f; --good-soft: rgba(76, 217, 100, 0.18);
+    --danger: #ff6b8b; --danger-soft: rgba(255, 107, 139, 0.16); --warn-soft: rgba(255, 179, 64, 0.16);
+    --star: #ffb340; --said: #ffb340;
+    --shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  }
+  html:has(.rvx), body:has(.rvx) { background: #000; }
+  .rvx .rvx-cta, .rvx .rvx-cta:hover { color: #000; }
+  .rvx .rvx-pcard .rvx-add-btn { background: rgba(28, 28, 30, 0.94); }
+  .rvx .rvx-warn, .rvx .notice.warn { color: #ffcf8a; }
+  .rvx .input, .rvx .textarea { background: var(--surface); }
+}
+
+/* QR landing: shop logo, specials inside the menu, honest scores, trust line */
+.rvx-logo { width: 32px; height: 32px; border-radius: 9px; overflow: hidden; flex: none; background: var(--fill); }
+.rvx-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rvx-sub { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; color: var(--muted); }
+.rvx-full { color: var(--danger, #a3123a); font-weight: 600; }
+.rvx-said.new { color: var(--muted); font-weight: 500; }
+.rvx-trust { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.rvx-trust-more { margin: 0 0 6px; padding: 0 8px 0 28px; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--muted); }
+
+/* Four faces: smaller type so 'It was OK' fits a phone row; the star value sits under each label. */
+.rvx-face-btn { font-size: 13px; line-height: 1.2; text-align: center; padding: 12px 4px; }
+.rvx-stars { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.rvx-face-btn.on .rvx-stars { color: var(--accent-dark); }
+.rvx-face-btn .rvx-stars svg { transform: none; }
+/* How the review will be posted, in words next to the icon. */
+.rvx-bar .rvx-who { width: auto; min-width: 40px; padding: 0 4px; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+@media (max-width: 360px) { .rvx-bar .rvx-who span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+/* The exact Google text, shown before posting. */
+.rvx-gprev { margin: 0 20px; padding: 0 14px; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); }
+.rvx-gprev summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: 15px; font-weight: 600; }
+.rvx-gprev p { margin: 0 0 14px; white-space: pre-wrap; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+.rvx-trust { flex-wrap: wrap; gap: 4px 12px; padding: 6px 8px; }
+.rvx-trust > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rvx-trust > .more { color: var(--accent); font-weight: 600; }

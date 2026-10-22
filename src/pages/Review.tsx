@@ -1,7 +1,7 @@
 import { focusShop } from "../lib/focus";
 import { playAppleChime, playHapticTap, playWaxStamp } from "../lib/haptics";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { VISIT_ITEM, isNegativeTag } from "../lib/reviews";
+import { VISIT_ITEM, isNegativeTag, ratingWord } from "../lib/reviews";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
@@ -20,8 +20,8 @@ import { copyText, googleReviewUrl } from "../lib/util";
 import { bumpStat } from "../lib/stats";
 import { shareLink } from "../lib/invite";
 import { generateStoryCard } from "../lib/story";
-import { lovedPct, topDishes, type TopDish } from "../lib/dishes";
-import { InstallNudge } from "../components/Install";
+import { lovedPct, type TopDish } from "../lib/dishes";
+import { GoogleHandoff, PrivateNote } from "../components/GoogleHandoff";
 import "../styles/place.css";
 import "../styles/review.css";
 
@@ -50,29 +50,25 @@ function withCustomTags(body: string, custom: string[]): string {
   return (b ? `${b}\n\n${line}` : line).slice(0, MAX_BODY);
 }
 
-/** Three faces instead of five stars. They map onto the same 1-5 scale everything else ranks by. */
-type Verdict = "meh" | "good" | "love";
+/** Four faces instead of five stars. They map onto the same 1-5 scale everything else ranks by,
+ *  and each face shows its star value so nobody is surprised by what lands on Google. */
+type Verdict = "meh" | "ok" | "good" | "love";
 const VERDICTS: { key: Verdict; label: string; rating: number }[] = [
   { key: "meh", label: "Not for me", rating: 2 },
+  { key: "ok", label: "It was OK", rating: 3 },
   { key: "good", label: "Good", rating: 4 },
   { key: "love", label: "Loved it", rating: 5 },
 ];
-const verdictOf = (r: number): Verdict | undefined => (!r ? undefined : r >= 5 ? "love" : r >= 4 ? "good" : "meh");
-const labelOf = (r: number) => VERDICTS.find((v) => v.key === verdictOf(r))?.label ?? "";
-
-/** In shop mode the tab stays with the shop, so the wider app opens in a new tab (as the shop page's own link does). */
-function OutLink({ to, className, label, children }: { to: string; className: string; label: string; children: ReactNode }) {
-  return focusShop()
-    ? <a href={to} target="_blank" rel="noopener" className={className} aria-label={label}>{children}</a>
-    : <Link to={to} className={className} aria-label={label}>{children}</Link>;
-}
+const verdictOf = (r: number): Verdict | undefined => (!r ? undefined : r >= 5 ? "love" : r >= 4 ? "good" : r >= 3 ? "ok" : "meh");
+/** The same words the rest of the app uses for a rating. */
+const labelOf = (r: number) => ratingWord(r);
 
 function Face({ v, size = 26 }: { v: Verdict; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
       {v === "love" ? <path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z" /> : <>
         <circle cx="12" cy="12" r="9" />
-        <path d={v === "meh" ? "M8.5 16c1-1.2 2.2-1.8 3.5-1.8s2.5.6 3.5 1.8M9 10h.01M15 10h.01" : "M8.5 14.5c1 .9 2.2 1.3 3.5 1.3s2.5-.4 3.5-1.3M9 10h.01M15 10h.01"} />
+        <path d={v === "meh" ? "M8.5 16c1-1.2 2.2-1.8 3.5-1.8s2.5.6 3.5 1.8M9 10h.01M15 10h.01" : v === "ok" ? "M8.5 15h7M9 10h.01M15 10h.01" : "M8.5 14.5c1 .9 2.2 1.3 3.5 1.3s2.5-.4 3.5-1.3M9 10h.01M15 10h.01"} />
       </>}
     </svg>
   );
@@ -82,11 +78,13 @@ function Face({ v, size = 26 }: { v: Verdict; size?: number }) {
 const VISIT_TAGS: Record<"food" | "other", Record<Verdict, { title: string; tags: string[] }>> = {
   food: {
     meh: { title: "What let it down?", tags: ["Poor food", "Poor service", "Long wait", "Noisy", "Too pricey", "Not clean"] },
+    ok: { title: "What stood out?", tags: ["Food", "Service", "Value", "Long wait", "Too pricey", "Noisy"] },
     good: { title: "What was good?", tags: ["Food", "Service", "Ambience", "Value", "Quick"] },
     love: { title: "What made it great?", tags: ["Amazing food", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
   },
   other: {
     meh: { title: "What let it down?", tags: ["Poor service", "Long wait", "Unhelpful staff", "Too pricey", "Not clean"] },
+    ok: { title: "What stood out?", tags: ["Service", "Staff", "Value", "Long wait", "Too pricey"] },
     good: { title: "What was good?", tags: ["Service", "Staff", "Value", "Quick", "Clean"] },
     love: { title: "What made it great?", tags: ["Great service", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
   },
@@ -262,7 +260,6 @@ function ReviewForm() {
   const [saving, setSaving] = useState<string | false>(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState<Dish[]>([]);
-  const [copied, setCopied] = useState<boolean | null>(null);
   const [googleOpened, setGoogleOpened] = useState(false);
   const rec = useRef<Recognition | null>(null);
   const typer = useRef<number | null>(null);
@@ -271,10 +268,6 @@ function ReviewForm() {
 
   const toast = useToast();
   const [showPrivateForm, setShowPrivateForm] = useState(false);
-  const [privateNote, setPrivateNote] = useState("");
-  const [contactInfo, setContactInfo] = useState("");
-  const [sendingNote, setSendingNote] = useState(false);
-  const [noteSent, setNoteSent] = useState(false);
   const [sharingStory, setSharingStory] = useState(false);
 
   useEffect(() => {
@@ -350,20 +343,6 @@ function ReviewForm() {
     fetchGoogleRating(place.google_place_id).then((g) => { if (alive && g) setGoogleLive({ rating: g.rating }); }, () => {});
     return () => { alive = false; };
   }, [place?.google_place_id]);
-
-  // After posting: the best-loved things at other places close by, so the app is worth opening again.
-  const [nearby, setNearby] = useState<TopDish[]>([]);
-  useEffect(() => {
-    if (stage !== "done" || !place?.city) return;
-    let alive = true;
-    (async () => {
-      const base = { city: place.city, excludePlace: place.id, kind: place.kind || null, limit: 10 };
-      let r = place.area ? await topDishes({ ...base, area: place.area }) : { rows: [] as TopDish[], error: null };
-      if (r.rows.length < 3) r = await topDishes(base);
-      if (alive) setNearby(r.rows);
-    })();
-    return () => { alive = false; };
-  }, [stage, place?.id, place?.city, place?.area, place?.kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stop listening and typing if the page goes away.
   useEffect(() => () => { rec.current?.stop(); if (typer.current) clearInterval(typer.current); }, []);
@@ -466,7 +445,7 @@ function ReviewForm() {
     const r = makeRecognition();
     if (!r) return;
     rec.current = r;
-    r.lang = "en-IN"; r.interimResults = false; r.continuous = true;
+    r.lang = navigator.language || "en"; r.interimResults = false; r.continuous = true;
     const now = bodyOf(key);
     const start = now ? now.trimEnd() + " " : "";
     r.onresult = (e) => {
@@ -503,7 +482,7 @@ function ReviewForm() {
     setAiFor(key, { ...s, stage: "typing" });
     const liked: string[] = [];
     const downs: string[] = [];
-    if (isVisit) (verdictOf(rating) === "meh" ? downs : liked).push(...visit.tags);
+    if (isVisit) for (const t of visit.tags) (verdictOf(rating) === "meh" || isNegativeTag(t) ? downs : liked).push(t);
     else if (d) {
       for (const t of tags) if (d.picked.includes(t.id)) (isNegativeTag(t.label) ? downs : liked).push(t.label);
       liked.push(...d.custom);
@@ -619,12 +598,6 @@ function ReviewForm() {
     ? googleReviewUrl(place.google_place_id)
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([place?.name, place?.area, place?.city].filter(Boolean).join(" "))}`;
 
-  /** Copy on the tap itself (browsers refuse it later). */
-  function copyNow(text: string): Promise<boolean> {
-    if (navigator.clipboard?.writeText && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => copyText(text).catch(() => false));
-    return copyText(text).catch(() => false);
-  }
-
   async function post() {
     if (saving || !uid || !place) return;
     const toPost = dishes.filter((d) => d.rating > 0);
@@ -725,7 +698,6 @@ function ReviewForm() {
       setDishes((all) => all.filter((d) => d.rating > 0));
       setDone((all) => [...all.filter((x) => !saved.some((s) => s.key === x.key)), ...saved]);
       setSaving(false);
-      setCopied(null);
       // What they tapped on the QR page has been used, so a later visit starts clean.
       try { localStorage.removeItem(`tp-plan:${placeId}`); sessionStorage.removeItem(`tp_preselected_${placeId}`); } catch { /* storage blocked */ }
       setStage("done");
@@ -736,46 +708,6 @@ function ReviewForm() {
       setErr(m === "Failed to fetch" ? "You seem to be offline. Your review is still here; try again." : m);
       setSaving(false);
       setStage("preview");
-    }
-  }
-
-  /** From the "done" screen: copy and open Google in one tap. */
-  function openGoogle() {
-    const text = googleText(visit.reviewId ? visit : NO_VISIT, done, tags);
-    const copying = copyNow(text);
-    let win: Window | null = null;
-    try { win = window.open(gUrl, "_blank"); } catch { win = null; }
-    if (win) win.opener = null;
-    const first = done.find((d) => d.reviewId)?.reviewId;
-    if (first && !googleOpened) void supabase.from("google_shares").insert({ review_id: first, user_id: uid }).then(({ error }) => { if (error) console.warn(errorText(error)); });
-    setGoogleOpened(true);
-    void copying.then((ok) => {
-      setCopied(ok);
-      if (!win && ok) window.location.href = gUrl;
-    });
-  }
-
-  async function copyAgain() { setCopied(await copyNow(googleText(visit.reviewId ? visit : NO_VISIT, done, tags))); }
-
-  async function sendPrivateFeedback() {
-    if (!privateNote.trim()) { toast("Write a quick note for the owner first"); return; }
-    setSendingNote(true);
-    try {
-      // The note is not linked to any review or account, so the owner never learns who sent it.
-      const { error } = await supabase.rpc("send_owner_note", {
-        p_place: placeId,
-        p_body: privateNote.trim(),
-        p_contact: contactInfo.trim() || null,
-        p_device: deviceId(),
-      });
-      if (error) throw error;
-      setNoteSent(true);
-      setShowPrivateForm(false);
-      toast("Your private note was sent to the owner.");
-    } catch (e) {
-      toast(errorText(e));
-    } finally {
-      setSendingNote(false);
     }
   }
 
@@ -832,7 +764,7 @@ function ReviewForm() {
   }
 
   function another() {
-    setDishes([]); setAt(0); setErr(""); setOther(false); setOtherName(""); setPickQ(""); setCopied(null); setBackToPreview(false);
+    setDishes([]); setAt(0); setErr(""); setOther(false); setOtherName(""); setPickQ(""); setBackToPreview(false);
     setStage("pick");
   }
 
@@ -868,7 +800,9 @@ function ReviewForm() {
   const badTags = tags.filter((t) => isNegativeTag(t.label));
   const busy = Boolean(saving);
   const things = (n: number) => `${n} ${n === 1 ? mode.item : mode.itemPlural}`;
-  const who = <span className="rvx-who" aria-label={isGuest ? "Anonymous" : "Signed in"}>{isGuest ? <Icon name="eyeOff" size={16} /> : <Icon name="user" size={16} />}</span>;
+  // Says in words how the review will be posted, so the icon is never the only clue.
+  const named = !isGuest && isPublic;
+  const who = <span className="rvx-who">{named ? <Icon name="user" size={16} /> : <Icon name="eyeOff" size={16} />}<span>{named ? "With your name" : "Anonymous"}</span></span>;
   const backBtn = <button type="button" className="rvx-back" aria-label="Back" onClick={back}><Icon name="back" size={20} /></button>;
 
   const faces = (rating: number, pick: (r: number) => void, locked = false) => (
@@ -880,6 +814,7 @@ function ReviewForm() {
             onClick={() => { try { if (v.key === "love") playWaxStamp(); else playHapticTap(700 + v.rating * 60); } catch { /* no audio */ } pick(v.rating); }}>
             {on && <span className="mark" aria-hidden="true"><Icon name="check" size={12} width={3} /></span>}
             <Face v={v.key} />{v.label}
+            <small className="rvx-stars" aria-label={`${v.rating} out of 5 stars`}>{v.rating}<Icon name="star" size={10} /></small>
           </button>
         );
       })}
@@ -1105,19 +1040,20 @@ function ReviewForm() {
     const groups: { title: string; list: Tag[]; bad?: boolean; opt?: boolean; own?: boolean }[] =
       dv === "love" ? [{ title: "What made it great?", list: goodTags, own: true }]
         : dv === "good" ? [{ title: "What stood out?", list: goodTags, own: true }, { title: "Anything that could be better?", list: badTags, bad: true, opt: true }]
+          : dv === "ok" ? [{ title: "What was good?", list: goodTags, own: true }, { title: "What could be better?", list: badTags, bad: true, opt: true }]
           : dv === "meh" ? [{ title: "What went wrong?", list: badTags, bad: true, own: true }, { title: "Anything good?", list: goodTags, opt: true }] : [];
     return (
       <div className="rvx" data-stage="dish">
         <div className="rvx-bar">
           {backBtn}
-          <div className="rvx-dots" role="img" aria-label={`${at + 1} of ${dishes.length}`}>
+          <div className="rvx-dots" aria-hidden="true">
             {dishes.map((d, i) => <i key={d.key} className={i < at ? "done" : i === at ? "now" : ""} />)}
           </div>
           {who}
         </div>
         <div className="rvx-dhero" key={`h-${dish.key}`}>
           <span className="th"><ItemThumb path={item?.image_path} icon={look.icon} /></span>
-          <div className="cap"><small>{at + 1} of {dishes.length}</small><b>{dish.name}</b></div>
+          <div className="cap"><small>Step {at + 1} of {dishes.length}</small><b>{dish.name}</b></div>
         </div>
         <section className="rvx-sec" key={dish.key}>
           <h2 ref={head} tabIndex={-1} className="sr-only">How was the {dish.name}?</h2>
@@ -1213,6 +1149,16 @@ function ReviewForm() {
           </fieldset>
         )}
 
+        {(() => {
+          // Shows the exact words that will be copied for Google, so nothing on the next screen is a surprise.
+          const g = googleText(visit.rating ? visit : NO_VISIT, rated, tags);
+          return g ? (
+            <details className="rvx-gprev">
+              <summary><Icon name="copy" size={16} />What we'll copy for Google</summary>
+              <p>{g}</p>
+            </details>
+          ) : null;
+        })()}
         {!isGuest && !isPublic && rated.some((d) => d.voice && !d.reviewId) && <p className="rvx-anon"><Icon name="mic" size={16} />Voice notes play only on reviews that show your name, so anonymous ones stay anonymous.</p>}
         {err && <div className="notice err" role="alert">{err}</div>}
         <div className="rvx-foot inline">
@@ -1245,73 +1191,17 @@ function ReviewForm() {
         <p className="rvx-hint c">Thank you. It helps the next {isFood ? "table order well" : "person choose well"} at {place.name}.</p>
       </section>
 
-      <section className="rvx-card" aria-labelledby="g-h">
-        <div className="rvx-ghead"><span className="rvx-ico g"><Icon name="globe" size={20} /></span><div className="grow"><b id="g-h">Add it to Google too</b><small>{googleOpened ? "Google opened in a new tab. Finish there." : "Optional, 4 taps"}</small></div></div>
-        <ol className="rvx-coach">
-          <li><b>1</b>Tap Open Google. Your review is copied for you</li>
-          <li><b>2</b>Tap <span className="rvx-gs" aria-label={`${overall} stars`}>{"★".repeat(overall)}</span></li>
-          <li><b>3</b>Tap the text box, then the paste suggestion above your keyboard</li>
-          <li><b>4</b>Tap Post</li>
-        </ol>
-        {copied === false && <p className="rvx-warn">Couldn't copy automatically. Tap Copy, then open Google.</p>}
-        <div className="rvx-two">
-          <button type="button" className="rvx-tool dark" onClick={openGoogle}><Icon name="external" size={16} />{googleOpened ? "Open again" : "Open Google"}</button>
-          <button type="button" className="rvx-tool" onClick={copyAgain}><Icon name={copied ? "check" : "copy"} size={16} />{copied ? "Copied" : "Copy"}</button>
-        </div>
-        <p className="rvx-fine">Google only lets you post it yourself, so the last tap is yours.</p>
-      </section>
+      {/* One main action after posting: Google. Everything else is one quiet row. */}
+      <GoogleHandoff text={googleText(visit.reviewId ? visit : NO_VISIT, done, tags)} stars={overall} url={gUrl} onMaps={!place.google_place_id}
+        placeName={place.name} reviewId={(visit.reviewId || done.find((d) => d.reviewId)?.reviewId) ?? null} opened={googleOpened} onOpened={() => setGoogleOpened(true)} />
 
-      {/* A private note is offered at every rating, next to Google, never instead of it. */}
-      <section className="rvx-card" aria-labelledby="shield-h">
-        <div className="rvx-ghead"><span className="rvx-ico note"><Icon name="message" size={20} /></span><div className="grow"><b id="shield-h">Tell the owner privately</b><small>Only the owner reads it. Your name is never shown.</small></div></div>
-        {!noteSent ? (
-          !showPrivateForm ? (
-            <button type="button" className="rvx-tool" onClick={() => { setShowPrivateForm(true); if (!privateNote) setPrivateNote((visit.reviewId && visit.body.trim()) || done.find((d) => d.body)?.body || ""); }}>
-              <Icon name="edit" size={16} />Write a note
-            </button>
-          ) : (
-            <form className="stack" onSubmit={(e) => { e.preventDefault(); void sendPrivateFeedback(); }}>
-              <label className="field">
-                <span className="tiny strong">Your note</span>
-                <textarea className="textarea" rows={3} placeholder="What could they do better?" value={privateNote} onChange={(e) => setPrivateNote(e.target.value)} required />
-              </label>
-              <label className="field">
-                <span className="tiny strong">Phone or email, only if you want a reply</span>
-                <input className="input" type="text" inputMode="email" placeholder="Optional" value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} />
-              </label>
-              <div className="row">
-                <button type="submit" className="rvx-tool dark grow" disabled={sendingNote}><Icon name="send" size={15} />{sendingNote ? "Sending…" : "Send note"}</button>
-                <button type="button" className="rvx-skip" onClick={() => setShowPrivateForm(false)}>Cancel</button>
-              </div>
-            </form>
-          )
-        ) : (
-          <p className="notice ok" style={{ margin: 0 }}><Icon name="check" size={14} /> Note sent to the owner</p>
-        )}
-      </section>
-
-      {nearby.length > 0 && (
-        <section className="rvx-sec" aria-label={`Loved near ${place.name}`}>
-          <div className="rvx-row"><h3>Loved nearby</h3><span>{place.area || place.city}</span></div>
-          <div className="rvx-scroll">
-            {nearby.map((d) => (
-              <OutLink key={d.item_id} to={`/p/${d.place_id}`} className="rvx-pcard" label={`${d.item_name} at ${d.place_name}`}>
-                <span className="ph"><ItemThumb path={d.image_path} /></span>
-                <span className="tx"><b>{d.item_name}</b><small>{d.place_name}</small><small className="rvx-said"><Icon name="heart" size={12} fill="currentColor" />{lovedPct(d)}% of {d.review_count}</small></span>
-              </OutLink>
-            ))}
-          </div>
-          <OutLink to="/" className="rvx-more" label={`Find the best ${mode.itemPlural} near you`}><Icon name="search" size={18} />Best {mode.itemPlural} near you</OutLink>
-        </section>
-      )}
-      <div className="rvx-after">
-        <button type="button" className="rvx-more" onClick={() => void share()} disabled={sharingStory}><Icon name="share" size={18} />{sharingStory ? "Making your card…" : "Share with friends"}</button>
-        <div className="two">
-          <button type="button" className="rvx-more" onClick={another}><Icon name="plus" size={16} />Rate another {mode.item}</button>
-          <Link to={`/p/${placeId}`} className="rvx-more"><Icon name="store" size={16} />Back to shop</Link>
-        </div>
+      <div className="gh-row">
+        <button type="button" onClick={() => void share()} disabled={sharingStory}><Icon name="share" size={20} />{sharingStory ? "Making card…" : "Share"}</button>
+        <button type="button" aria-expanded={showPrivateForm} onClick={() => setShowPrivateForm((v) => !v)}><Icon name="message" size={20} />Note to owner</button>
+        <button type="button" onClick={another}><Icon name="plus" size={20} />Rate another</button>
       </div>
-      <InstallNudge look="rvx" title="Add Trusted Picks to your home screen" sub={`Your picks diary and the best ${mode.itemPlural} nearby, one tap away.`} />
+      {showPrivateForm && <div className="gh-panel"><PrivateNote placeId={placeId} /></div>}
+      <Link to={`/p/${placeId}`} className="rvx-link"><Icon name="store" size={16} />Back to {place.name}</Link>
       {isGuest && (
         <Link to={`/signin?next=${encodeURIComponent(`/p/${placeId}`)}`} className="rvx-nudge">
           <span className="rvx-ico"><Icon name="lock" size={18} /></span><span className="grow"><b>Save your picks diary</b><small>Every {mode.item} you rated and loved, on any phone. Optional.</small></span><Icon name="chev" size={18} />

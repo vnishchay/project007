@@ -87,7 +87,7 @@ export default function SignIn() {
   return (
     <div className="si">
       <div className="si-top">
-        <div className="si-brand"><span className="si-mark">T</span>Trusted Picks</div>
+        <div className="si-brand"><img className="si-mark img" src="/icon-192.png" alt="" width={28} height={28} />Trusted Picks</div>
         <button type="button" className="si-skip" onClick={leave}>{isGuest ? "Not now" : "Skip"}</button>
       </div>
 
@@ -129,7 +129,8 @@ export default function SignIn() {
           {(!isGuest || taken) && <PasskeySignIn onError={setErr} />}
           <div className="si-or">or use your email</div>
           <form className="si-actions" onSubmit={sendLink}>
-            <input id="email" className="input" type="email" required autoComplete="email" aria-label="Email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label htmlFor="email" className="si-label">Email</label>
+            <input id="email" className="input" type="email" required autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             <button className="btn block" disabled={busy}><Icon name="send" size={18} />{busy ? "Sending…" : "Email me a sign-in link"}</button>
           </form>
           {err && <div className="notice err">{err}</div>}

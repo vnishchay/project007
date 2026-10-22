@@ -4,7 +4,7 @@ import type { ReviewRow } from "../../lib/types";
 import { timeAgo } from "../../lib/util";
 import { itemLabel, olderThan, splitTags, tagLabels } from "../../lib/reviews";
 import { OwnerReply, REVIEW_FEED, REVIEW_SELECT, roughDate } from "../ReviewCard";
-import { Icon, Stars, useToast } from "../ui";
+import { Icon, Stars, useConfirm, useToast } from "../ui";
 
 const PAGE = 10;
 const MAX = 600;
@@ -17,8 +17,16 @@ const when = (r: ReviewRow) => (anonymous(r) ? roughDate(r.created_at) : timeAgo
  * The shop's newest reviews, each with a public reply from the owner. Read through review_feed like
  * every other screen, so the owner never sees who wrote an anonymous review.
  */
+type Show = "reply" | "low" | "all";
+const SHOWS: { id: Show; label: string; icon: "reply" | "thumbsDown" | "list" }[] = [
+  { id: "reply", label: "Needs reply", icon: "reply" },
+  { id: "low", label: "Low ratings", icon: "thumbsDown" },
+  { id: "all", label: "All", icon: "list" },
+];
+
 export function ShopReviews({ placeId, shopName }: { placeId: string; shopName: string }) {
   const toast = useToast();
+  const [show, setShow] = useState<Show>("reply");
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
   const [more, setMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -54,7 +62,13 @@ export function ShopReviews({ placeId, shopName }: { placeId: string; shopName: 
     setRows((prev) => { const seen = new Set((prev || []).map((x) => x.id)); return [...(prev || []), ...all.slice(0, PAGE).filter((x) => !seen.has(x.id))]; });
   }
 
-  if (!rows || rows.length === 0) return null;
+  if (rows === null) return <div className="skeleton" style={{ height: 120 }} />;
+  if (rows.length === 0) return (
+    <div className="mg-empty"><span className="icon-chip lg amber"><Icon name="star" size={24} /></span><h2>No reviews yet</h2>
+      <p className="small muted" style={{ maxWidth: 270 }}>Customers review after scanning the QR on their table, or from a review link you send.</p></div>
+  );
+  const counts: Record<Show, number> = { reply: rows.filter((r) => !r.owner_reply).length, low: rows.filter((r) => r.rating <= 2).length, all: rows.length };
+  const shown = rows.filter((r) => (show === "reply" ? !r.owner_reply : show === "low" ? r.rating <= 2 : true));
 
   return (
     <section className="mg-section" style={{ gap: 10 }} aria-label="Reviews">
@@ -62,9 +76,17 @@ export function ShopReviews({ placeId, shopName }: { placeId: string; shopName: 
         <span className="icon-chip sm amber"><Icon name="message" size={16} /></span>
         <span className="grow">Reviews</span>
       </div>
-      <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>Reply to thank customers or put something right. Your reply shows under the review on your page. You never see who wrote an anonymous review.</p>
+      <p className="tiny muted" style={{ margin: "-4px 0 6px" }}>Reply to thank customers or put something right. Your reply shows under the review on your page.</p>
+      <div className="chips scroll" role="group" aria-label="Show reviews">
+        {SHOWS.map((x) => (
+          <button key={x.id} type="button" className={`chip ${show === x.id ? "on" : ""}`} aria-pressed={show === x.id} onClick={() => setShow(x.id)}>
+            <Icon name={x.icon} size={14} />{x.label} {counts[x.id]}{more && x.id !== "all" ? "+" : ""}
+          </button>
+        ))}
+      </div>
+      {shown.length === 0 && <p className="small muted row" style={{ gap: 6 }}><Icon name="checkCircle" size={16} color="var(--good)" />{show === "reply" ? "You've replied to every review here." : "No low ratings here."}</p>}
       <div className="stack" style={{ gap: 8 }}>
-        {rows.map((r) => {
+        {shown.map((r) => {
           const { good, bad } = splitTags(tagLabels(r));
           const tags = [...good, ...bad].join(" · ");
           return (
@@ -101,6 +123,7 @@ function ReplySheet({ review, shopName, onClose, onSaved }: {
   review: ReviewRow; shopName: string; onClose: () => void; onSaved: (text: string | null, at: string | null) => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [text, setText] = useState(review.owner_reply || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -118,7 +141,7 @@ function ReplySheet({ review, shopName, onClose, onSaved }: {
     setBusy(true); setErr("");
     const { data, error } = await supabase.rpc("reply_to_review", { p_review_id: review.id, p_text: body });
     setBusy(false);
-    if (error) { setErr(error.code === "PGRST202" ? "Replies need a quick database update. We're on it." : errorText(error)); return; }
+    if (error) { setErr(error.code === "PGRST202" ? "Replies aren't available yet." : errorText(error)); return; }
     toast(remove ? "Reply deleted" : "Reply posted");
     onSaved(remove ? null : body, remove ? null : ((data as string | null) ?? new Date().toISOString()));
   }
@@ -151,7 +174,7 @@ function ReplySheet({ review, shopName, onClose, onSaved }: {
         <div className="row">
           {review.owner_reply && (
             <button type="button" className="btn danger" aria-label="Delete reply" disabled={busy} style={{ width: 52, padding: 0 }}
-              onClick={() => { if (confirm("Delete your reply?")) save(true); }}><Icon name="trash" size={19} /></button>
+              onClick={() => void confirm({ title: "Delete your reply?", body: "It disappears from under the review on your page.", ok: "Delete", danger: true }).then((ok) => { if (ok) void save(true); })}><Icon name="trash" size={19} /></button>
           )}
           <button className="btn green grow" disabled={busy}>{busy ? "Saving…" : <><Icon name="send" size={18} />{review.owner_reply ? "Save reply" : "Post reply"}</>}</button>
         </div>
