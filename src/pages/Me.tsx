@@ -1,4 +1,5 @@
 import { InviteCard } from "../components/home/InviteCard";
+import { PasskeysCard } from "../components/Passkeys";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
@@ -362,6 +363,8 @@ export default function Me() {
           })}</div>
         )
       )}
+
+      {!isGuest && <PasskeysCard />}
 
       {!isGuest && (
         <div className="menu">

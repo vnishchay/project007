@@ -5,6 +5,8 @@ import { useAuth } from "../lib/auth";
 import { canGoBack } from "../lib/nav";
 import { Icon, Spinner } from "../components/ui";
 import { Glyph } from "../components/home/Kit";
+import { PasskeySignIn } from "../components/Passkeys";
+import { captchaToken } from "../lib/turnstile";
 import "../styles/signin.css";
 
 function GoogleLogo() {
@@ -61,7 +63,7 @@ export default function SignIn() {
       setErr(errorText(error));
       return;
     }
-    const { error } = await supabase.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirectTo } });
+    const { error } = await supabase.auth.signInWithOtp({ email: address, options: { emailRedirectTo: redirectTo, captchaToken: await captchaToken() } });
     setBusy(false);
     if (error) setErr(errorText(error)); else setSent("link");
   }
@@ -124,6 +126,7 @@ export default function SignIn() {
       ) : (
         <div className="si-actions">
           <button className="btn ghost block si-google" onClick={google}><GoogleLogo />Continue with Google</button>
+          {(!isGuest || taken) && <PasskeySignIn onError={setErr} />}
           <div className="si-or">or use your email</div>
           <form className="si-actions" onSubmit={sendLink}>
             <input id="email" className="input" type="email" required autoComplete="email" aria-label="Email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />

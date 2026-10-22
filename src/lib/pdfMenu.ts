@@ -40,3 +40,29 @@ export async function renderPdfPages(file: File, maxPages = 4): Promise<Blob[]> 
 
   return blobs;
 }
+
+/**
+ * The text inside a PDF menu, if it has real text (most menus exported from a computer do). Sending text
+ * instead of page pictures is cheaper and reads prices more reliably. Returns "" for a scanned PDF.
+ */
+export async function pdfText(file: File, maxPages = 12): Promise<string> {
+  const pdfjsLib = await import("pdfjs-dist");
+  try {
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+    }
+  } catch {
+    /* fallback to main thread */
+  }
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  let out = "";
+  for (let p = 1; p <= Math.min(pdf.numPages, maxPages); p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    out += tc.items.map((i) => ("str" in i ? i.str : "")).join(" ") + "\n";
+    if (out.length > 24000) break;
+  }
+  const text = out.replace(/[ \t]+/g, " ").trim();
+  // A few stray characters (page numbers, a logo's name) mean it's really a scan.
+  return (text.match(/[\p{L}]{2,}/gu) || []).length >= 25 ? text.slice(0, 24000) : "";
+}

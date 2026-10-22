@@ -34,3 +34,13 @@ Tested on a local Postgres 16 + PostGIS with a stand-in for Supabase Auth: QR sc
 
 - Free projects pause after 7 days with no activity; open the dashboard to wake it.
 - Email magic link and Google sign-in are free; phone OTP would need a paid SMS provider.
+
+## Passkeys, NFC tags, wallet passes, similar dishes (October 2026)
+
+| Feature | What to switch on |
+| --- | --- |
+| Passkeys | Supabase > Authentication > Passkeys: turn on, Relying Party ID = the app's domain (e.g. `trustedpicks.app`), origin = `https://<that domain>`. The app shows "Sign in with a passkey" and a Passkeys section on the profile once it's on; guests never see it. |
+| NFC table tags | Migration 43. Nothing else: owners open QR > the NFC icon on a table for the link and key to program an NTAG 424 DNA tag. Verified taps (`tap_nfc`) count as "at the shop" without any location. |
+| Similar dishes | Migration 44 (pgvector) and redeploy `ai` (`scripts/deploy-ai.ps1`) for its `embed` task. Vectors fill in as shop pages are opened, when owners change products, and at the end of each onboarding run. |
+| Wallet passes | Deploy `wallet` (`scripts/deploy-wallet.ps1`) and set its secrets: `SITE_URL`, then Apple (`APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_PASS_CERT`, `APPLE_PASS_KEY`, `APPLE_PASS_KEY_PASSPHRASE` if any, `APPLE_WWDR_CERT`) and/or Google (`GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_SA_JSON`). Buttons appear only for a wallet that's set up. |
+| Bot check | Off by default. During a bot flood: set `VITE_TURNSTILE_SITE_KEY` on Vercel and turn on CAPTCHA (Turnstile, same site's secret key) in Supabase > Authentication > Attack Protection. Turn both off again afterwards. |

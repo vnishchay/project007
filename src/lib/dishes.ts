@@ -113,3 +113,16 @@ export function mealNow(now = new Date()): string {
   if (h >= 19 && h < 23) return "Dinner";
   return "Late night";
 }
+
+/** Dishes like this one at other shops nearby, best loved first. Empty (not an error) before migration 44. */
+export async function similarDishes(itemId: string, at?: { lat: number; lng: number } | null): Promise<TopDish[]> {
+  const { data, error } = await supabase.rpc("similar_items", { p_item: itemId, p_lat: at?.lat ?? null, p_lng: at?.lng ?? null, p_limit: 10 });
+  return error ? [] : (data as TopDish[]) || [];
+}
+
+/** Once per visit to a shop page (or after an owner changes products, with force): make sure its products can be matched in "Similar dishes". Quiet if it can't. */
+export function ensureEmbeddings(placeId: string, force = false) {
+  const key = `tp-embed:${placeId}`;
+  try { if (!force && sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch { /* storage off: still fine to ask */ }
+  supabase.functions.invoke("ai", { body: { task: "embed", placeId } }).then(() => {}, () => {});
+}
