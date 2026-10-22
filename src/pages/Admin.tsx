@@ -247,7 +247,7 @@ function Places({ onChange }: { onChange: () => void }) {
                   const sub = subOf(p);
                   if (!sub || sub.plan === "trial" || sub.status === "expired") return null;
                   const end = sub.period_end;
-                  return <span className={`tiny ${soon(end) ? "strong" : "muted"}`} style={soon(end) ? { color: "#7a5410" } : undefined}>{sub.plan} until {new Date(end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>;
+                  return <span className={`tiny ${soon(end) ? "strong" : "muted"}`} style={soon(end) ? { color: "#7a5410" } : undefined}>{sub.plan} until {new Date(end).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>;
                 })()}
               </span>
             </Link>
@@ -652,7 +652,7 @@ function ShopPlans() {
           <button className="row" style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", gap: 10 }} onClick={() => setOpen(open === r.place_id ? null : r.place_id)}>
             <span className={`icon-chip sm ${r.reviews_open ? "" : "coral"}`}><Icon name={r.reviews_open ? "check" : "clock"} size={15} /></span>
             <span className="grow stack tight"><span className="strong">{r.place_name}</span>
-              <span className="tiny muted">{r.plan_name} · {r.status === "expired" ? "ended" : `until ${new Date(r.period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`} · {r.qr_used}/{r.qr_limit} QRs</span></span>
+              <span className="tiny muted">{r.plan_name} · {r.status === "expired" ? "ended" : `until ${new Date(r.period_end).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`} · {r.qr_used}/{r.qr_limit} QRs</span></span>
             <span className={`badge ${r.reviews_open ? "" : "warn"}`}>{r.reviews_open ? "Reviews on" : "Paused"}</span>
           </button>
           {open === r.place_id && (

@@ -51,7 +51,7 @@ export function GoogleConnect({ place, isAdmin, onSaved }: { place: Place; isAdm
       </div>
       <div className="stack tight small">
         <span className="row" style={{ gap: 6 }}><Icon name="star" size={14} color="var(--star)" />Your Google rating and photos, live on your page</span>
-        <span className="row" style={{ gap: 6 }}><Icon name="send" size={14} color="var(--green)" />Happy customers pass reviews on to Google</span>
+        <span className="row" style={{ gap: 6 }}><Icon name="send" size={14} color="var(--accent)" />Happy customers pass reviews on to Google</span>
       </div>
       {pick ? (
         <div className="stack" style={{ gap: 10 }}>

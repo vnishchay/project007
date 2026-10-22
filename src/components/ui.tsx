@@ -83,8 +83,9 @@ export function Layout({ children }: { children: ReactNode }) {
   const account = Boolean(session) && !isGuest;
   useEffect(() => { if (account) clearFocusShop(); }, [account, loc.pathname]);
   const shop = account || loading ? null : focusShop();
+  const tabbed = !shop && ["/", "/picks", "/me"].includes(loc.pathname);
   return (
-    <div className="app">
+    <div className={`app ${tabbed ? "tabbed" : ""}`}>
       {authError && loc.pathname !== "/signin" && (
         <div className="notice err row no-print" style={{ margin: "12px 20px 0" }} role="alert">
           <span className="grow">Sign-in didn't finish: {authError}. <Link to="/signin">Try again</Link></span>
@@ -93,6 +94,7 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
       <InviteAcceptor />
       {shop && !allowedInFocus(loc.pathname, shop) ? <Navigate to={`/p/${shop}`} replace /> : children}
+      <BottomNav />
     </div>
   );
 }
@@ -154,23 +156,111 @@ export function RequireAuth({ children, admin = false, guestOk = false, allowGue
 }
 
 /* ---------- Toast ---------- */
-const ToastCtx = createContext<(msg: string) => void>(() => {});
+/** An optional button inside the toast: a link (`to`) or an action (`onClick`), like "Sign in" or "Undo". */
+export interface ToastAction { label: string; to?: string; onClick?: () => void }
+type ToastFn = (msg: string, action?: ToastAction) => void;
+const ToastCtx = createContext<ToastFn>(() => {});
+
+/** Asks before something that can't be undone, in an in-app sheet instead of the browser's box. */
+export interface ConfirmOpts { title: string; body?: string; ok: string; cancel?: string; danger?: boolean }
+const ConfirmCtx = createContext<(o: ConfirmOpts) => Promise<boolean>>(async () => false);
+
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toast, setToast] = useState<{ msg: string; id: number } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; id: number; action?: ToastAction } | null>(null);
+  const [ask, setAsk] = useState<(ConfirmOpts & { done: (ok: boolean) => void }) | null>(null);
+  const nav = useNavigate();
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    // Long messages and ones with a button stay longer, so there's time to read and tap.
+    const t = setTimeout(() => setToast(null), toast.action || toast.msg.length > 60 ? 4500 : 3000);
     return () => clearTimeout(t);
   }, [toast]);
-  const show = useCallback((m: string) => setToast({ msg: m, id: Date.now() + Math.random() }), []);
+  const show = useCallback<ToastFn>((m, action) => setToast({ msg: m, id: Date.now() + Math.random(), action }), []);
+  const confirmFn = useCallback((o: ConfirmOpts) => new Promise<boolean>((done) => setAsk({ ...o, done })), []);
+  const answer = (ok: boolean) => { ask?.done(ok); setAsk(null); };
+  useEffect(() => {
+    if (!ask) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { ask.done(false); setAsk(null); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ask]);
   return (
     <ToastCtx.Provider value={show}>
-      {children}
-      {toast && <div key={toast.id} className="toast" role="status" aria-live="polite">{toast.msg}</div>}
+      <ConfirmCtx.Provider value={confirmFn}>
+        {children}
+        {toast && (
+          <div key={toast.id} className={`toast ${toast.action ? "has-act" : ""}`} role="status" aria-live="polite">
+            <span className="grow">{toast.msg}</span>
+            {toast.action && (
+              <button type="button" className="toast-act" onClick={() => { const a = toast.action!; setToast(null); if (a.to) nav(a.to); a.onClick?.(); }}>{toast.action.label}</button>
+            )}
+          </div>
+        )}
+        {ask && (
+          <div className="sheet-backdrop" onClick={() => answer(false)}>
+            <div className="sheet confirm-sheet" role="alertdialog" aria-modal="true" aria-labelledby="cf-t" onClick={(e) => e.stopPropagation()}>
+              <h2 id="cf-t">{ask.title}</h2>
+              {ask.body && <p className="small muted">{ask.body}</p>}
+              <div className="stack" style={{ gap: 8 }}>
+                <button type="button" className={`btn block ${ask.danger ? "danger-solid" : "green"}`} autoFocus onClick={() => answer(true)}>
+                  {ask.danger && <Icon name="trash" size={18} />}{ask.ok}
+                </button>
+                <button type="button" className="btn block ghost" onClick={() => answer(false)}>{ask.cancel || "Cancel"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </ConfirmCtx.Provider>
     </ToastCtx.Provider>
   );
 }
 export const useToast = () => useContext(ToastCtx);
+export const useConfirm = () => useContext(ConfirmCtx);
+
+/* ---------- Bottom bar ---------- */
+const TAB_ROOTS = ["/", "/picks", "/me"];
+/** Discover, Your picks and Profile, on the three main screens. Never in shop mode (a customer at a table stays with that shop). */
+export function BottomNav() {
+  const loc = useLocation();
+  if (focusShop() || !TAB_ROOTS.includes(loc.pathname)) return null;
+  const tabs: { to: string; label: string; icon: IconName }[] = [
+    { to: "/", label: "Discover", icon: "search" },
+    { to: "/picks", label: "Your picks", icon: "heart" },
+    { to: "/me", label: "Profile", icon: "user" },
+  ];
+  return (
+    <nav className="bottom-nav no-print" aria-label="Main">
+      {tabs.map((t) => {
+        const on = loc.pathname === t.to;
+        return (
+          <Link key={t.to} to={t.to} replace className={on ? "on" : ""} aria-current={on ? "page" : undefined}>
+            <Icon name={t.icon} size={22} width={on ? 2.4 : 2} />{t.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * Tabs that work like the platform's: one tab stop for the row, arrow keys move between tabs.
+ * `items` are [id, label] (label may be any node).
+ */
+export function useTabKeys<T extends string>(ids: readonly T[], current: T, pick: (t: T) => void) {
+  return (e: React.KeyboardEvent) => {
+    const i = ids.indexOf(current);
+    let j = -1;
+    if (e.key === "ArrowRight") j = (i + 1) % ids.length;
+    else if (e.key === "ArrowLeft") j = (i - 1 + ids.length) % ids.length;
+    else if (e.key === "Home") j = 0;
+    else if (e.key === "End") j = ids.length - 1;
+    if (j < 0) return;
+    e.preventDefault();
+    pick(ids[j]!);
+    const row = e.currentTarget as HTMLElement;
+    requestAnimationFrame(() => (row.querySelector('[aria-selected="true"]') as HTMLElement | null)?.focus());
+  };
+}
 
 /* ---------- QR image ---------- */
 export function QrImage({ text, size = 200, dark = "#1d1b22", light = "#FFFFFF" }: { text: string; size?: number; dark?: string; light?: string }) {

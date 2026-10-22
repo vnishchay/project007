@@ -175,7 +175,7 @@ function RecheckBanner({ placeId }: { placeId: string }) {
       </span>
       {check.note && <p className="small" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}><b>From the team:</b> {check.note}</p>}
       {waitUntil ? (
-        <span className="tiny">You can ask again after {waitUntil.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.</span>
+        <span className="tiny">You can ask again after {waitUntil.toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.</span>
       ) : (
         <>
           <input className="input" placeholder="What did you change? (optional)" value={msg} maxLength={1000} onChange={(e) => setMsg(e.target.value)} />

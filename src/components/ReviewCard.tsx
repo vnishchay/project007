@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import type { ReviewRow } from "../lib/types";
 import { timeAgo } from "../lib/util";
 import { demoArtUrl, isDemoArt } from "../lib/demoArt";
-import { isVisitItem, itemLabel, splitTags, tagLabels } from "../lib/reviews";
+import { isVisitItem, itemLabel, ratingWord, splitTags, tagLabels } from "../lib/reviews";
 import { Avatar, Icon, Stars, useToast, type IconName } from "./ui";
 import { ItemThumb } from "./place/ItemThumb";
 import "../styles/place.css";
@@ -29,14 +29,13 @@ export function VoiceNote({ path }: { path: string }) {
   ) : null;
 }
 
-export const RATING_WORDS = ["", "Not good", "Okay", "Good", "Great", "Loved it"];
 
 // Anonymous reviews show only a rough date, so a time can't point to a person.
 export function roughDate(iso: string): string {
   const days = (Date.now() - new Date(iso).getTime()) / 86400000;
   if (days < 7) return "this week";
   if (days < 31) return "this month";
-  return new Date(iso).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 function ReviewPhoto({ path, alt }: { path: string; alt: string }) {
@@ -76,13 +75,13 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
       </div>
       <div className="rc-rating">
         <Stars value={r.rating} size={16} />
-        <span className="rc-word">{RATING_WORDS[r.rating] || ""}</span>
+        <span className="rc-word">{ratingWord(r.rating)}</span>
         {r.items?.name && (isVisitItem(r.items.name)
           ? <span className="rc-chip"><Icon name="store" size={14} />{itemLabel(r.items.name)}</span>
           : <span className="rc-chip"><ItemThumb path={itemImage} icon={itemIcon} size={26} />{r.items.name}</span>)}
         {showPlace && r.places ? <Link to={`/p/${r.place_id}`} className="rc-chip place"><Icon name="store" size={14} />{r.places.name}</Link> : null}
       </div>
-      {good.length > 0 && <div className="rc-tags" aria-label="Liked"><Icon name="thumbs" size={14} color="var(--green)" />{good.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
+      {good.length > 0 && <div className="rc-tags" aria-label="Liked"><Icon name="thumbs" size={14} color="var(--accent)" />{good.map((t) => <span key={t} className="rc-tag">{t}</span>)}</div>}
       {bad.length > 0 && <div className="rc-tags" aria-label="Could be better"><Icon name="thumbsDown" size={14} color="var(--coral)" />{bad.map((t) => <span key={t} className="rc-tag bad">{t}</span>)}</div>}
       {r.body && <p className="rc-body">{r.body}</p>}
       {r.photo_path && <ReviewPhoto path={r.photo_path} alt={`Photo of ${isVisitItem(r.items?.name) ? "the visit" : r.items?.name || "the visit"}`} />}
@@ -128,7 +127,7 @@ function ReportButton({ reviewId }: { reviewId: string }) {
   const [done, setDone] = useState(false);
   if (done) return <span className="tiny muted row" style={{ gap: 4 }}><Icon name="check" size={12} />Reported</span>;
   async function send(reason: string) {
-    if (!session) { toast("Sign in or scan a shop QR to report"); return; }
+    if (!session) { toast("Sign in to report a review", { label: "Sign in", to: `/signin?next=${encodeURIComponent(window.location.pathname)}` }); return; }
     const { error } = await supabase.rpc("report_review", { p_review: reviewId, p_reason: reason });
     setOpen(false);
     if (error) toast(errorText(error)); else { setDone(true); toast("Thanks. We'll take a look."); }

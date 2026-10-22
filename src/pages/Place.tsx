@@ -560,13 +560,13 @@ export default function PlacePage() {
                 {parsedAbout.story && <p style={{ whiteSpace: "pre-line", fontSize: 15, lineHeight: 1.6 }}>{parsedAbout.story}</p>}
                 {parsedAbout.fssai && (
                   <div className="pl-fssai-row">
-                    <Icon name="verified" size={15} color="var(--green)" />
+                    <Icon name="verified" size={15} color="var(--accent)" />
                     <span className="tiny muted">FSSAI Central Food Safety License: <b style={{ color: "var(--ink)" }}>{parsedAbout.fssai}</b></span>
                   </div>
                 )}
                 {!onGoogle && google && (
                   <div className="row small" style={{ gap: 8, marginTop: 8 }}>
-                    <Icon name="globe" size={16} color="var(--muted)" /><b>{google.rating.toFixed(1)}</b><Stars value={google.rating} size={13} /><span className="muted">{google.count.toLocaleString("en-IN")} on Google</span>
+                    <Icon name="globe" size={16} color="var(--muted)" /><b>{google.rating.toFixed(1)}</b><Stars value={google.rating} size={13} /><span className="muted">{google.count.toLocaleString(undefined)} on Google</span>
                   </div>
                 )}
                 {!onGoogle && place.google_place_id && (

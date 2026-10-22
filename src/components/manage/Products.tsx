@@ -231,7 +231,7 @@ function ProductRow({ it, currency, stat, topic, onEdit, children }: { it: Item;
           {it.is_hidden && <span className="badge gray"><Icon name="eyeOff" size={11} />Hidden</span>}
         </span>
         {stat && stat.review_count > 0 && (
-          <span className="mg-meta"><span className="rating-pill" style={{ padding: "2px 7px", fontSize: 11 }}><Icon name="star" size={10} fill="#fff" />{Number(stat.avg_rating).toFixed(1)}</span>{stat.review_count}</span>
+          <span className="mg-meta"><span className="rating-pill" style={{ padding: "2px 7px", fontSize: 12 }}><Icon name="star" size={10} fill="#fff" />{Number(stat.avg_rating).toFixed(1)}</span>{stat.review_count}</span>
         )}
       </button>
       <span className="mg-acts">{children}</span>

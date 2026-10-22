@@ -192,7 +192,7 @@ export function MenuImport({ placeId, mode, nextSort, links: _links = [], curren
                         {isPdf ? (
                           <span style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", background: "var(--bg-sub, #f3f4f6)", borderRadius: 8, padding: 4 }}>
                             <Icon name="fileText" size={24} />
-                            <span className="tiny ellipsis" style={{ maxWidth: 60, marginTop: 2, fontSize: 10 }}>PDF</span>
+                            <span className="tiny ellipsis" style={{ maxWidth: 60, marginTop: 2, fontSize: 12 }}>PDF</span>
                           </span>
                         ) : (
                           <img src={URL.createObjectURL(f)} alt={`Page ${i + 1}`} />

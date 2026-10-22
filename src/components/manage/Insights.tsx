@@ -13,7 +13,7 @@ interface ItemStat { item_id: string; name: string; image_path: string | null; r
 
 export type ManageTab = "insights" | "products" | "links" | "updates" | "visitors" | "details" | "qr" | "plan";
 
-const n = (x: number | null | undefined) => (x ?? 0).toLocaleString("en-IN");
+const n = (x: number | null | undefined) => (x ?? 0).toLocaleString(undefined);
 
 /** What the app brings the shop: counts only, never who. */
 export function Insights({ place, onGo }: { place: Place; onGo: (t: ManageTab) => void }) {
@@ -178,7 +178,7 @@ function PrivateNotes({ placeId, onGo }: { placeId: string; onGo: (t: ManageTab)
           <div key={n.id} className="card" style={{ padding: 12 }}>
             <div className="row" style={{ alignItems: "center", gap: 6, marginBottom: 4 }}>
               {n.item_name && <strong className="small grow ellipsis">{n.item_name}</strong>}
-              <span className="tiny muted" style={{ marginLeft: "auto" }}>{new Date(n.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
+              <span className="tiny muted" style={{ marginLeft: "auto" }}>{new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
             </div>
             {n.locked ? (
               <p className="small" aria-hidden="true" style={{ margin: 0, filter: "blur(5px)", userSelect: "none" }}>A private note is waiting for you. Upgrade your plan to read it.</p>
@@ -233,7 +233,7 @@ function AiTips({ placeId, isPro, onGo }: { placeId: string; isPro: boolean; onG
       ) : (
         <>
           {tips.summary && <p className="small">{tips.summary}</p>}
-          {tips.loved.length > 0 && <ul className="ai-list">{tips.loved.map((t) => <li key={t}><Icon name="heart" size={15} color="var(--green)" />{t}</li>)}</ul>}
+          {tips.loved.length > 0 && <ul className="ai-list">{tips.loved.map((t) => <li key={t}><Icon name="heart" size={15} color="var(--accent)" />{t}</li>)}</ul>}
           {tips.fix.length > 0 && <ul className="ai-list">{tips.fix.map((t) => <li key={t}><Icon name="zap" size={15} color="#c2410c" />{t}</li>)}</ul>}
         </>
       )}

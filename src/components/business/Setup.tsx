@@ -188,7 +188,7 @@ export function Setup() {
       {googleConfigured && (picked ? (
         <div className="stack" style={{ gap: 6, textAlign: "left" }}>
           <GooglePreview id={picked.id} mini />
-          <span className="row tiny" style={{ gap: 6 }}><Icon name="spark" size={13} color="var(--green)" /><span className="grow muted">Filled in from Google. Edit anything.</span>
+          <span className="row tiny" style={{ gap: 6 }}><Icon name="spark" size={13} color="var(--accent)" /><span className="grow muted">Filled in from Google. Edit anything.</span>
             <button type="button" className="link-btn tiny" onClick={clearGoogle}>Change</button></span>
         </div>
       ) : (

@@ -33,7 +33,7 @@ export function ReviewLinks({ placeId, placeName, live }: { placeId: string; pla
   }
 
   const message = link ? `Thanks for choosing ${placeName}! Tell us how it was (takes a minute, no account needed): ${link.url}` : "";
-  const until = link ? new Date(link.expires).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "";
+  const until = link ? new Date(link.expires).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "";
 
   return (
     <section className="card stack" style={{ gap: 12 }}>

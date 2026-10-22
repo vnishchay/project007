@@ -168,7 +168,7 @@ export default function Discover() {
   function voiceSearch() {
     if (!SR) return;
     const rec = new SR();
-    rec.lang = "en-IN";
+    rec.lang = navigator.language || "en";
     rec.interimResults = false;
     rec.onresult = (e) => {
       const said = e.results[0]?.[0]?.transcript?.trim().replace(/[.?!]$/, "") || "";

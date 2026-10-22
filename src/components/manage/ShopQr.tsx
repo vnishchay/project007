@@ -30,7 +30,7 @@ export function QrPrintSheet({ place, codes, topItem }: { place: Pick<Place, "na
             <span className="strong">Scan to see what people love here</span>
             <span className="small" style={{ opacity: 0.7 }}>and rate what you had</span>
             {topItem && <span className="small" style={{ opacity: 0.7 }}>{topItem}</span>}
-            <span className="small strong" style={{ color: c.style === "paper" ? "var(--green)" : col.dark }}>● Trusted Picks</span>
+            <span className="small strong" style={{ color: c.style === "paper" ? "var(--accent)" : col.dark }}>● Trusted Picks</span>
           </div>
         );
       })}

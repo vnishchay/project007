@@ -88,7 +88,7 @@ export function OnGoogle({ googlePlaceId }: { googlePlaceId: string }) {
         {d?.rating != null && (
           <span className="gg-score">
             <b>{d.rating.toFixed(1)}</b><Stars value={d.rating} size={11} />
-            <span className="tiny muted">{d.count.toLocaleString("en-IN")} reviews</span>
+            <span className="tiny muted">{d.count.toLocaleString(undefined)} reviews</span>
           </span>
         )}
       </div>

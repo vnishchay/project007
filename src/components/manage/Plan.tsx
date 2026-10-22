@@ -5,7 +5,7 @@ import { loadPlans, payForPlan, type MyPlan, type PlanRow } from "../../lib/bill
 import { Icon, Spinner, useToast } from "../ui";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 /** The shop's plan: QRs used, whether reviews are on, when it ends, and paying for more. */
 export function Plan({ placeId, placeName }: { placeId: string; placeName: string }) {
@@ -77,7 +77,7 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
               <strong className="grow">{p.name}</strong>
               {price ? <span className="pn-price">{inr(price)}<span className="tiny muted">/{interval === "year" ? "yr" : "mo"}</span></span> : null}
             </div>
-            <ul className="pn-feat">{p.features.map((f) => <li key={f}><Icon name="check" size={14} color="var(--green)" />{f}</li>)}</ul>
+            <ul className="pn-feat">{p.features.map((f) => <li key={f}><Icon name="check" size={14} color="var(--accent)" />{f}</li>)}</ul>
             <button className={`btn small block ${current ? "ghost" : "green"}`} disabled={!!busy} onClick={() => buy(p.code)}>
               {busy === p.code ? "Opening…" : current ? `Add 1 more ${interval}` : `Get ${p.name}`}
             </button>

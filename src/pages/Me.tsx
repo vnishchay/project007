@@ -194,7 +194,7 @@ export default function Me() {
                 <span style={{ opacity: uploading ? 0.5 : 1, display: "block" }}>
                   <Avatar id={me} name={profile?.display_name} path={profile?.avatar_path} size="lg" />
                 </span>
-                <span aria-hidden="true" style={{ position: "absolute", right: -4, bottom: -4, width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", color: "var(--green-dark)" }}>
+                <span aria-hidden="true" style={{ position: "absolute", right: -4, bottom: -4, width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "grid", placeItems: "center", color: "var(--accent-dark)" }}>
                   <Icon name="camera" size={13} width={2.4} />
                 </span>
               </button>
@@ -447,7 +447,7 @@ function FoodPassport({ reviews, city, userId }: { reviews: ReviewRow[]; city?: 
 
       {expertBadges.length > 0 && (
         <div className="stack tight" style={{ marginTop: 2 }}>
-          <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 10 }}>
+          <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 12 }}>
             <Icon name="award" size={11} color="var(--amber)" /> Community Badges
           </span>
           <div className="chips" style={{ gap: 6 }}>

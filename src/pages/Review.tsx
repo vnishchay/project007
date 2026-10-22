@@ -466,7 +466,7 @@ function ReviewForm() {
     const r = makeRecognition();
     if (!r) return;
     rec.current = r;
-    r.lang = "en-IN"; r.interimResults = false; r.continuous = true;
+    r.lang = navigator.language || "en"; r.interimResults = false; r.continuous = true;
     const now = bodyOf(key);
     const start = now ? now.trimEnd() + " " : "";
     r.onresult = (e) => {

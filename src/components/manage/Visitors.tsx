@@ -151,10 +151,10 @@ export function Visitors({ placeId }: { placeId: string }) {
                   onClick={() => toggle(v.user_id)} title={v.can_offer ? undefined : v.last_offer_at ? "Already got an offer today" : "Turned offers off"}>
                   <Avatar id={v.user_id} name={name} path={v.avatar_path} size="sm" />
                   <span className="grow stack tight" style={{ minWidth: 0 }}>
-                    <span className="t ellipsis">{name}{v.at_shop && <span title="Scanned at the shop" style={{ marginLeft: 5, verticalAlign: -2 }}><Icon name="verified" size={14} color="var(--green)" /></span>}</span>
+                    <span className="t ellipsis">{name}{v.at_shop && <span title="Scanned at the shop" style={{ marginLeft: 5, verticalAlign: -2 }}><Icon name="verified" size={14} color="var(--accent)" /></span>}</span>
                     <span className="s ellipsis">{v.can_offer ? sub : v.last_offer_at && Date.now() - new Date(v.last_offer_at).getTime() < 86_400_000 ? `Offer sent ${timeAgo(v.last_offer_at)}` : "Offers off"}</span>
                   </span>
-                  <Icon name={on ? "checkCircle" : "plus"} size={18} color={on ? "var(--green)" : "var(--muted)"} />
+                  <Icon name={on ? "checkCircle" : "plus"} size={18} color={on ? "var(--accent)" : "var(--muted)"} />
                 </button>
               );
             })}

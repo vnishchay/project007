@@ -196,7 +196,7 @@ export function ProductSheet({ placeId, item, topics, mode, currency, reviews, n
 
         {dinerPhotos.length > 0 && (
           <div className="stack tight" style={{ marginTop: 4, marginBottom: 6 }}>
-            <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 10 }}>
+            <span className="tiny muted strong row" style={{ gap: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontSize: 12 }}>
               <Icon name="camera" size={11} color="var(--ink-2)" /> Photos shared by customers
             </span>
             <div className="row" style={{ gap: 8, overflowX: "auto", paddingBottom: 4 }}>
