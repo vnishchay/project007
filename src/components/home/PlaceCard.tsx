@@ -3,7 +3,7 @@ import type { Profile, SearchResult } from "../../lib/types";
 import { distanceText } from "../../lib/util";
 import { priceLevelText } from "../../lib/money";
 import { Avatar, Icon } from "../ui";
-import { Cover } from "./Kit";
+import { Cover, GoogleG } from "./Kit";
 
 /** Looked up per result: photos, and the currency its price level is in. */
 export interface Media {
@@ -55,8 +55,8 @@ export function PlaceCard({ r, people, coverUrl, currency, google }: { r: Search
           {r.has_qr && !r.verified_count && <span className="pill verified" title="Table QR"><Icon name="qr" size={13} /></span>}
           {r.review_count > 0 && <span className="pill gray" title="Reviews"><Icon name="message" size={12} />{r.review_count}</span>}
           {google?.google_rating != null && (
-            <span className="pill gray" title={`${google.google_rating} on Google from ${(google.google_rating_count ?? 0).toLocaleString(undefined)} reviews`}>
-              <b>G</b>{Number(google.google_rating).toFixed(1)}<Icon name="star" size={11} fill="currentColor" />{google.google_rating_count ? <span className="muted">{compact(google.google_rating_count)}</span> : null}
+            <span className="pill gray" aria-label={`Google ${Number(google.google_rating).toFixed(1)} stars`} title={`${google.google_rating} on Google from ${(google.google_rating_count ?? 0).toLocaleString(undefined)} reviews`}>
+              <GoogleG />{Number(google.google_rating).toFixed(1)}<Icon name="star" size={11} fill="currentColor" />{google.google_rating_count ? <span className="muted">{compact(google.google_rating_count)}</span> : null}
             </span>
           )}
           {r.top_item && <span className="pill loved" title="Most loved"><Icon name="heart" size={12} fill="currentColor" /><span>{r.top_item}</span></span>}
