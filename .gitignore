@@ -8,3 +8,5 @@ deno.lock
 graphify-out/
 .claude/worktrees/
 supabase/.temp/
+__pycache__/
+*.pyc
