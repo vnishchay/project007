@@ -318,7 +318,7 @@ export default function PlacePage() {
           {!shopMode && <button className="pn-glass" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
           {logo && <span className="pn-logo"><Img src={logo} alt={`${place.name} logo`} /></span>}
           <span className="grow" />
-          {canManage && <Link to={`/manage/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}
+          {canManage && <Link to={`/owner/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}
           <button className="pn-glass" aria-label={saved ? "Saved. Tap to remove" : "Save this place"} aria-pressed={saved} onClick={toggleSave}><Icon name="bookmark" fill={saved ? "currentColor" : undefined} /></button>
           <button className="pn-glass" aria-label="Share" onClick={share}><Icon name="share" /></button>
         </div>

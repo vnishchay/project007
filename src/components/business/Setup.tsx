@@ -238,7 +238,7 @@ export function Setup() {
         </main>
         <footer className="su-foot">
           {outcome === "unpaid" && <button className="btn ghost grow" disabled={busy} onClick={() => { setPayErr(""); void finish(); }}><Icon name="refresh" size={18} />{busy ? "One moment…" : "Try again"}</button>}
-          <button className={`btn ${outcome === "unpaid" ? "quiet" : "green"} grow`} onClick={() => nav(shopId ? `/manage/${shopId}` : "/business", { replace: true })}><Icon name="store" size={18} />Open my shop</button>
+          <button className={`btn ${outcome === "unpaid" ? "quiet" : "green"} grow`} onClick={() => nav(shopId ? `/owner/${shopId}` : "/business", { replace: true })}><Icon name="store" size={18} />Open my shop</button>
         </footer>
       </div>
     );

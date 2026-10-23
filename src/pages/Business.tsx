@@ -41,7 +41,7 @@ export default function Business() {
           <div className="section-title"><span className="icon-chip sm"><Icon name="store" size={16} /></span>Your shops</div>
           {shops.map((s) => {
             return (
-              <Link key={s.id} to={`/manage/${s.id}`} className="biz-shop">
+              <Link key={s.id} to={`/owner/${s.id}`} className="biz-shop">
                 <span className="thumb"><MediaImg path={s.logo_path || s.cover_path} fallback={initials(s.name)} /></span>
                 <span className="grow stack tight">
                   <span className="strong ellipsis">{s.name}</span>
