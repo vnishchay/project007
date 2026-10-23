@@ -65,15 +65,18 @@ export function useOwnerLanding(): boolean | null {
   const uid = session && !isGuest ? session.user.id : null;
   const mode = appMode();
   const [owns, setOwns] = useState<{ uid: string; owns: boolean } | null>(null);
+  // A slow or stuck shop lookup never holds the home screen: after 4 seconds, show Discover.
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setGaveUp(true), 4000); return () => clearTimeout(t); }, []);
   useEffect(() => {
     if (loading || !uid || mode === "diner") return;
     let alive = true;
     loadMyShops(uid).then((s) => { if (alive) setOwns({ uid, owns: s.length > 0 }); });
     return () => { alive = false; };
   }, [uid, loading, mode]);
-  if (loading) return null;
+  if (loading) return gaveUp ? false : null;
   if (!uid || mode === "diner") return false;
   if (owns?.uid === uid) return owns.owns;
   const known = knownShopCount(uid);
-  return known == null ? null : known > 0;
+  return known == null ? (gaveUp ? false : null) : known > 0;
 }

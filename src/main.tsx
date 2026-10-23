@@ -44,6 +44,8 @@ function Setup() {
   );
 }
 
+// The app code loaded: the "didn't open" screen in index.html is no longer needed.
+clearTimeout((window as Window & { __bootCheck?: number }).__bootCheck);
 installImageFallback();
 registerServiceWorker();
 
