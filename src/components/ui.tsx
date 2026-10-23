@@ -85,9 +85,11 @@ export function Layout({ children }: { children: ReactNode }) {
   const account = Boolean(session) && !isGuest;
   useEffect(() => { if (account) clearFocusShop(); }, [account, loc.pathname]);
   const shop = account || loading ? null : focusShop();
-  const tabbed = !shop && ["/", "/picks", "/me"].includes(loc.pathname);
+  const tabbed = !shop && TAB_ROOTS.includes(loc.pathname);
+  // The owner app has its own full-width shell (sidebar on desktop, its own tab bar on phones).
+  const owner = loc.pathname === "/owner" || loc.pathname.startsWith("/owner/");
   return (
-    <div className={`app ${tabbed ? "tabbed" : ""}`}>
+    <div className={`app ${tabbed ? "tabbed" : ""} ${owner ? "owner-app" : ""}`}>
       {authError && loc.pathname !== "/signin" && (
         <div className="notice err row no-print" style={{ margin: "12px 20px 0" }} role="alert">
           <span className="grow">Sign-in didn't finish: {authError}. <Link to="/signin">Try again</Link></span>
@@ -234,14 +236,15 @@ export const useToast = () => useContext(ToastCtx);
 export const useConfirm = () => useContext(ConfirmCtx);
 
 /* ---------- Bottom bar ---------- */
-const TAB_ROOTS = ["/", "/picks", "/me"];
-/** Discover, Your picks and Profile, on the three main screens. Never in shop mode (a customer at a table stays with that shop). */
+const TAB_ROOTS = ["/", "/picks", "/pocket", "/me"];
+/** Discover, Your picks, Pocket and Profile, on the main screens. Never in shop mode (a customer at a table stays with that shop). */
 export function BottomNav() {
   const loc = useLocation();
   if (focusShop() || !TAB_ROOTS.includes(loc.pathname)) return null;
   const tabs: { to: string; label: string; icon: IconName }[] = [
     { to: "/", label: "Discover", icon: "search" },
     { to: "/picks", label: "Your picks", icon: "heart" },
+    { to: "/pocket", label: "Pocket", icon: "ticket" },
     { to: "/me", label: "Profile", icon: "user" },
   ];
   return (

@@ -20,6 +20,7 @@ import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
 import { SimilarDishes } from "../components/place/SimilarDishes";
+import { TreatsRail } from "../components/treats/TreatsRail";
 import { ensureEmbeddings, openNow } from "../lib/dishes";
 import { parsePlaceAbout, PlatformRatingsCard, AmenitiesCard } from "../components/place/PlatformRatings";
 import { deviceId } from "../lib/device";
@@ -317,7 +318,7 @@ export default function PlacePage() {
           {!shopMode && <button className="pn-glass" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
           {logo && <span className="pn-logo"><Img src={logo} alt={`${place.name} logo`} /></span>}
           <span className="grow" />
-          {canManage && <Link to={`/manage/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}
+          {canManage && <Link to={`/owner/${place.id}`} className="pn-glass pill"><Icon name="settings" size={18} />Manage</Link>}
           <button className="pn-glass" aria-label={saved ? "Saved. Tap to remove" : "Save this place"} aria-pressed={saved} onClick={toggleSave}><Icon name="bookmark" fill={saved ? "currentColor" : undefined} /></button>
           <button className="pn-glass" aria-label="Share" onClick={share}><Icon name="share" /></button>
         </div>
@@ -347,6 +348,8 @@ export default function PlacePage() {
           <div className="pn-ticker-run">{[...ticker, ...ticker].map((t, i) => <span key={i}><Icon name="star" size={13} fill="currentColor" />{t}</span>)}</div>
         </div>
       )}
+
+      <TreatsRail placeId={place.id} placeName={place.name} currency={place.currency} bleed />
 
       {dock.length > 0 && (
         <div className="pn-dock">

@@ -200,7 +200,7 @@ a.list-item:active { background: var(--fill); }
 
 /* Bottom bar on the three main screens. */
 .app.tabbed { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
-.bottom-nav { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(100%, 520px); z-index: 35; display: grid; grid-template-columns: repeat(3, 1fr);
+.bottom-nav { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(100%, 520px); z-index: 35; display: grid; grid-template-columns: repeat(4, 1fr);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--glass); box-shadow: 0 -0.5px 0 var(--line);
   -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px); }
 .bottom-nav a { min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; font-weight: 600; color: var(--muted); border-radius: 12px; }

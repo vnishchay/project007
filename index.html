@@ -18,6 +18,34 @@
     <title>Trusted Picks</title>
     <!-- Keep Chrome's install prompt even if it fires before the app has loaded. -->
     <script>window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); window.__installPrompt = e; });</script>
+    <!-- Never a blank screen: if the app hasn't drawn anything after a few seconds (an old saved copy on the
+         phone, a script error, a browser too old), show what went wrong and a way to start fresh. -->
+    <script>
+      (function () {
+        var errs = [];
+        function note(m) { if (m && errs.length < 3) errs.push(String(m).slice(0, 300)); }
+        window.addEventListener("error", function (e) { note(e.message || (e.target && e.target.src && "Couldn't load " + e.target.src)); }, true);
+        window.addEventListener("unhandledrejection", function (e) { note(e.reason && (e.reason.message || e.reason)); });
+        window.__bootCheck = setTimeout(function () {
+          var root = document.getElementById("root");
+          if (!root || root.childElementCount > 0) return;
+          var box = document.createElement("div");
+          box.style.cssText = "font:16px/1.5 system-ui,sans-serif;max-width:420px;margin:15vh auto 0;padding:24px;color:#1d1d1f;text-align:center";
+          box.innerHTML = '<h1 style="font-size:20px;margin:0 0 8px">Trusted Picks didn\'t open</h1>' +
+            '<p style="margin:0 0 16px;color:#636366">Tap below to load the latest version.</p>' +
+            '<button id="tp-fresh" style="font:inherit;font-weight:600;border:0;border-radius:999px;padding:12px 22px;background:#d4290f;color:#fff">Load the latest version</button>' +
+            '<pre id="tp-err" style="white-space:pre-wrap;text-align:left;font-size:12px;color:#a3123a;margin-top:20px"></pre>';
+          document.body.appendChild(box);
+          document.getElementById("tp-err").textContent = errs.join("\n") + "\n" + navigator.userAgent;
+          document.getElementById("tp-fresh").onclick = function () {
+            var jobs = [];
+            if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+            if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+            Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+          };
+        }, 8000);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

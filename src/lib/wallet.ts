@@ -1,6 +1,7 @@
 import { supabase, errorText } from "./supabase";
 
-export type PassKind = { kind: "shop"; qrId: string } | { kind: "invite" };
+export type PassKind = { kind: "shop"; qrId: string } | { kind: "invite" }
+  | { kind: "offer"; id: string } | { kind: "deal"; id: string } | { kind: "stamps"; placeId: string };
 
 /** Which wallet this phone or computer uses: Apple on iPhone, iPad and Mac, Google everywhere else. */
 export const homeWallet = (): "apple" | "google" => (/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? "apple" : "google");

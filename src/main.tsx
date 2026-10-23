@@ -22,13 +22,17 @@ import Saved from "./pages/Saved";
 import Person from "./pages/Person";
 import Me from "./pages/Me";
 import Picks from "./pages/Picks";
+import Pocket from "./pages/Pocket";
 import Business from "./pages/Business";
 import BusinessSetup from "./pages/BusinessSetup";
 import Admin from "./pages/Admin";
 import AdminPlace from "./pages/AdminPlace";
 import Demo from "./pages/Demo";
 import NotFound from "./pages/NotFound";
-import Manage from "./pages/Manage";
+import OwnerApp from "./pages/owner/OwnerApp";
+import OwnerStart, { ManageRedirect } from "./pages/owner/OwnerStart";
+import { HomeGate } from "./pages/owner/HomeGate";
+import { OwnerManifest } from "./lib/ownerManifest";
 import BestDish from "./pages/BestDish";
 
 function Setup() {
@@ -40,6 +44,8 @@ function Setup() {
   );
 }
 
+// The app code loaded: the "didn't open" screen in index.html is no longer needed.
+clearTimeout((window as Window & { __bootCheck?: number }).__bootCheck);
 installImageFallback();
 registerServiceWorker();
 
@@ -51,9 +57,10 @@ createRoot(document.getElementById("root")!).render(
         <AuthProvider>
           <ToastProvider>
             <ViewStats />
+            <OwnerManifest />
             <Layout>
               <Routes>
-                <Route path="/" element={<Discover />} />
+                <Route path="/" element={<HomeGate><Discover /></HomeGate>} />
                 <Route path="/p/:id" element={<PlacePage />} />
                 <Route path="/best/:city/:dish" element={<BestDish />} />
                 <Route path="/q/:token" element={<QrLanding />} />
@@ -69,9 +76,12 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/circle" element={<Navigate to="/me" replace />} />
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
                 <Route path="/picks" element={<RequireAuth allowGuest><Picks /></RequireAuth>} />
+                <Route path="/pocket" element={<RequireAuth allowGuest><Pocket /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
                 <Route path="/business/setup" element={<RequireAuth><BusinessSetup /></RequireAuth>} />
-                <Route path="/manage/:placeId" element={<RequireAuth><Manage /></RequireAuth>} />
+                <Route path="/manage/:placeId" element={<ManageRedirect />} />
+                <Route path="/owner" element={<RequireAuth><OwnerStart /></RequireAuth>} />
+                <Route path="/owner/:placeId/:section?" element={<RequireAuth><OwnerApp /></RequireAuth>} />
                 <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
                 <Route path="/admin/place/:id" element={<RequireAuth admin><AdminPlace /></RequireAuth>} />
                 <Route path="/claim/:placeId" element={<Claim />} />
