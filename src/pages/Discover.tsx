@@ -356,7 +356,7 @@ export default function Discover() {
         <Chip icon="store" size="lg" />
         <span className="grow stack tight">
           <span className="strong">List your business</span>
-          <span className="tiny">Item reviews and your own table QR</span>
+          <span className="tiny">Item reviews and your own review QR</span>
         </span>
         <Icon name="chev" size={18} />
       </Link>

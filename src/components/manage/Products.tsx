@@ -142,7 +142,7 @@ export function Products({ placeId, isAdmin, mode, links = [], currency, onCount
             <span className="icon-chip lg violet c"><Icon name="star" size={24} /></span>
           </div>
           <h2>Add your first {mode.item}</h2>
-          <p className="small muted" style={{ maxWidth: 260 }}>Photo, name, price. Customers who scan your table QR pick it when they review.</p>
+          <p className="small muted" style={{ maxWidth: 260 }}>Photo, name, price. Customers who scan your QR code pick it when they review.</p>
           <button className="mg-snap" onClick={() => setImporting("photo")}>
             <span className="icon-chip coral"><Icon name="camera" size={20} /></span>
             <span className="grow stack tight"><span>Snap your {mode.catalog.toLowerCase()}</span><span className="tiny muted" style={{ fontWeight: 600 }}>We read it into {mode.itemPlural} for you</span></span>

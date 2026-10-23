@@ -11,7 +11,7 @@ import { Icon, QrImage, useConfirm } from "../ui";
 import { LinkIcon, guessLinkKind } from "../LinkIcon";
 import { CurrencyField } from "../manage/CurrencyField";
 import { DEFAULT_CURRENCY, localCurrency } from "../../lib/money";
-import { KINDS, MODES, type Kind } from "../../lib/modes";
+import { BIZ, KINDS, MODES, type Kind } from "../../lib/modes";
 import "../../styles/manage.css";
 import "../../styles/setup.css";
 
@@ -323,8 +323,8 @@ export function Setup() {
     </>,
     <>
       <span className="icon-chip lg amber" style={{ margin: "0 auto" }}><Icon name="qr" size={26} /></span>
-      <h2>How many counters, desks or tables need a QR?</h2>
-      <p className="small muted">Customers scan it to review. You can add more later.</p>
+      <h2>{kind ? `How many ${BIZ[kind].spots} need a QR?` : "How many counters, desks or tables need a QR?"}</h2>
+      <p className="small muted">{kind ? `Put them ${BIZ[kind].qrWhere}. ` : ""}Customers scan it to review. You can add more later.</p>
       <div className="row wrap" style={{ gap: 8, justifyContent: "center" }}>
         {TABLE_CHOICES.map((n) => <button key={n} type="button" className={`chip ${tables === n ? "on" : ""}`} aria-pressed={tables === n} onClick={() => setTables(n)}>{n}</button>)}
       </div>
@@ -383,7 +383,7 @@ export function Setup() {
       <h2>{price > 0 ? "Review and pay" : "Review and send"}</h2>
       <div className="stack small" style={{ textAlign: "left", gap: 8 }}>
         <span className="row"><Icon name="store" size={16} /><span className="grow"><b>{form.business_name}</b><br /><span className="muted">{[form.category, form.area, form.city].filter(Boolean).join(" · ")}</span></span></span>
-        <span className="row"><Icon name="qr" size={16} /><span className="grow">{tables} table QR{tables === 1 ? "" : "s"}, {QR_STYLES[style].label} style</span></span>
+        <span className="row"><Icon name="qr" size={16} /><span className="grow">{tables} review QR{tables === 1 ? "" : "s"}, {QR_STYLES[style].label} style</span></span>
         <span className="row"><Icon name="crown" size={16} /><span className="grow">{chosen?.name}{price > 0 ? `, ${interval === "year" ? "1 year" : "1 month"}` : ", 30 days or 25 reviews"}</span><b>{price > 0 ? rupees(price) : "Free"}</b></span>
       </div>
       <div className="field" style={{ textAlign: "left" }}>

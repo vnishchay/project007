@@ -61,6 +61,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const navTo = useNavigate();
   const [starting, setStarting] = useState(false);
   const [guestErr, setGuestErr] = useState("");
+  // Guest reviews are switched off for the whole app (Supabase: anonymous sign-ins), so the only way in is signing in.
+  const [guestOff, setGuestOff] = useState(false);
   const uid = session?.user.id;
   const [peek, setPeek] = useState<Peek | null | undefined>(undefined);
   const [peekErr, setPeekErr] = useState("");
@@ -225,6 +227,14 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   // Shop mode starts only once the code is usable, so a dead code never traps the tab on a shop.
   const usableShop = !loading && peek && !dead ? peek.place_id : null;
   useEffect(() => { if (usableShop) setFocusShop(usableShop, `/${link ? "r" : "q"}/${token}`); }, [usableShop, link, token]);
+  // Back from "Sign in to review" (?rate=1): carry on to the review in one go, once.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current || loading || !uid || !peek || dead || search.get("rate") !== "1") return;
+    resumed.current = true;
+    navTo(`/${link ? "r" : "q"}/${token}`, { replace: true });
+    void openVisit();
+  }); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bar = (
     <div className="rvx-bar">
@@ -284,10 +294,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     const why = lastGuestError;
     // The real reason is for the team; diners get a plain next step.
     console.warn("Guest review could not start:", why);
+    if (/anonymous|captcha|disabled/i.test(why)) { setGuestOff(true); return false; }
     setGuestErr(/rate limit|too many|429/i.test(why)
       ? "Lots of people are reviewing from this network right now. Wait a few minutes and tap again."
-      : /anonymous|captcha|disabled/i.test(why)
-      ? "Reviewing without an account isn't available here right now. Sign in to review, or try again later."
       : "We couldn't start your review just now. Check your connection and tap again.");
     return false;
   }
@@ -397,6 +406,11 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
               <Icon name={refused === "guest_used" ? "lock" : "alert"} size={22} color="var(--danger)" />
               <span className="grow"><b>{REFUSED[refused][0]}</b><small>{REFUSED[refused][1]}</small></span>
             </div>
+          ) : guestOff && !session ? (
+            <div className="rvx-status warn" role="alert">
+              <Icon name="user" size={22} color="var(--danger)" />
+              <span className="grow"><b>Sign in to leave your review</b><small>Reviews without an account are switched off on Trusted Picks right now. Signing in takes a few seconds{selectedIds.length ? ", and what you picked stays picked" : ""}. You can still post without your name.</small></span>
+            </div>
           ) : scanErr ? (
             <div className="rvx-status warn" role="alert">
               <Icon name="alert" size={22} color="var(--danger)" />
@@ -424,17 +438,19 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
             refused === "guest_used"
               ? <Link to={`/signin?next=${encodeURIComponent(`/review/${peek.place_id}`)}`} className="rvx-cta"><span>Sign in to rate more</span><Icon name="chev" size={20} /></Link>
               : <Link to={`/p/${peek.place_id}`} className="rvx-cta"><span>See what people loved here</span><Icon name="chev" size={20} /></Link>
+          ) : guestOff && !session ? (
+            <Link to={`/signin?next=${encodeURIComponent(`/${link ? "r" : "q"}/${token}?rate=1`)}`} className="rvx-cta"><span>Sign in to review</span><Icon name="chev" size={20} /></Link>
           ) : (
             <button type="button" className="rvx-cta" disabled={busy}
               onClick={() => { playHapticTap(950); if (session) void openVisit(); else void rateAsGuest(); }}>
               <span>{scanErr ? "Try again" : ctaLabel}</span>
             </button>
           )}
-          {!refused && !later && <button type="button" className="rvx-later" disabled={busy} onClick={() => void rateLater()}><Icon name="bell" size={16} />Not now? Rate later</button>}
+          {!refused && !later && !(guestOff && !session) && <button type="button" className="rvx-later" disabled={busy} onClick={() => void rateLater()}><Icon name="bell" size={16} />Not now? Rate later</button>}
           {later && !refused && <p className="rvx-later-note" role="status"><Icon name="bell" size={18} />{later}</p>}
           {!refused && (
             <button type="button" className="rvx-trust" aria-expanded={showPerks} onClick={() => setShowPerks((v) => !v)}>
-              <span><Icon name="eyeOff" size={14} />{session ? "Anonymous unless you choose" : "No account"}</span>
+              <span><Icon name="eyeOff" size={14} />{session || guestOff ? "Anonymous unless you choose" : "No account"}</span>
               <span><Icon name="verified" size={14} />Verified visit</span>
               {!link && <span><Icon name="pin" size={14} />Checks you're here</span>}
               <span className="more"><Icon name="info" size={14} />{showPerks ? "Less" : "More"}</span>
@@ -442,11 +458,11 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           )}
           {showPerks && !refused && (
             <ul className="rvx-trust-more">
-              {!session && <li><Icon name="user" size={15} />No account needed</li>}
+              {!session && !guestOff && <li><Icon name="user" size={15} />No account needed</li>}
               <li><Icon name="eyeOff" size={15} />Anonymous unless you choose to show your name</li>
               <li><Icon name="verified" size={15} />Marked as a verified visit</li>
               {!link && !tap && <li><Icon name="pin" size={15} />We check you're at the shop. Only "near" or "far" is kept, never your location</li>}
-              <li><Icon name="store" size={15} />{session ? "The shop sees your name and table, never your review" : "The shop sees you visited as \"Guest\", never your review"}</li>
+              <li><Icon name="store" size={15} />{session ? "The shop sees your name and visit, never your review" : "The shop sees you visited as \"Guest\", never your review"}</li>
             </ul>
           )}
           <Link to={`/p/${peek.place_id}`} className="rvx-link"><Icon name="eye" size={16} />See reviews</Link>
@@ -484,7 +500,7 @@ function SeenByShop({ placeId, shop }: { placeId: string; shop: string }) {
       <Icon name={hidden ? "eyeOff" : "eye"} size={20} />
       <span className="grow">
         <b>{hidden ? `Hidden from ${shop}` : `${shop} can see you visited`}</b>
-        <small>{hidden ? "They can't see you, group you, or send you offers." : "Your name and table, so they can group visitors (like Regulars) and send offers. Never your review."}</small>
+        <small>{hidden ? "They can't see you, group you, or send you offers." : "Your name and visit, so they can group visitors (like Regulars) and send offers. Never your review."}</small>
       </span>
       <button type="button" className="rvx-tool" disabled={busy} onClick={flip}>{hidden ? "Show" : "Hide me"}</button>
     </div>

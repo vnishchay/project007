@@ -220,7 +220,7 @@ export default function Me() {
       {seenBy && seenBy.length > 0 && (
         <section className="stack" style={{ gap: 10 }} aria-labelledby="seen-h">
           <SectionTitle icon="eye" tone="violet"><span id="seen-h">Shops that can see you</span></SectionTitle>
-          <p className="small muted" style={{ margin: 0 }}>When you scan a table QR, that shop sees your name or "Guest" and when you came. They never see which review is yours.</p>
+          <p className="small muted" style={{ margin: 0 }}>When you scan a shop's QR code, that shop sees your name or "Guest" and when you came. They never see which review is yours.</p>
           <div className="menu">
             {seenBy.map((s) => (
               <div key={s.place_id} className="menu-row seen-row">

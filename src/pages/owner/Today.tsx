@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Icon, Stars, type IconName } from "../../components/ui";
 import { printed } from "../../components/manage/Insights";
+import { bizOf } from "../../lib/modes";
 import { useOwner, type Section } from "./OwnerApp";
 
 /** Everything the Today screen shows, from owner_today(). Counts only, never who. */
@@ -52,6 +53,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
   const delta = t.visitors_today - t.visitors_yesterday;
   const daysLeft = t.period_end ? Math.ceil((new Date(t.period_end).getTime() - Date.now()) / DAY_MS) : null;
   const catalogWord = catalog.toLowerCase();
+  const biz = bizOf(place.kind, place.category);
 
   // What needs the owner, most urgent first. Each row opens the screen that fixes it.
   const todo: { icon: IconName; tone: string; text: string; sub?: string; to: Section }[] = [];
@@ -66,7 +68,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
   const setup = [
     { done: hasPin === true, label: "Put your shop on the map", icon: "pin" as IconName, to: "details" as Section },
     { done: (items ?? 0) >= 5, label: `Add 5 things to your ${catalogWord}${items ? ` (${Math.min(items, 5)} of 5)` : ""}`, icon: "box" as IconName, to: "menu" as Section },
-    { done: t.qr_active > 0 && printed(place.id), label: "Print your table QR codes", icon: "print" as IconName, to: "qr" as Section },
+    { done: t.qr_active > 0 && printed(place.id), label: `Print your QR codes (${biz.qrWhere})`, icon: "print" as IconName, to: "qr" as Section },
     { done: t.reviews > 0, label: "Get your first review", icon: "star" as IconName, to: "qr" as Section },
   ];
   const setupLeft = setup.filter((s) => !s.done).length;
@@ -79,7 +81,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
         </div>
         <div className="ow-kpis">
           <Kpi icon="people" label="Visitors today" value={n(t.visitors_today)}
-            sub={t.visitors_yesterday || t.visitors_today ? <><span className={delta > 0 ? "up" : delta < 0 ? "down" : ""}>{delta > 0 ? `+${delta}` : delta}</span> vs yesterday</> : "Scans of your table QR"} onClick={() => go("customers")} />
+            sub={t.visitors_yesterday || t.visitors_today ? <><span className={delta > 0 ? "up" : delta < 0 ? "down" : ""}>{delta > 0 ? `+${delta}` : delta}</span> vs yesterday</> : "Scans of your QR codes"} onClick={() => go("customers")} />
           <Kpi icon="star" label="Reviews today" value={n(t.reviews_today)} sub={`${n(t.reviews_7d)} this week`} onClick={() => go("reviews")} />
           <Kpi icon="reply" label="Need a reply" value={n(t.need_reply)} sub={t.low_open ? `${t.low_open} low rated` : "All reviews"} alert={t.low_open > 0} onClick={() => go("reviews")} />
           <Kpi icon="trophy" label="Average rating" value={t.avg_rating != null ? Number(t.avg_rating).toFixed(1) : "–"}
@@ -129,12 +131,13 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
           <section className="ow-card ow-o2" aria-labelledby="qa-h">
             <div className="ow-card-h"><span className="icon-chip sm violet"><Icon name="zap" size={16} /></span><h2 id="qa-h" className="grow">Quick actions</h2></div>
             <div className="ow-actions">
+              {biz.linkFirst && <Action icon="link" tone="sky" label="Review link" onClick={() => go("reviews")} />}
               <Action icon="qr" tone="violet" label="QR codes" onClick={() => go("qr", { replace: false })} />
               <Action icon="ticket" tone="coral" label="New deal" onClick={() => go("deals")} />
               <Action icon="gift" tone="amber" label="Send offer" onClick={() => go("customers")} />
               <Action icon="send" tone="sky" label="Post news" onClick={() => go("messages")} />
               <Action icon="plus" tone="" label={`Add to ${catalogWord}`} onClick={() => go("menu", { replace: false })} />
-              <Action icon="link" tone="sky" label="Review link" onClick={() => go("reviews")} />
+              {!biz.linkFirst && <Action icon="link" tone="sky" label="Review link" onClick={() => go("reviews")} />}
             </div>
           </section>
 

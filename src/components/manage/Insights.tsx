@@ -76,7 +76,7 @@ export function Insights({ place, onGo, hasPin }: { place: Place; onGo: (t: Mana
         { done: hasPin === true, label: "Put your shop on the map", icon: "pin", go: "details" },
         ...(googleConfigured ? [{ done: Boolean(place.google_place_id), label: "Connect your Google profile", icon: "globe" as const, go: "details" as const }] : []),
         { done: (itemCount ?? 0) >= 5, label: `Add 5 things to your ${modeOf(place.kind, place.category).catalog.toLowerCase()}${itemCount ? ` (${Math.min(itemCount, 5)} of 5)` : ""}`, icon: "box", go: "products" },
-        { done: (qrCount ?? 0) > 0 && printed(place.id), label: "Print your table QR codes", icon: "print", go: "qr" },
+        { done: (qrCount ?? 0) > 0 && printed(place.id), label: "Print your QR codes", icon: "print", go: "qr" },
         { done: s.reviews > 0, label: "Get your first review", icon: "star", go: "qr" },
       ]} onGo={onGo} loading={itemCount === null && qrCount === null} />
 
@@ -86,7 +86,7 @@ export function Insights({ place, onGo, hasPin }: { place: Place; onGo: (t: Mana
         <span className="row tiny strong" style={{ gap: 6, opacity: 0.95 }}><Icon name="star" size={14} fill="#fff" />Reviews this month</span>
         <span className="in-hero-n">{n(s.reviews_30d)}</span>
         <span className="small row" style={{ gap: 6, opacity: 0.92 }}>
-          {s.avg_rating != null ? <><b>{Number(s.avg_rating).toFixed(1)}</b><Stars value={Number(s.avg_rating)} size={12} />average from {n(s.reviews)} reviews</> : "Customers review after scanning your table QR"}
+          {s.avg_rating != null ? <><b>{Number(s.avg_rating).toFixed(1)}</b><Stars value={Number(s.avg_rating)} size={12} />average from {n(s.reviews)} reviews</> : "Customers review after scanning your QR code"}
         </span>
       </div>
 
@@ -114,8 +114,8 @@ export function Insights({ place, onGo, hasPin }: { place: Place; onGo: (t: Mana
             <span className="icon-chip lg c"><Icon name="chart" size={24} /></span>
           </div>
           <h2>Your first reviews start here</h2>
-          <p className="small muted" style={{ maxWidth: 270 }}>Put a QR on each table. Customers scan, rate what they had, and these numbers grow.</p>
-          <button className="btn green" onClick={() => onGo("qr")}><Icon name="print" size={18} />Print table QRs</button>
+          <p className="small muted" style={{ maxWidth: 270 }}>Put your QR code where customers see it. They scan, rate their visit, and these numbers grow.</p>
+          <button className="btn green" onClick={() => onGo("qr")}><Icon name="print" size={18} />Print QR codes</button>
         </div>
       ) : (
         <>
