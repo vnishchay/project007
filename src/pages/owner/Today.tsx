@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { Icon, Stars, type IconName } from "../../components/ui";
+import { Icon, type IconName } from "../../components/ui";
 import { printed } from "../../components/manage/Insights";
 import { bizOf } from "../../lib/modes";
 import { useOwner, type Section } from "./OwnerApp";
@@ -12,6 +12,7 @@ export interface OwnerToday {
   days: { day: string; visitors: number; reviews: number }[];
   reviews_today: number; reviews_7d: number; reviews: number; avg_rating: number | null;
   need_reply: number; low_open: number; notes_unread: number;
+  recovery_open?: number; recovery_overdue?: number; recovery_resolved_30d?: number; recovery_confirmed_30d?: number;
   deals_live: number; deals_on_now: number; deal_uses_today: number;
   stamp_goal: number | null; stamp_reward: string | null; stamps_today: number; rewards_today: number;
   offers_7d: number; offers_seen_7d: number; offers_used_7d: number; updates_today: number;
@@ -49,18 +50,18 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
     </div>
   );
   if (t === null) return (
-    <div className="notice warn row" style={{ gap: 8 }}><Icon name="info" size={16} /><span className="grow">Today's numbers need the latest server update (run-now-51.sql). Everything else works.</span></div>
+    <div className="notice warn row" style={{ gap: 8 }}><Icon name="info" size={16} /><span className="grow">Today's numbers could not load. Open Customer help to check requests, or refresh this page.</span></div>
   );
 
-  const delta = t.visitors_today - t.visitors_yesterday;
   const daysLeft = t.period_end ? Math.ceil((new Date(t.period_end).getTime() - Date.now()) / DAY_MS) : null;
   const catalogWord = catalog.toLowerCase();
   const biz = bizOf(place.kind, place.category);
 
   // What needs the owner, most urgent first. Each row opens the screen that fixes it.
   const todo: Todo[] = [];
+  if ((t.recovery_open ?? 0) > 0) todo.push({ icon: "message", tone: "coral", text: `${t.recovery_open} help ${t.recovery_open === 1 ? "request needs" : "requests need"} attention`, sub: t.recovery_overdue ? `${t.recovery_overdue} past the 30-minute follow-up target. Assign someone and record the action taken.` : "Assign someone, take action, and ask the customer to confirm it is fixed.", to: "help", cta: "Handle requests" });
   if (!t.reviews_open) todo.push({ icon: "lock", tone: "coral", text: "Reviews are paused", sub: "Your plan ended or the trial is used up. Renew to take reviews again.", to: "plan", cta: "Renew" });
-  if (t.low_open > 0) todo.push({ icon: "alert", tone: "coral", text: `${t.low_open} unhappy ${t.low_open === 1 ? "customer" : "customers"} waiting for a reply`, sub: "A kind reply often wins people back.", to: "reviews", cta: "Reply" });
+  if (t.low_open > 0) todo.push({ icon: "alert", tone: "coral", text: `${t.low_open} low ${t.low_open === 1 ? "rating needs" : "ratings need"} a reply`, sub: "Acknowledge the feedback. A public reply does not close a help request.", to: "reviews", cta: "Reply" });
   if (t.need_reply > 0) todo.push({ icon: "reply", tone: "amber", text: `${n(t.need_reply)} ${t.need_reply === 1 ? "review needs" : "reviews need"} a reply`, sub: "Say thanks. It shows on your page.", to: "reviews", cta: "Reply" });
   if (t.notes_unread > 0) todo.push({ icon: "message", tone: "violet", text: `${t.notes_unread} private ${t.notes_unread === 1 ? "note" : "notes"} to read`, sub: "Only you can see these.", to: "reviews", cta: "Read" });
   if (t.plan_status === "trial" && t.trial_reviews_left != null && t.trial_reviews_left <= 5 && t.reviews_open) todo.push({ icon: "crown", tone: "amber", text: `${t.trial_reviews_left} free ${t.trial_reviews_left === 1 ? "review" : "reviews"} left on your trial`, to: "plan", cta: "See plans" });
@@ -71,7 +72,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
     { done: hasPin === true, icon: "pin", tone: "sky", text: "Put your shop on the map", sub: "So people nearby can find you.", to: "details", cta: "Add map pin" },
     { done: (items ?? 0) >= 5, icon: "box", tone: "", text: `Add 5 things to your ${catalogWord}${items ? ` (${Math.min(items, 5)} of 5)` : ""}`, sub: "Customers tick what they liked. A photo of your menu works.", to: "menu", cta: `Add to ${catalogWord}` },
     { done: t.qr_active > 0 && (printed(place.id) || t.reviews > 0), icon: "print", tone: "violet", text: "Print your QR codes", sub: `Put them ${biz.qrWhere}.`, to: "qr", cta: "Print" },
-    { done: t.reviews > 0, icon: "star", tone: "amber", text: "Get your first review", sub: "Ask a happy customer to scan your QR code.", to: biz.linkFirst ? "reviews" : "qr", cta: biz.linkFirst ? "Send a review link" : "Show my QR" },
+    { done: t.reviews > 0, icon: "star", tone: "amber", text: "Invite honest feedback", sub: "Invite every customer to give feedback, whatever their experience.", to: biz.linkFirst ? "reviews" : "qr", cta: biz.linkFirst ? "Send a review link" : "Show my QR" },
   ];
   const setupLeft = items === null ? 0 : setup.filter((s) => !s.done).length;
   const starting = setupLeft > 0 && t.reviews === 0;
@@ -93,11 +94,9 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
           </div>
         ) : (
           <div className="ow-kpis three">
-            <Kpi icon="people" label="Visitors" value={n(t.visitors_today)}
-              sub={t.visitors_yesterday || t.visitors_today ? <>today <span className={delta > 0 ? "up" : delta < 0 ? "down" : ""}>{delta > 0 ? `+${delta}` : delta}</span></> : "today"} onClick={() => go("customers")} />
-            <Kpi icon="star" label="Reviews" value={n(t.reviews_today)} sub={`today · ${n(t.reviews_7d)} this week`} onClick={() => go("reviews")} />
-            <Kpi icon="trophy" label="Rating" value={t.avg_rating != null ? Number(t.avg_rating).toFixed(1) : "–"}
-              sub={t.avg_rating != null ? <><Stars value={Number(t.avg_rating)} size={11} /> {n(t.reviews)}</> : "No reviews yet"} onClick={() => go("insights", { replace: false })} />
+            <Kpi icon="message" label="Open help requests" value={t.recovery_open == null ? "–" : n(t.recovery_open)} sub={t.recovery_overdue ? `${t.recovery_overdue} past target` : "Check the help queue"} alert={Boolean(t.recovery_overdue)} onClick={() => go("help")} />
+            <Kpi icon="checkCircle" label="Customer confirmed" value={t.recovery_confirmed_30d == null ? "–" : n(t.recovery_confirmed_30d)} sub="resolved in last 30 days" onClick={() => go("help")} />
+            <Kpi icon="people" label="People who scanned" value={n(t.visitors_today)} sub="today · not total footfall" onClick={() => go("customers")} />
           </div>
         )}
       </section>
@@ -157,7 +156,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
               <Action icon="print" tone="violet" label="Print QR" onClick={() => go("qr", { replace: false })} />
               {biz.linkFirst
                 ? <Action icon="link" tone="sky" label="Review link" onClick={() => go("reviews")} />
-                : <Action icon="reply" tone="sky" label="Reply" onClick={() => go("reviews")} />}
+                : <Action icon="message" tone="sky" label="Customer help" onClick={() => go("help")} />}
               <Action icon="ticket" tone="coral" label="New deal" onClick={() => go("deals")} />
               <Action icon="plus" tone="" label="Add item" onClick={() => go("menu", { replace: false })} />
             </div>
@@ -169,7 +168,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
               <div className="ow-list">
                 <button type="button" className="ow-row" onClick={() => go("deals")}>
                   <span className="grow stack tight"><b>{t.deals_live ? `${t.deals_on_now} of ${t.deals_live} deals on now` : "No deals yet"}</b>
-                    <small className="muted">{t.deals_live ? `Used ${n(t.deal_uses_today)} ${t.deal_uses_today === 1 ? "time" : "times"} today` : "A deal shows as a ticket on your page and brings people back."}</small></span>
+                    <small className="muted">{t.deals_live ? `Used ${n(t.deal_uses_today)} ${t.deal_uses_today === 1 ? "time" : "times"} today` : "Publish a deal and track redemptions. A redemption does not establish an additional sale."}</small></span>
                   <Icon name="chev" size={18} color="var(--muted)" />
                 </button>
                 <button type="button" className="ow-row" onClick={() => go("qr", { replace: false })}>
@@ -227,7 +226,8 @@ function VisitsChart({ days }: { days: OwnerToday["days"] }) {
   const shown = hover != null ? days[hover] : null;
   return (
     <section className="ow-card ow-o6" aria-labelledby="chart-h">
-      <div className="ow-card-h"><span className="icon-chip sm sky"><Icon name="chart" size={16} /></span><h2 id="chart-h" className="grow">Visitors, last 14 days</h2><span className="small strong">{n(total)}</span></div>
+      <div className="ow-card-h"><span className="icon-chip sm sky"><Icon name="chart" size={16} /></span><h2 id="chart-h" className="grow">Daily scanner counts, last 14 days</h2><span className="small strong">{n(total)}</span></div>
+      <p className="tiny muted">Unique people per day who opened a QR or review link, summed across days. Repeat people may appear on several days. This does not measure total customers or purchases.</p>
       <div className="ow-tip small" aria-live="polite">{shown ? <><b>{label(shown)}</b>: {shown.visitors} {shown.visitors === 1 ? "visitor" : "visitors"}, {shown.reviews} {shown.reviews === 1 ? "review" : "reviews"}</> : <span className="muted">Tap a bar to see the day</span>}</div>
       <div className="ow-bars" role="list" onMouseLeave={() => setHover(null)}>
         {days.map((d, i) => (

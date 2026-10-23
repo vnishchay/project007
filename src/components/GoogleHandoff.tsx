@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase, errorText } from "../lib/supabase";
 import { copyText } from "../lib/util";
-import { deviceId } from "../lib/device";
+import { CustomerHelp } from "./CustomerHelp";
 import { Icon, useToast } from "./ui";
 import "../styles/handoff.css";
 
@@ -111,42 +111,5 @@ export function GoogleHandoff({ text, stars, url, onMaps, placeName, reviewId, o
  * the owner match an anonymous review to whoever sent the note.
  */
 export function PrivateNote({ placeId, onSent }: { placeId: string; onSent?: () => void }) {
-  const toast = useToast();
-  const [note, setNote] = useState("");
-  const [contact, setContact] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  async function send() {
-    if (!note.trim()) { toast("Write a quick note for the owner first"); return; }
-    setSending(true);
-    try {
-      // Not linked to any review or account, so the owner never learns who sent it.
-      const { error } = await supabase.rpc("send_owner_note", { p_place: placeId, p_body: note.trim(), p_contact: contact.trim() || null, p_device: deviceId() });
-      if (error) throw error;
-      setSent(true);
-      toast("Your private note was sent to the owner.");
-      onSent?.();
-    } catch (e) {
-      toast(errorText(e));
-    } finally {
-      setSending(false);
-    }
-  }
-
-  if (sent) return <p className="notice ok gh-note-sent"><Icon name="check" size={14} />Note sent to the owner</p>;
-  return (
-    <form className="gh-note" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-      <label className="field">
-        <span className="tiny strong">Your note to the owner</span>
-        <textarea className="textarea" rows={3} placeholder="What could they do better?" value={note} onChange={(e) => setNote(e.target.value)} required />
-      </label>
-      <p className="gh-warn"><Icon name="eyeOff" size={14} />Only the owner reads it. Don't repeat your review here if you want to stay anonymous.</p>
-      <label className="field">
-        <span className="tiny strong">Phone or email, only if you want a reply</span>
-        <input className="input" type="text" inputMode="email" placeholder="Optional" value={contact} onChange={(e) => setContact(e.target.value)} />
-      </label>
-      <button type="submit" className="btn ghost" disabled={sending}><Icon name="send" size={16} />{sending ? "Sending…" : "Send note"}</button>
-    </form>
-  );
+  return <CustomerHelp key={placeId} placeId={placeId} onSent={onSent} />;
 }

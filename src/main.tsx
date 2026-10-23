@@ -35,6 +35,7 @@ import { HomeGate } from "./pages/owner/HomeGate";
 import { OwnerManifest } from "./lib/ownerManifest";
 import BestDish from "./pages/BestDish";
 import "./styles/responsive.css";
+import Help from "./pages/Help";
 import { rememberSource } from "./lib/source";
 
 rememberSource();
@@ -81,6 +82,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/me" element={<RequireAuth allowGuest><Me /></RequireAuth>} />
                 <Route path="/picks" element={<RequireAuth allowGuest><Picks /></RequireAuth>} />
                 <Route path="/pocket" element={<RequireAuth allowGuest><Pocket /></RequireAuth>} />
+                <Route path="/help/:placeId?" element={<RequireAuth guestOk><Help /></RequireAuth>} />
                 <Route path="/business" element={<Business />} />
                 <Route path="/business/setup" element={<RequireAuth><BusinessSetup /></RequireAuth>} />
                 <Route path="/manage/:placeId" element={<ManageRedirect />} />

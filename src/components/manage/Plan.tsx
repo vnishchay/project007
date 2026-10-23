@@ -66,6 +66,7 @@ export function Plan({ placeId, placeName }: { placeId: string; placeName: strin
       </div>
 
       <p className="tiny muted row" style={{ gap: 6, margin: 0 }}><Icon name="rupee" size={13} />Prices and billing are in Indian rupees (INR)</p>
+      <p className="notice small"><Icon name="message" size={16} />Customer help requests and private notes remain accessible on every plan. These payments cover the review features and limits below.</p>
       <div className="pn-seg" role="radiogroup" aria-label="Pay for">
         {(["year", "month"] as const).map((i) => (
           <button key={i} role="radio" aria-checked={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>

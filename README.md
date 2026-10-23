@@ -1,6 +1,24 @@
 # Trusted Picks
 
-Friend-trusted, item-level reviews for local places. React + Vite frontend on Vercel, Supabase backend (database, auth, storage and three edge functions: `ai`, `billing`, `billing-webhook`), and one small Vercel function that opens Google Maps share links.
+## Customer help and recovery rollout (24 October 2026)
+
+The owner product now prioritizes resolving customer problems. The QR landing has **Need help with your visit?**, independent of public reviews; **Tell the shop now** opens that same trackable flow. Existing **Call staff** and **Get the bill** actions stay on the table-service board. A visit-authorized help request enters **Owner app > Customer help** with a responsible-person label, a 30-minute internal follow-up target, internal notes, a customer-facing response, recovery costs, and optional purchase records with unique bill references. Customers track requests at `/help/<shop id>` (or **Me > Your help requests**) and can confirm a fix or reopen the case. Their account ID, public reviews and marketing preferences are not exposed or attached to the owner's case. Contact details require explicit consent. A guest must keep the same browser session; the tracking URL is not an authentication token.
+
+**Activate in this order:**
+
+1. Apply `supabase/migrations/20261023000054_customer_recovery.sql` and then `supabase/migrations/20261024000055_recovery_alerts.sql` in the existing database. Both are rerunnable. Fresh installs and full updates include them in the normal SQL bundles. Run `supabase/verify_database.sql` to check RPC availability.
+2. Deploy the frontend. Help requests, customer confirmation, outcome reporting and the queue work without push configuration. Do not advertise background delivery until the next steps are complete.
+3. For optional background owner alerts, reuse the existing review-reminder setup: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and `REMIND_CRON_SECRET` in Edge Function secrets; `project_url` and the matching `remind_cron_secret` in Supabase Vault; and `VITE_VAPID_PUBLIC_KEY` in the frontend. If absent, follow `scripts/setup-reminders.ps1`; do not rotate existing VAPID keys because existing subscriptions depend on them.
+4. Deploy `recovery-alerts` with `powershell -File scripts/deploy-recovery.ps1 -ProjectRef <your-project-ref>`. JWT verification is off only because this worker authenticates the cron secret header. Migration 55 installs a one-minute job when the existing `pg_cron` and `pg_net` extensions are enabled. Check both extensions and the job in your Supabase project; without them only the open-page queue refresh works.
+5. In the owner app, open **Customer help > Background help alerts**, enable notifications and opt in for the shop. On iPhone, use the installed home-screen app. The preference covers this owner's subscribed devices; naming a staff member does not create an account or enroll them. The UI reports worker check-ins, exhausted retries and the last push accepted by the notification service. It never claims a manager read a notification.
+
+Push delivery is at least once: a crash after a successful push but before acknowledgement can cause a duplicate (the browser notification tag replaces the prior notification for that case). Claims use two-minute leases, up to five attempts and increasing retry delays. Resolved requests, opted-out owners and people who no longer manage the shop are excluded from dispatch. Push payloads omit customer messages, contacts and staff notes. The queue refreshes every 30 seconds while open and remains the source of truth during service.
+
+**Business measurement:** recorded purchases are owner-entered, not independently verified, and are not incremental revenue or profit. Currency is fixed per case; totals are grouped by currency. Costs and purchase totals cover cases created in the past 30 days; resolved and customer-confirmed counts use the resolution date. **How you're doing** includes a break-even calculator using contribution after variable costs. It is a planning estimate, not measured ROI. Existing review-plan prices and entitlements are unchanged; customer help and private-note access are available even when review plans expire.
+
+**Validation:** `npm run test:recovery` runs isolated PostgreSQL integration checks with PGlite. `npm run test:recovery:ui` starts an isolated local Vite server with intercepted fixture APIs and runs the customer-to-owner workflow in a fresh headless browser; it never contacts production. On Windows it uses installed Edge. Elsewhere run `npx playwright install chromium` first. Optional screenshots: set `RECOVERY_SCREENSHOTS` to an output directory. `npm run build` checks database contracts, TypeScript and production compilation.
+
+Local recommendations and customer help for local businesses. React + Vite frontend on Vercel, Supabase database, auth and storage, with Edge Functions for AI, billing, reminders, wallet passes and optional owner help alerts.
 
 ## 1. Database (Supabase, once)
 

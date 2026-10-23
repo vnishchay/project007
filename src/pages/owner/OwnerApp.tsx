@@ -26,14 +26,15 @@ import { Plan } from "../../components/manage/Plan";
 import { Locked, RecheckBanner } from "../../components/owner/ShopGate";
 import { Today, type OwnerToday } from "./Today";
 import { More } from "./More";
+import { RecoveryQueue, ProfitCheck } from "../../components/manage/RecoveryQueue";
 import "../../styles/manage.css";
 import "../../styles/owner.css";
 
 const COLS = "id, google_place_id, name, kind, category, area, city, about, hours, price_level, status, listed_until, created_at, cover_path, logo_path, currency";
 
 /** Screens of the owner app. "" is Today. */
-export type Section = "" | "reviews" | "customers" | "deals" | "messages" | "more" | "menu" | "details" | "links" | "qr" | "plan" | "insights" | "look" | "live";
-const SECTIONS: Section[] = ["", "reviews", "customers", "deals", "messages", "more", "menu", "details", "links", "qr", "plan", "insights", "look", "live"];
+export type Section = "" | "help" | "reviews" | "customers" | "deals" | "messages" | "more" | "menu" | "details" | "links" | "qr" | "plan" | "insights" | "look" | "live";
+const SECTIONS: Section[] = ["", "help", "reviews", "customers", "deals", "messages", "more", "menu", "details", "links", "qr", "plan", "insights", "look", "live"];
 
 /** The old Manage page ids, as the shared panels still use them. */
 export const SECTION_OF: Record<ManageTab, Section> = {
@@ -44,7 +45,7 @@ export const SECTION_OF: Record<ManageTab, Section> = {
 /** Bottom tabs on phones, first block of the sidebar on desktop. Offers covers deals and messages; My shop holds everything set up once. */
 const TABS: { id: Section; label: string; icon: IconName; also?: Section[] }[] = [
   { id: "", label: "Today", icon: "dashboard" },
-  { id: "reviews", label: "Reviews", icon: "star" },
+  { id: "help", label: "Customer help", icon: "message", also: ["reviews"] },
   { id: "customers", label: "Customers", icon: "people" },
   { id: "deals", label: "Offers", icon: "ticket", also: ["messages"] },
   { id: "more", label: "My shop", icon: "store" },
@@ -115,7 +116,8 @@ export default function OwnerApp() {
   useEffect(() => {
     const onShow = () => { if (document.visibilityState === "visible") setTodayN((x) => x + 1); };
     document.addEventListener("visibilitychange", onShow);
-    return () => document.removeEventListener("visibilitychange", onShow);
+    const timer = window.setInterval(onShow, 30000);
+    return () => { document.removeEventListener("visibilitychange", onShow); clearInterval(timer); };
   }, []);
 
   const go = useCallback((s: Section, opts?: { replace?: boolean }) => {
@@ -145,6 +147,11 @@ export default function OwnerApp() {
 
   const banners = (
     <>
+      {section !== "help" && today && (today.recovery_open ?? 0) > 0 && (
+        <button type="button" className="callout amber ow-banner" onClick={() => go("help")}>
+          <Icon name="message" size={20} /><span className="grow small" role="status">{today.recovery_open} open help requests{today.recovery_overdue ? ` · ${today.recovery_overdue} past target` : ""}</span><Icon name="chev" size={18} />
+        </button>
+      )}
       {(place.status === "removed" || place.verification === "rejected") && <RecheckBanner placeId={place.id} />}
       {pinState.pin && !pinState.pin.has_pin && !pinState.syncing && section !== "details" && (
         <button type="button" className="callout amber ow-banner" onClick={() => go("details", { replace: false })}>
@@ -162,9 +169,16 @@ export default function OwnerApp() {
     case "":
       body = <Today hasPin={pinState.pin ? pinState.pin.has_pin : null} />;
       break;
+    case "help":
     case "reviews":
-      title = "Reviews";
-      body = <ReviewsTab placeId={place.id} placeName={place.name} live={live} onGo={goTab} />;
+      title = section === "help" ? "Customer help" : "Public reviews";
+      body = <>
+        <div className="ow-seg" role="group" aria-label="Customer feedback">
+          <button type="button" aria-pressed={section === "help"} className={section === "help" ? "on" : ""} onClick={() => go("help")}><Icon name="message" size={17} />Help requests</button>
+          <button type="button" aria-pressed={section === "reviews"} className={section === "reviews" ? "on" : ""} onClick={() => go("reviews")}><Icon name="star" size={17} />Public reviews</button>
+        </div>
+        {section === "help" ? <RecoveryQueue key={place.id} placeId={place.id} onChanged={() => setTodayN((x) => x + 1)} /> : <ReviewsTab placeId={place.id} placeName={place.name} live={live} onGo={goTab} />}
+      </>;
       break;
     case "customers":
       title = peopleWord(place);
@@ -223,13 +237,13 @@ export default function OwnerApp() {
       break;
     case "insights":
       title = "How you're doing";
-      body = <Insights place={place} onGo={goTab} hasPin={pinState.pin ? pinState.pin.has_pin : null} />;
+      body = <><ProfitCheck currency={place.currency} /><Insights place={place} onGo={goTab} hasPin={pinState.pin ? pinState.pin.has_pin : null} /></>;
       break;
   }
 
   return (
     <Ctx.Provider value={ctx}>
-      <OwnerShell section={section} title={title} needReply={today?.need_reply ?? 0}>
+      <OwnerShell section={section} title={title} needReply={today?.recovery_open ?? 0}>
         {banners}
         {body}
       </OwnerShell>
@@ -283,7 +297,7 @@ function OwnerShell({ section, title, needReply, children }: { section: Section;
           {TABS.filter((t) => t.id !== "more").map((t) => (
             <NavLink key={t.id} to={t.id ? `${base}/${t.id}` : base} end replace className={tabOn(t) ? "on" : ""} aria-current={tabOn(t) ? "page" : undefined}>
               <Icon name={t.icon} size={19} /><span className="grow">{t.id === "customers" ? peopleWord(place) : t.label}</span>
-              {t.id === "reviews" && needReply > 0 && <span className="ow-count">{needReply > 99 ? "99+" : needReply}</span>}
+              {t.id === "help" && needReply > 0 && <span className="ow-count">{needReply > 99 ? "99+" : needReply}</span>}
             </NavLink>
           ))}
           <span className="ow-side-h">Shop</span>
@@ -328,7 +342,7 @@ function OwnerShell({ section, title, needReply, children }: { section: Section;
       <nav className="ow-tabs no-print" aria-label="Owner app">
         {TABS.map((t) => (
           <Link key={t.id} to={t.id ? `${base}/${t.id}` : base} replace className={tabOn(t) || (t.id === "more" && !isTab) ? "on" : ""} aria-current={tabOn(t) ? "page" : undefined}>
-            <span className="ow-tab-ico"><Icon name={t.icon} size={22} width={tabOn(t) ? 2.4 : 2} />{t.id === "reviews" && needReply > 0 && <span className="ow-dot" aria-label={`${needReply} need a reply`} />}</span>
+            <span className="ow-tab-ico"><Icon name={t.icon} size={22} width={tabOn(t) ? 2.4 : 2} />{t.id === "help" && needReply > 0 && <span className="ow-dot" aria-label={`${needReply} open help requests`} />}</span>
             {t.id === "customers" ? peopleWord(place) : t.label}
           </Link>
         ))}
