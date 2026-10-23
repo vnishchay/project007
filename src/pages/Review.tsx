@@ -1153,7 +1153,7 @@ function ReviewForm() {
             })}
           </div>
           {!sending && rated.length < MAX_DISHES && (
-            <button type="button" className="rvx-more" onClick={toDishes}><Icon name="plus" size={16} />{dishes.some((d) => !d.rating) ? `Rate your other ${things(dishes.filter((d) => !d.rating).length)}` : rated.length ? `Add another ${mode.item}` : `Rate a ${mode.item} too`}</button>
+            <button type="button" className="rvx-more" onClick={toDishes}><Icon name="plus" size={16} />{dishes.some((d) => !d.rating) ? (rated.length ? `Rate your other ${things(dishes.filter((d) => !d.rating).length)}` : `Rate the ${things(dishes.length)} you picked`) : rated.length ? `Add another ${mode.item}` : `Rate a ${mode.item} too`}</button>
           )}
         </section>
 

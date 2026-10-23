@@ -76,7 +76,7 @@ export function Insights({ place, onGo, hasPin }: { place: Place; onGo: (t: Mana
         { done: hasPin === true, label: "Put your shop on the map", icon: "pin", go: "details" },
         ...(googleConfigured ? [{ done: Boolean(place.google_place_id), label: "Connect your Google profile", icon: "globe" as const, go: "details" as const }] : []),
         { done: (itemCount ?? 0) >= 5, label: `Add 5 things to your ${modeOf(place.kind, place.category).catalog.toLowerCase()}${itemCount ? ` (${Math.min(itemCount, 5)} of 5)` : ""}`, icon: "box", go: "products" },
-        { done: (qrCount ?? 0) > 0 && printed(place.id), label: "Print your QR codes", icon: "print", go: "qr" },
+        { done: (qrCount ?? 0) > 0 && (printed(place.id) || s.reviews > 0), label: "Print your QR codes", icon: "print", go: "qr" },
         { done: s.reviews > 0, label: "Get your first review", icon: "star", go: "qr" },
       ]} onGo={onGo} loading={itemCount === null && qrCount === null} />
 

@@ -123,7 +123,7 @@ export function Visitors({ placeId, picked, setPicked, onWrite, reload = 0 }: {
           <button type="button" className={`chip ${group === "all" ? "on" : ""}`} aria-pressed={group === "all"} onClick={() => pickGroup("all")}>Everyone<span className="vg-n">{list?.length ?? 0}</span></button>
           {AUTO.map((a) => (
             <button key={a.id} type="button" className={`chip ${group === a.id ? "on" : ""}`} aria-pressed={group === a.id} onClick={() => pickGroup(a.id)}>
-              <Icon name={a.icon} size={14} />{a.label}<span className="vg-n">{count(a.id)}</span>
+              <Icon name={a.icon} size={14} />{a.label}{!(a.days && days < a.days) && <span className="vg-n">{count(a.id)}</span>}
             </button>
           ))}
           {(tags || []).map((t) => (

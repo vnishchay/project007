@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../../lib/supabase";
 import type { Place, QrCode, QrStyle } from "../../lib/types";
+import { byTableLabel } from "../../lib/types";
 import { qrUrl, QR_STYLES } from "../../lib/util";
 import { BrandQr, brandQrPngDataUrl, Icon, useConfirm, useToast } from "../ui";
 import { bizOf, spotLabel } from "../../lib/modes";
@@ -79,7 +80,7 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
   const [naming, setNaming] = useState<{ id: string; text: string } | null>(null);
   const load = useCallback(() => {
     supabase.from("qr_codes").select("id, place_id, token, style, table_label, active").eq("place_id", place.id).order("created_at")
-      .then(({ data }) => { const c = (data as QrCode[]) || []; setCodes(c); onCodes(c); });
+      .then(({ data }) => { const c = ((data as QrCode[]) || []).sort(byTableLabel); setCodes(c); onCodes(c); });
   }, [place.id, onCodes]);
   useEffect(load, [load]);
 

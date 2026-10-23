@@ -70,7 +70,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
   const setup: (Todo & { done: boolean })[] = [
     { done: hasPin === true, icon: "pin", tone: "sky", text: "Put your shop on the map", sub: "So people nearby can find you.", to: "details", cta: "Add map pin" },
     { done: (items ?? 0) >= 5, icon: "box", tone: "", text: `Add 5 things to your ${catalogWord}${items ? ` (${Math.min(items, 5)} of 5)` : ""}`, sub: "Customers tick what they liked. A photo of your menu works.", to: "menu", cta: `Add to ${catalogWord}` },
-    { done: t.qr_active > 0 && printed(place.id), icon: "print", tone: "violet", text: "Print your QR codes", sub: `Put them ${biz.qrWhere}.`, to: "qr", cta: "Print" },
+    { done: t.qr_active > 0 && (printed(place.id) || t.reviews > 0), icon: "print", tone: "violet", text: "Print your QR codes", sub: `Put them ${biz.qrWhere}.`, to: "qr", cta: "Print" },
     { done: t.reviews > 0, icon: "star", tone: "amber", text: "Get your first review", sub: "Ask a happy customer to scan your QR code.", to: biz.linkFirst ? "reviews" : "qr", cta: biz.linkFirst ? "Send a review link" : "Show my QR" },
   ];
   const setupLeft = items === null ? 0 : setup.filter((s) => !s.done).length;

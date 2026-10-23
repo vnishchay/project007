@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import type { Place, QrCode, QrStyle } from "../lib/types";
-import { isUuid } from "../lib/types";
+import { byTableLabel, isUuid } from "../lib/types";
 import { qrUrl, parseCoords, QR_STYLES, extractPlaceId } from "../lib/util";
 import { Icon, QrImage, Spinner, TopBar, useToast } from "../components/ui";
 import { CoordsField } from "../components/CoordsField";
@@ -39,7 +39,7 @@ export default function AdminPlace() {
   const loadCodes = () => {
     if (!id || !isUuid(id)) return;
     return supabase.from("qr_codes").select("id, place_id, token, style, table_label, active").eq("place_id", id).order("created_at")
-      .then(({ data }) => setCodes((data as QrCode[]) || []));
+      .then(({ data }) => setCodes(((data as QrCode[]) || []).sort(byTableLabel)));
   };
 
   useEffect(() => {
