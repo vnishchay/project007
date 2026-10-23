@@ -193,6 +193,7 @@ export default function Me() {
 
           <div className="menu">
             <MenuRow to="/picks" icon="heart" tone="coral" title="Your picks" sub="Ready to rate, your diary, reviews and saved places" />
+            <MenuRow to="/help" icon="message" tone="sky" title="Your help requests" sub="Read the shop’s response and confirm whether it was fixed" />
             <MenuRow icon="share" tone="sky" title="Share your profile" sub={named ? `Shows the ${named} review${named === 1 ? "" : "s"} with your name` : "Only reviews with your name show on it"} onClick={shareProfile} />
           </div>
 

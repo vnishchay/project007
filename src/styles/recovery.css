@@ -1,0 +1,30 @@
+.help-form,.help-history,.recovery-queue { display:flex; flex-direction:column; gap:16px; }
+.help-form p,.help-case p,.help-receipt p { margin:0; }
+.help-form .field { gap:8px; }
+.help-check { display:flex; gap:12px; align-items:flex-start; font-size:14px; line-height:1.5; padding:8px 0; }
+.help-check input { width:22px; height:22px; flex:none; margin:0; accent-color:var(--accent); }
+.help-case { padding:18px; border:1px solid var(--line); border-radius:16px; background:var(--card); display:flex; flex-direction:column; gap:12px; min-width:0; }
+.help-body { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; }
+.help-response { padding:12px; background:var(--bg); border-radius:10px; display:grid; gap:8px; }
+.help-receipt { display:flex; flex-direction:column; gap:12px; line-height:1.6; }
+.help-entry { border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:20px; }
+.help-entry summary { display:flex; gap:12px; align-items:center; min-height:44px; cursor:pointer; font-weight:650; }
+.help-entry[open] summary { margin-bottom:16px; }
+.help-entry .help-form .input,.help-entry .help-form .textarea { font-size:16px; }
+.recovery-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.recovery-stat { padding:16px; border:1px solid var(--line); border-radius:12px; display:grid; gap:6px; }
+.recovery-stat strong { font-size:24px; line-height:1.2; }
+.recovery-stat span { font-size:13px; color:var(--muted); }
+.recovery-editor { display:grid; gap:16px; border-top:1px solid var(--line); padding-top:16px; }
+.recovery-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.recovery-editor .input,.recovery-editor .textarea { font-size:16px; min-height:44px; }
+.recovery-queue .btn,.help-history .btn,.help-form .btn { min-height:44px; }
+.recovery-queue .chips { flex-wrap:wrap; }
+.recovery-money { padding:16px; background:var(--bg); border-radius:12px; display:grid; gap:8px; }
+.recovery-alerts > summary { min-height:44px; cursor:pointer; list-style:none; }
+.recovery-alerts[open] > summary { margin-bottom:12px; }
+.recovery-alerts[open] > p,.recovery-alerts[open] > div { margin-top:12px; }
+.recovery-case-header { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.recovery-case-header .grow { min-width:120px; }
+.recovery-queue :focus-visible,.help-form :focus-visible,.help-history :focus-visible,.help-entry summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+@media(max-width:600px) { .recovery-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .recovery-fields { grid-template-columns:1fr; } .help-case { padding:14px; } }

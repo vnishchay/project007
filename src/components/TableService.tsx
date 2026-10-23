@@ -14,10 +14,12 @@ const OTHER_CHIPS = ["Waiting a long time", "Something isn't right", "Need help 
  * the shop something right now. It reaches the shop's live board with the table only, never the name,
  * and it has nothing to do with the review: rating stays open whatever is sent here.
  */
-export function TableService({ placeId, shop, table, food, ensureVisit }: {
+export function TableService({ placeId, shop, table, food, ensureVisit, onHelp }: {
   placeId: string; shop: string; table: string | null; food: boolean;
   /** Starts the visit (guest session, location check) if there isn't one yet. */
   ensureVisit: () => Promise<boolean>;
+  /** Use the trackable recovery flow when the host page provides one. */
+  onHelp?: () => void;
 }) {
   const [calls, setCalls] = useState(false);
   const [mine, setMine] = useState<TableCall[]>([]);
@@ -67,7 +69,7 @@ export function TableService({ placeId, shop, table, food, ensureVisit }: {
           const o = k === "help" ? undefined : open(k);
           return (
             <button key={k} type="button" className={`sv-btn tone-${c.tone} ${o ? "on" : ""}`} disabled={busy !== null}
-              onClick={() => (k === "help" ? setSheet(true) : void send(k))}
+              onClick={() => (k === "help" ? onHelp ? onHelp() : setSheet(true) : void send(k))}
               aria-label={o ? `${c.label}: sent. Tap to remind the shop` : c.label}>
               <span className="ic"><Icon name={c.icon} size={24} /></span>
               <b>{busy === k ? "Sending…" : o ? (o.seen_at ? "On the way" : "Called") : c.label}</b>

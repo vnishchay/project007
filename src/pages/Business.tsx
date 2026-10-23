@@ -32,10 +32,10 @@ export default function Business() {
           <span><Icon name="store" size={22} color="#fff" /></span><span><Icon name="star" size={22} color="#fff" fill="#fff" /></span>
           <span><Icon name="qr" size={22} color="#fff" /></span><span><Icon name="people" size={22} color="#fff" /></span>
         </div>
-        <span className="biz-hero-pills"><span><Icon name="verified" size={13} />Friend-trusted</span><span><Icon name="box" size={13} />Item by item</span></span>
-        <h1>Let friends find your best</h1>
-        <p>Customers rate the exact dish, haircut or product they had. Their friends see it first.</p>
-        <Link to={startUrl} className="btn small"><Icon name="plus" size={17} />List my shop</Link>
+        <span className="biz-hero-pills"><span><Icon name="message" size={13} />Customer help</span><span><Icon name="checkCircle" size={13} />Track the outcome</span></span>
+        <h1>Turn customer problems into action</h1>
+        <p>Give customers a simple way to ask for help. Assign responsibility, record the fix, and let them confirm it worked.</p>
+        <Link to={startUrl} className="btn small"><Icon name="plus" size={17} />Set up my shop</Link>
       </div>
 
       {shops.length > 0 && (
@@ -60,9 +60,9 @@ export default function Business() {
 
       <div className="biz-steps">
         {([
-          ["store", "", "Your shop", "Details and links"],
-          ["qr", "amber", "QR codes", "On every counter or table"],
-          ["wallet", "violet", "Plan and pay", "Reviews go live"],
+          ["qr", "", "Make it easy to speak up", "A help request from your shop QR, with no public review required"],
+          ["message", "amber", "Follow through", "A named person responsible, a follow-up target and a recorded response"],
+          ["checkCircle", "violet", "Know what happened", "Customer confirmation, recovery costs and purchases recorded against bills"],
         ] as [IconName, string, string, string][]).map(([icon, cls, t, s], i) => (
           <div key={t} className="biz-step">
             <span className="num">{i + 1}</span>
@@ -74,6 +74,13 @@ export default function Business() {
           </div>
         ))}
       </div>
+
+      <section className="card stack" style={{ gap: 12 }} aria-label="How the service works">
+        <h2>Useful from your first customer</h2>
+        <p className="small">Start at one outlet. Add your details, print a QR and show your team how to check Customer help. Help requests and private notes stay accessible on every plan, even after a review plan ends.</p>
+        <p className="small muted">The help queue updates while the owner app is open. Optional background notifications need setup and permission on your device. Staff names are responsibility labels; staff invitations are not included. Keep a manager checking the queue during service.</p>
+        <p className="small muted">Track actual recovery costs before deciding whether the service is worthwhile. Recorded purchases are not a claim of additional revenue or profit.</p>
+      </section>
 
       {support && (
         <a className="btn block ghost" href={`https://wa.me/${support}`} target="_blank" rel="noopener noreferrer"><Icon name="message" size={18} />Questions? WhatsApp us</a>

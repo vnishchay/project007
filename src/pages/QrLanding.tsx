@@ -19,6 +19,7 @@ import { laterNote } from "../components/Reminders";
 import { turnOnReminders, type PushState } from "../lib/push";
 import { VisitBadge } from "../components/VisitBadge";
 import { useVisitProof } from "../lib/visits";
+import { CustomerHelp } from "../components/CustomerHelp";
 import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
@@ -56,6 +57,7 @@ function friendly(e: unknown): string {
 /** Landing for a table QR (/q/:token) or a shop's one-time review link (/r/:token). Both unlock a visit. */
 export default function QrLanding({ link = false }: { link?: boolean }) {
   const footRef = useFootSpace<HTMLDivElement>();
+  const helpRef = useRef<HTMLDetailsElement>(null);
   const { token = "" } = useParams();
   // An NFC table tag opens this same page with a one-time signed tap (picc + cmac) instead of a plain scan.
   const [search] = useSearchParams();
@@ -319,17 +321,18 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     return true;
   }
 
-  /** Calls and messages to the shop need a visit here, even when this account can't review. */
-  async function reachShop(): Promise<boolean> {
-    if (visit) return true;
+  /** Help must not depend on review-plan expiry or the guest review allowance. */
+  async function prepareHelp(): Promise<boolean> {
     if (!(await ensureSession())) return false;
-    const r = await unlock();
-    if (r.error) throw r.error;
-    setVisit(((r.data as Visit[]) || [])[0] ?? { visit_id: "", expires_at: "" });
-    return true;
+    if (visit?.expires_at && Date.parse(visit.expires_at) > Date.now()) return true;
+    const r = tap ? await unlock() : await supabase.rpc("begin_help_visit", { p_token: token, p_link: link });
+    if (r.error) { setScanErr(friendly(r.error)); return false; }
+    const v = ((r.data as Visit[]) || [])[0];
+    if (v) setVisit(v);
+    return Boolean(v);
   }
 
-  /** Not now: keep the review open (visit unlocked), switch on a reminder if this phone can get one. */
+  /** Keep a review open and optionally enable a review reminder. */
   async function rateLater() {
     setStarting(true); startingGuest.current = true;
     const v = (await ensureSession()) ? await openVisit(false) : null;
@@ -368,7 +371,14 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         </div>
       </header>
 
-      {!link && <TableService placeId={peek.place_id} shop={peek.place_name} table={peek.table_label ?? null} food={isFood} ensureVisit={reachShop} />}
+      {!link && <TableService placeId={peek.place_id} shop={peek.place_name} table={peek.table_label ?? null} food={isFood} ensureVisit={prepareHelp}
+        onHelp={() => { if (helpRef.current) { helpRef.current.open = true; helpRef.current.querySelector('summary')?.focus(); helpRef.current.scrollIntoView({ block: 'start' }); } }} />}
+      <details className="help-entry" ref={helpRef}>
+        <summary><Icon name="message" size={20} /><span className="grow">Need help with your visit?</span><Icon name="down" size={16} /></summary>
+        <CustomerHelp key={peek.place_id} placeId={peek.place_id} prepareVisit={prepareHelp} />
+        <Link className="btn ghost small" style={{ marginTop: 12 }} to={`/help/${peek.place_id}`}>Check an existing request</Link>
+      </details>
+
       <TreatsRail placeId={peek.place_id} placeName={peek.place_name} currency={currency} onCollect={collectStamp} />
       <ForYouHere placeId={peek.place_id} placeName={peek.place_name} signedIn={Boolean(session)} newsOnly />
 

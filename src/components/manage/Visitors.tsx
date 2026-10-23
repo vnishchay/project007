@@ -20,8 +20,8 @@ const DAY = 86_400_000;
 /** The groups the app makes by itself, from visits and offers. "Haven't been back" needs the 90-day list. */
 const AUTO: { id: string; label: string; icon: IconName; days?: 90; fits: (v: Visitor) => boolean }[] = [
   { id: "new", label: "New this week", icon: "spark", fits: (v) => Boolean(v.first_visit) && Date.now() - new Date(v.first_visit!).getTime() < 7 * DAY },
-  { id: "regular", label: "Regulars", icon: "crown", fits: (v) => (v.visits_60 ?? 0) >= 3 },
-  { id: "away", label: "Haven't been back", icon: "clock", days: 90, fits: (v) => Date.now() - new Date(v.last_visit).getTime() > 30 * DAY },
+  { id: "regular", label: "Repeat scanners", icon: "crown", fits: (v) => (v.visits_60 ?? 0) >= 3 },
+  { id: "away", label: "No scan in 30 days", icon: "clock", days: 90, fits: (v) => Date.now() - new Date(v.last_visit).getTime() > 30 * DAY },
   { id: "used", label: "Used an offer", icon: "ticket", fits: (v) => (v.offers_used ?? 0) > 0 },
 ];
 
@@ -112,6 +112,7 @@ export function Visitors({ placeId, picked, setPicked, onWrite, reload = 0 }: {
         <span className="grow">Who scanned</span>
         {list && list.length > 0 && <span className="badge gray">{list.length}</span>}
       </div>
+      <p className="small muted">Groups use recorded QR and review-link activity. A customer may have visited without scanning. These groups do not establish purchase history or lost customers.</p>
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
         {DAYS.map((d) => (
           <button key={d} type="button" className={`chip ${days === d ? "on" : ""}`} aria-pressed={days === d} onClick={() => setDays(d)}>{d} days</button>
@@ -151,7 +152,7 @@ export function Visitors({ placeId, picked, setPicked, onWrite, reload = 0 }: {
           {shown.map((v) => {
             const name = v.display_name || (v.is_guest ? "Guest" : "Customer");
             const on = picked.has(v.user_id);
-            const sub = [v.visits > 1 ? `${v.visits} visits` : "1 visit", timeAgo(v.last_visit), v.last_table].filter(Boolean).join(" · ");
+            const sub = [v.visits > 1 ? `${v.visits} recorded visits` : "1 recorded visit", `last recorded ${timeAgo(v.last_visit)}`, v.last_table].filter(Boolean).join(" · ");
             const mine = (v.tag_ids || []).map((id) => tagById.get(id)).filter((t): t is Tag => Boolean(t));
             return (
               <div key={v.user_id} className="menu-row vg-row">

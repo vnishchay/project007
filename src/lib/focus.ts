@@ -26,6 +26,7 @@ export function clearFocusShop() {
 /** Pages a customer in shop mode may open. */
 export function allowedInFocus(path: string, shop: string): boolean {
   return path === `/p/${shop}` || path.startsWith(`/review/${shop}`) || path.startsWith("/saved/")
+    || path === `/help/${shop}`
     || path.startsWith("/q/") || path.startsWith("/r/") || path === "/signin" || path === "/check"
     || ["/privacy", "/terms"].includes(path);
 }
