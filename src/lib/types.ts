@@ -143,5 +143,11 @@ export interface QrCode {
   active: boolean;
 }
 
+/** Table 1, Table 2 … Table 10 in order. Codes made together share one created_at, so that order alone is random. */
+export function byTableLabel(a: QrCode, b: QrCode): number {
+  if (!a.table_label || !b.table_label) return a.table_label ? -1 : b.table_label ? 1 : 0;
+  return a.table_label.localeCompare(b.table_label, undefined, { numeric: true, sensitivity: "base" });
+}
+
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (id?: string | null): id is string => Boolean(id && UUID_RE.test(id));
