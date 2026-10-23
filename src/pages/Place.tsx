@@ -20,6 +20,7 @@ import { ShopLinks, cleanLinks } from "../components/place/ShopLinks";
 import { ShopUpdates } from "../components/place/ShopUpdates";
 import { OnGoogle } from "../components/place/OnGoogle";
 import { SimilarDishes } from "../components/place/SimilarDishes";
+import { TreatsRail } from "../components/treats/TreatsRail";
 import { ensureEmbeddings, openNow } from "../lib/dishes";
 import { parsePlaceAbout, PlatformRatingsCard, AmenitiesCard } from "../components/place/PlatformRatings";
 import { deviceId } from "../lib/device";
@@ -347,6 +348,8 @@ export default function PlacePage() {
           <div className="pn-ticker-run">{[...ticker, ...ticker].map((t, i) => <span key={i}><Icon name="star" size={13} fill="currentColor" />{t}</span>)}</div>
         </div>
       )}
+
+      <TreatsRail placeId={place.id} placeName={place.name} currency={place.currency} bleed />
 
       {dock.length > 0 && (
         <div className="pn-dock">

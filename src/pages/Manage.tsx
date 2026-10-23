@@ -12,6 +12,7 @@ import { Insights, type ManageTab } from "../components/manage/Insights";
 import { LinksEditor } from "../components/manage/LinksEditor";
 import { Messages, type Audience } from "../components/manage/Messages";
 import { Visitors } from "../components/manage/Visitors";
+import { Deals } from "../components/manage/Deals";
 import { ReviewsTab } from "../components/manage/ReviewsTab";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
 import { ShareKit } from "../components/manage/ShareKit";
@@ -28,7 +29,7 @@ type Group = "home" | "reviews" | "customers" | "shop";
 const GROUPS: { id: Group; label: string; icon: IconName; tabs: { id: Tab; label: string }[] }[] = [
   { id: "home", label: "Home", icon: "chart", tabs: [{ id: "insights", label: "Overview" }, { id: "plan", label: "Plan" }] },
   { id: "reviews", label: "Reviews", icon: "star", tabs: [{ id: "reviews", label: "Reviews" }] },
-  { id: "customers", label: "Customers", icon: "people", tabs: [{ id: "visitors", label: "Visitors" }, { id: "updates", label: "Messages" }] },
+  { id: "customers", label: "Customers", icon: "people", tabs: [{ id: "visitors", label: "Visitors" }, { id: "deals", label: "Deals" }, { id: "updates", label: "Messages" }] },
   { id: "shop", label: "Shop page", icon: "store", tabs: [{ id: "products", label: "Catalog" }, { id: "details", label: "Details" }, { id: "links", label: "Links" }, { id: "qr", label: "QR codes" }] },
 ];
 const TABS = GROUPS.flatMap((g) => g.tabs);
@@ -135,6 +136,7 @@ export default function Manage() {
         {tab === "plan" && <Plan placeId={place.id} placeName={place.name} />}
         {tab === "reviews" && <ReviewsTab placeId={place.id} placeName={place.name} live={place.status === "live"} onGo={setTab} />}
         {tab === "visitors" && <Visitors placeId={place.id} picked={picked} setPicked={setPicked} reload={sentN} onWrite={() => { setAudience("offer"); setTab("updates"); }} />}
+        {tab === "deals" && <Deals placeId={place.id} currency={place.currency} live={place.status === "live"} />}
         {tab === "updates" && <Messages placeId={place.id} placeName={place.name} logoPath={place.logo_path ?? null} live={place.status === "live"}
           audience={audience} onAudience={setAudience} picked={[...picked]} onPick={() => { setAudience("offer"); setTab("visitors"); }}
           onSent={() => { if (audience === "offer") setPicked(new Set()); setSentN((x) => x + 1); }} />}
