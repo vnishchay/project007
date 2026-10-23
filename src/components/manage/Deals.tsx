@@ -4,6 +4,7 @@ import { currencySymbol } from "../../lib/money";
 import { KINDS, dateText, dealWhen, useNow, type Deal, type DealKind } from "../../lib/treats";
 import { DealTicket } from "../treats/Tickets";
 import { Icon, useConfirm, useToast } from "../ui";
+import { BIZ, type Biz } from "../../lib/modes";
 import "../../styles/treats.css";
 
 interface Row extends Omit<Deal, "on_now" | "ends_ts" | "used_at" | "place_id"> { valid_from: string; active: boolean; uses_7d: number; uses_total: number }
@@ -14,10 +15,6 @@ const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ALL = [0, 1, 2, 3, 4, 5, 6];
 const BLANK: Form = { id: null, kind: "percent", amount: "20", title: "", terms: "", days: ALL, hours: false, starts: "16:00", ends: "19:00", until: "", once: false };
-const HINT: Record<DealKind, string> = {
-  percent: "on all pizzas", flat: "on bills over 500", free: "Tiramisu with any pizza", bogo: "on all lemonades",
-  happy_hour: "2 for 1 drinks", other: "Kids eat free on Sundays",
-};
 
 function friendly(e: unknown): string {
   const t = errorText(e);
@@ -31,7 +28,10 @@ function friendly(e: unknown): string {
  * Deals everyone sees as tickets on the shop page, and the stamp card that fills itself from table scans.
  * The preview is the real ticket, so what the owner sees is what customers get.
  */
-export function Deals({ placeId, currency, live }: { placeId: string; currency?: string | null; live: boolean }) {
+export function Deals({ placeId, currency, live, biz = BIZ.other }: { placeId: string; currency?: string | null; live: boolean; biz?: Biz }) {
+  // Examples and the timed deal's name fit the business type (no pizza examples for a salon).
+  const HINT: Record<DealKind, string> = biz.dealHints;
+  const kindLabel = (k: DealKind) => (k === "happy_hour" ? biz.timedDeal : KINDS[k].label);
   const toast = useToast();
   const confirm = useConfirm();
   const now = useNow(1000);
@@ -107,7 +107,7 @@ export function Deals({ placeId, currency, live }: { placeId: string; currency?:
   }
 
   async function saveCard(active: boolean) {
-    if (!reward.trim()) { setCardErr("Write the reward, like “a free pizza”."); return; }
+    if (!reward.trim()) { setCardErr(`Write the reward, like “${biz.stampReward}”.`); return; }
     setCardErr("");
     const { data, error } = await supabase.rpc("save_stamp_card", { p_place: placeId, p_goal: goal, p_reward: reward.trim(), p_active: active });
     if (error) { setCardErr(friendly(error)); return; }
@@ -133,7 +133,7 @@ export function Deals({ placeId, currency, live }: { placeId: string; currency?:
             <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
               <span className={`icon-chip sm`} style={{ background: "var(--fill)" }}><Icon name={(KINDS[r.kind] ?? KINDS.other).icon} size={16} /></span>
               <span className="grow stack tight" style={{ minWidth: 0 }}>
-                <b className="small">{r.kind === "percent" ? `${Math.round(Number(r.amount))}% off` : r.kind === "flat" ? `${currencySymbol(currency)}${Number(r.amount)} off` : KINDS[r.kind]?.label} · {r.title}</b>
+                <b className="small">{r.kind === "percent" ? `${Math.round(Number(r.amount))}% off` : r.kind === "flat" ? `${currencySymbol(currency)}${Number(r.amount)} off` : kindLabel(r.kind)} · {r.title}</b>
                 <span className="tiny muted">{dealWhen(r)}{r.valid_until ? ` · till ${dateText(r.valid_until)}` : ""}{r.per_person === "once" ? " · once per person" : ""}</span>
                 <span className="tiny muted row" style={{ gap: 4 }}><Icon name="check" size={12} />Used {r.uses_7d} this week · {r.uses_total} in all</span>
               </span>
@@ -158,7 +158,7 @@ export function Deals({ placeId, currency, live }: { placeId: string; currency?:
             <div className="chips" role="radiogroup" aria-label="Kind of deal">
               {(Object.keys(KINDS) as DealKind[]).map((k) => (
                 <button key={k} type="button" role="radio" aria-checked={f.kind === k} className={`chip ${f.kind === k ? "on" : ""}`} onClick={() => set({ kind: k, amount: k === "percent" ? "20" : k === "flat" ? "100" : f.amount })}>
-                  <Icon name={KINDS[k].icon} size={14} />{KINDS[k].label}
+                  <Icon name={KINDS[k].icon} size={14} />{kindLabel(k)}
                 </button>
               ))}
             </div>
@@ -180,7 +180,7 @@ export function Deals({ placeId, currency, live }: { placeId: string; currency?:
               })}
             </div>
           </div>
-          <label className="switch-row"><input type="checkbox" role="switch" checked={f.hours} onChange={(e) => set({ hours: e.target.checked })} /><span>Only certain hours{f.kind === "happy_hour" ? " (good for happy hour)" : ""}</span></label>
+          <label className="switch-row"><input type="checkbox" role="switch" checked={f.hours} onChange={(e) => set({ hours: e.target.checked })} /><span>Only certain hours{f.kind === "happy_hour" ? ` (good for ${biz.timedDeal.toLowerCase()})` : ""}</span></label>
           {f.hours && (
             <div className="row" style={{ gap: 10 }}>
               <div className="field grow"><label className="mg-label" htmlFor="dl-s">From</label><input id="dl-s" className="input" type="time" value={f.starts} onChange={(e) => set({ starts: e.target.value })} /></div>
@@ -207,7 +207,7 @@ export function Deals({ placeId, currency, live }: { placeId: string; currency?:
       <section className="mg-section">
         <div className="mg-section-head"><span className="icon-chip sm amber"><Icon name="award" size={16} /></span><span className="grow">Stamp card</span>
           {card && <span className={`badge ${card.active ? "" : "gray"}`}>{card.active ? "On" : "Off"}</span>}</div>
-        <p className="small muted" style={{ margin: 0 }}>Every day someone scans your table code, they get a stamp by themselves. When the card is full, they show the reward at your counter. Stamps count visits only, never reviews.</p>
+        <p className="small muted" style={{ margin: 0 }}>Every day someone scans your QR code, they get a stamp by themselves. When the card is full, they show the reward at your counter. Stamps count visits only, never reviews.</p>
         {card === undefined ? <div className="skeleton" style={{ height: 72 }} /> : (
           <>
             <div className="field">
@@ -219,7 +219,7 @@ export function Deals({ placeId, currency, live }: { placeId: string; currency?:
               </div>
             </div>
             <div className="field"><label className="mg-label" htmlFor="st-rw"><Icon name="gift" size={15} />The reward</label>
-              <input id="st-rw" className="input" maxLength={60} value={reward} onChange={(e) => { setReward(e.target.value); setCardErr(""); }} placeholder="a free pizza" /></div>
+              <input id="st-rw" className="input" maxLength={60} value={reward} onChange={(e) => { setReward(e.target.value); setCardErr(""); }} placeholder={biz.stampReward} /></div>
             {card && <span className="tiny muted row" style={{ gap: 6 }}><Icon name="people" size={13} />{card.collectors} collecting · {card.rewards_used} rewards given</span>}
             {cardErr && <div className="notice err small row" style={{ gap: 8 }}><Icon name="alert" size={16} /><span className="grow">{cardErr}</span></div>}
             <div className="row" style={{ gap: 10 }}>

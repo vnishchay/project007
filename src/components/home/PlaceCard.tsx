@@ -52,7 +52,7 @@ export function PlaceCard({ r, people, coverUrl, currency, google }: { r: Search
         <span className="badges">
           <Friends r={r} people={people} />
           {r.verified_count > 0 && <span className="pill verified" title="Verified visits"><Icon name="verified" size={13} />{r.verified_count}</span>}
-          {r.has_qr && !r.verified_count && <span className="pill verified" title="Table QR"><Icon name="qr" size={13} /></span>}
+          {r.has_qr && !r.verified_count && <span className="pill verified" title="Review QR"><Icon name="qr" size={13} /></span>}
           {r.review_count > 0 && <span className="pill gray" title="Reviews"><Icon name="message" size={12} />{r.review_count}</span>}
           {google?.google_rating != null && (
             <span className="pill gray" aria-label={`Google ${Number(google.google_rating).toFixed(1)} stars`} title={`${google.google_rating} on Google from ${(google.google_rating_count ?? 0).toLocaleString(undefined)} reviews`}>

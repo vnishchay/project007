@@ -109,7 +109,7 @@ export function StampSheet({ s, onClose, onUse }: { s: Stamps; onClose: () => vo
         <StampCard s={s} />
         {ready && <button type="button" className="btn block" onClick={onUse}><Icon name="gift" size={18} />Use my reward</button>}
         <div className="stack small" style={{ gap: 8 }}>
-          <span className="row" style={{ gap: 10, alignItems: "flex-start" }}><Icon name="qr" size={18} color="var(--accent)" /><span><b>Stamps add themselves.</b> Scan a table code on a visit and you get one. No paper card to lose.</span></span>
+          <span className="row" style={{ gap: 10, alignItems: "flex-start" }}><Icon name="qr" size={18} color="var(--accent)" /><span><b>Stamps add themselves.</b> Scan the shop's QR code on a visit and you get one. No paper card to lose.</span></span>
           <span className="row" style={{ gap: 10, alignItems: "flex-start" }}><Icon name="clock" size={18} color="var(--accent)" /><span><b>One a day</b>, only for visits at the shop.</span></span>
           <span className="row" style={{ gap: 10, alignItems: "flex-start" }}><Icon name="shield" size={18} color="var(--accent)" /><span><b>For visiting, never for reviewing.</b> Stamps don't care whether or what you rate.</span></span>
         </div>
