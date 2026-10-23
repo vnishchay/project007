@@ -1,0 +1,30 @@
+.journey-owner { margin-bottom:18px; }
+.journey-owner-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.journey-owner-step { display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--ink); text-align:left; font:inherit; cursor:pointer; }
+.journey-owner-step strong { font-size:17px; }
+.journey-owner-step > span:not(.journey-eyebrow) { font-size:14px; line-height:1.5; color:var(--muted); }
+.journey-owner-step > b { display:flex; align-items:center; gap:6px; margin-top:auto; font-size:13px; color:var(--accent); }
+.journey-eyebrow { font-size:12px; letter-spacing:.04em; font-weight:700; color:var(--muted); }
+.visit-modes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding:5px; gap:5px; border:1px solid var(--line-soft); background:var(--surface); border-radius:17px; margin:0 20px 18px; }
+.visit-modes button { display:flex; flex-direction:column; gap:5px; align-items:center; justify-content:center; min-height:64px; border:0; border-radius:12px; background:transparent; color:var(--ink-2); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.visit-modes button[aria-pressed=true] { background:var(--card); color:var(--accent); }
+.visit-panel[hidden] { display:none !important; }
+.visit-intro { display:flex; gap:12px; justify-content:space-between; align-items:center; margin:0 20px 16px; }
+.visit-panel > .help-entry,.visit-panel > .notice { margin-inline:20px; }
+.visit-intro h2 { font-size:20px; margin:0 0 5px; }
+.visit-intro p { color:var(--muted); font-size:14px; line-height:1.5; margin:0; }
+.visit-intro .btn { flex:none; min-height:44px; }
+.visit-filters { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 14px; }
+.visit-filters .chip { min-height:44px; }
+.visit-shortlist { border:1px solid var(--line); background:var(--card); border-radius:16px; padding:16px; display:grid; gap:12px; margin:16px 20px; }
+.visit-shortlist h3 { font-size:16px; margin:0; }
+.visit-shortlist ul { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.visit-shortlist li { display:flex; align-items:center; gap:10px; font-size:14px; }
+.visit-shortlist li span { flex:1; overflow-wrap:anywhere; }
+.visit-shortlist li button { width:44px; min-height:44px; display:grid; place-items:center; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); cursor:pointer; }
+.visit-shortlist p { margin:0; font-size:13px; color:var(--muted); line-height:1.5; }
+.visit-browse-foot { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+.visit-browse-foot > span { display:grid; gap:4px; font-size:14px; }
+.visit-browse-foot small { color:var(--muted); }
+.journey-owner-step:focus-visible,.visit-modes button:focus-visible,.visit-shortlist button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+@media(max-width:700px) { .journey-owner-grid { grid-template-columns:1fr; } .journey-owner-step { gap:8px; } }

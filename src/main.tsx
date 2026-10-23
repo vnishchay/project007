@@ -1,5 +1,5 @@
 import { ViewStats } from "./lib/stats";
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./styles.css";
@@ -8,35 +8,42 @@ import { installImageFallback } from "./lib/demoArt";
 import { registerServiceWorker } from "./lib/install";
 import { AuthProvider } from "./lib/auth";
 import { configured } from "./lib/supabase";
-import { Layout, RequireAuth, ToastProvider } from "./components/ui";
+import { Layout, RequireAuth, Spinner, ToastProvider } from "./components/ui";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import Discover from "./pages/Discover";
-import PlacePage from "./pages/Place";
-import SignIn from "./pages/SignIn";
-import Check from "./pages/Check";
-import QrLanding from "./pages/QrLanding";
-import { Contact, Pricing, Privacy, Refunds, Terms } from "./pages/Legal";
-import Claim from "./pages/Claim";
-import Review from "./pages/Review";
-import Saved from "./pages/Saved";
-import Person from "./pages/Person";
-import Me from "./pages/Me";
-import Picks from "./pages/Picks";
-import Pocket from "./pages/Pocket";
-import Business from "./pages/Business";
-import BusinessSetup from "./pages/BusinessSetup";
-import Admin from "./pages/Admin";
-import AdminPlace from "./pages/AdminPlace";
-import Demo from "./pages/Demo";
-import NotFound from "./pages/NotFound";
-import OwnerApp from "./pages/owner/OwnerApp";
-import OwnerStart, { ManageRedirect } from "./pages/owner/OwnerStart";
 import { HomeGate } from "./pages/owner/HomeGate";
 import { OwnerManifest } from "./lib/ownerManifest";
-import BestDish from "./pages/BestDish";
 import "./styles/responsive.css";
-import Help from "./pages/Help";
 import { rememberSource } from "./lib/source";
+
+// Customers download their current experience, rather than every owner/admin tool.
+const Discover = lazy(() => import('./pages/Discover'));
+const PlacePage = lazy(() => import('./pages/Place'));
+const SignIn = lazy(() => import('./pages/SignIn'));
+const Check = lazy(() => import('./pages/Check'));
+const QrLanding = lazy(() => import('./pages/QrLanding'));
+const Claim = lazy(() => import('./pages/Claim'));
+const Review = lazy(() => import('./pages/Review'));
+const Saved = lazy(() => import('./pages/Saved'));
+const Person = lazy(() => import('./pages/Person'));
+const Me = lazy(() => import('./pages/Me'));
+const Picks = lazy(() => import('./pages/Picks'));
+const Pocket = lazy(() => import('./pages/Pocket'));
+const Business = lazy(() => import('./pages/Business'));
+const BusinessSetup = lazy(() => import('./pages/BusinessSetup'));
+const Admin = lazy(() => import('./pages/Admin'));
+const AdminPlace = lazy(() => import('./pages/AdminPlace'));
+const Demo = lazy(() => import('./pages/Demo'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const OwnerApp = lazy(() => import('./pages/owner/OwnerApp'));
+const OwnerStart = lazy(() => import('./pages/owner/OwnerStart'));
+const ManageRedirect = lazy(() => import('./pages/owner/OwnerStart').then((m) => ({ default: m.ManageRedirect })));
+const BestDish = lazy(() => import('./pages/BestDish'));
+const Help = lazy(() => import('./pages/Help'));
+const Contact = lazy(() => import('./pages/Legal').then((m) => ({ default: m.Contact })));
+const Pricing = lazy(() => import('./pages/Legal').then((m) => ({ default: m.Pricing })));
+const Privacy = lazy(() => import('./pages/Legal').then((m) => ({ default: m.Privacy })));
+const Refunds = lazy(() => import('./pages/Legal').then((m) => ({ default: m.Refunds })));
+const Terms = lazy(() => import('./pages/Legal').then((m) => ({ default: m.Terms })));
 
 rememberSource();
 
@@ -64,6 +71,7 @@ createRoot(document.getElementById("root")!).render(
             <ViewStats />
             <OwnerManifest />
             <Layout>
+              <Suspense fallback={<div className="page" role="status" aria-label="Opening page"><Spinner /></div>}>
               <Routes>
                 <Route path="/" element={<HomeGate><Discover /></HomeGate>} />
                 <Route path="/p/:id" element={<PlacePage />} />
@@ -100,6 +108,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/demo/:slug" element={<Demo />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
             </Layout>
           </ToastProvider>
         </AuthProvider>

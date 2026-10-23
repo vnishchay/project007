@@ -15,9 +15,10 @@ const screenshots = process.env.RECOVERY_SCREENSHOTS;
 const now = new Date().toISOString();
 const expires = new Date(Date.now() + 3600000).toISOString();
 const place = { id: shop, name: 'Test Cafe', owner_id: owner, google_place_id: null, kind: 'food', category: 'Cafe', currency: 'INR', status: 'live', verification: 'verified', area: 'Test area', city: 'Test city', about: '', hours: {}, links: [], cover_path: null, logo_path: null };
+const menu = Array.from({length:9},(_,i)=>({id:`50000000-0000-4000-8000-00000000000${i+1}`,place_id:shop,name:`Test dish ${i+1}`,description:`Freshly prepared choice ${i+1}`,price_inr:i===8?null:(i+1)*50,image_path:null,sort_order:i,is_listed:false,is_hidden:false,diet:i%2===0?['veg']:['non_veg']}));
 
 test('Customer-to-owner help workflow on mobile and desktop', async (t) => {
-  const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '4179', '--strictPort'], {
+  const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', ...(process.env.RECOVERY_UI_PRODUCTION === '1' ? ['preview'] : []), '--host', '127.0.0.1', '--port', '4179', '--strictPort'], {
     env: { ...process.env, VITE_SUPABASE_URL: api, VITE_SUPABASE_PUBLISHABLE_KEY: 'fixture-publishable-key', VITE_GOOGLE_MAPS_KEY: '', VITE_VAPID_PUBLIC_KEY: '' }, stdio: ['ignore','pipe','pipe'],
   });
   t.after(() => vite.kill());
@@ -37,7 +38,7 @@ test('Customer-to-owner help workflow on mobile and desktop', async (t) => {
     const user = { id, email: guest ? undefined : `${id === owner ? 'owner' : 'customer'}@example.test`, is_anonymous:guest, aud:'authenticated', role:'authenticated', user_metadata:{}, app_metadata:{provider: guest ? 'anonymous' : 'email'}, created_at:now };
     const profile = { id, display_name:id === owner ? 'Test Owner' : guest ? '' : 'Test Customer', avatar_path:null, role:id===owner?'business':'user',created_at:now };
     const jwt = `${Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')}.${Buffer.from(JSON.stringify({sub:id,exp:Math.floor(Date.now()/1000)+3600,role:'authenticated'})).toString('base64url')}.fixture`;
-    await context.addInitScript(({user,jwt}) => localStorage.setItem('sb-recovery-test-auth-token',JSON.stringify({access_token:jwt,refresh_token:'fixture-refresh-token',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user})), {user,jwt});
+    if (id) await context.addInitScript(({user,jwt}) => localStorage.setItem('sb-recovery-test-auth-token',JSON.stringify({access_token:jwt,refresh_token:'fixture-refresh-token',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user})), {user,jwt});
     await context.route('**/*',async (route) => {
       const req = route.request(); const url = new URL(req.url());
       if (url.origin===origin) return route.continue();
@@ -50,6 +51,7 @@ test('Customer-to-owner help workflow on mobile and desktop', async (t) => {
       else if (rpc==='my_profile') value=[profile];
       else if (rpc==='can_manage_place') value=id===owner;
       else if (rpc==='place_pin') value=[{has_pin:true,source:'manual',google_linked:false}];
+      else if (url.pathname==='/rest/v1/items') value=menu;
       else if (rpc==='peek_qr') value=[{place_id:shop,place_name:place.name,area:place.area,table_label:'Table 2',status:'ok'}];
       else if (rpc==='place_service') value={calls:true};
       else if (rpc==='can_review') value=[{allowed:false,reason:'paused'}];
@@ -79,8 +81,44 @@ test('Customer-to-owner help workflow on mobile and desktop', async (t) => {
   }
   const diner=await contextFor(customer,true,true);
   t.after(()=>diner.context.close());
+  await t.test('signed-out customers can browse and shortlist without creating an account',async()=>{
+    const visitor=await contextFor(null);
+    try {
+      await visitor.page.goto(`${origin}/q/table-code`);
+      await visitor.page.getByRole('button',{name:'Test dish 1',exact:true}).click();
+      await visitor.page.getByRole('region',{name:'Your shortlist'}).waitFor();
+      assert.ok(visitor.page.url().endsWith('/q/table-code'));
+      assert.equal(await visitor.page.evaluate(()=>localStorage.getItem('sb-recovery-test-auth-token')),null);
+    } finally { await visitor.context.close(); }
+  });
+  await t.test('browse, combine filters, shortlist and restore picks without starting a visit',async()=>{
+    await diner.page.goto(`${origin}/q/table-code`);
+    await diner.page.getByRole('button',{name:'Test dish 1',exact:true}).waitFor();
+    assert.equal(await diner.page.locator('.rvx-menu button').count(),9);
+    await diner.page.getByRole('button',{name:'Vegetarian',exact:true}).click();
+    await diner.page.getByLabel('Maximum listed price per item').fill('150');
+    assert.equal(await diner.page.locator('.rvx-menu button').count(),2);
+    await diner.page.getByRole('button',{name:'Test dish 1',exact:true}).click();
+    await diner.page.getByRole('button',{name:'Test dish 3',exact:true}).click();
+    await diner.page.getByRole('region',{name:'Your shortlist'}).getByText('₹200',{exact:true}).waitFor();
+    await diner.page.reload();
+    await diner.page.getByRole('button',{name:'Remove Test dish 1 from shortlist'}).waitFor();
+    await diner.page.getByRole('button',{name:'Remove Test dish 1 from shortlist'}).click();
+    assert.equal(await diner.page.getByRole('button',{name:'Remove Test dish 1 from shortlist'}).count(),0);
+    await diner.page.getByLabel('Maximum listed price per item').fill('0');
+    await diner.page.getByText('No items match these filters.',{exact:true}).waitFor();
+    await diner.page.getByRole('button',{name:'Clear filters',exact:true}).click();
+    assert.equal(await diner.page.locator('.rvx-menu button').count(),9);
+    assert.equal(writes.some(w=>['begin_help_visit','scan_qr','request_customer_help','submit_review'].includes(w.rpc)),false,'Browsing must not register a visit or submit feedback');
+    await diner.page.getByRole('button',{name:'Feedback',exact:true}).click();
+    await diner.page.getByRole('heading',{name:'How was your visit?',exact:true}).waitFor();
+    await diner.page.getByRole('button',{name:'Explore menu',exact:true}).click();
+    assert.equal(await diner.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    if(screenshots) await diner.page.screenshot({path:`${screenshots}/menu-mobile.png`,fullPage:true});
+  });
   await t.test('customer requests help despite paused reviews, with explicit contact permission',async()=>{
     await diner.page.goto(`${origin}/q/table-code`);
+    await diner.page.getByRole('button',{name:'Your visit',exact:true}).click();
     await diner.page.getByRole('button',{name:'Tell the shop now',exact:true}).click();
     assert.equal(await diner.page.locator('details.help-entry').getAttribute('open'),'','Table feedback should open the trackable help flow');
     await diner.page.getByLabel('What happened?').fill('My meal arrived cold. Could you replace it?');
@@ -140,6 +178,39 @@ test('Customer-to-owner help workflow on mobile and desktop', async (t) => {
     await manager.page.getByLabel('Monthly recovery and reward costs').fill('200');
     await manager.page.getByText('12 additional purchases per month',{exact:true}).waitFor();
     assert.equal(await manager.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  });
+  await t.test('business proposition and owner overview cover the whole customer journey',async()=>{
+    await manager.page.goto(`${origin}/business`);
+    await manager.page.getByRole('heading',{name:'Make every visit worth coming back for'}).waitFor();
+    if(screenshots) await manager.page.screenshot({path:`${screenshots}/business-desktop.png`,fullPage:true});
+    await manager.page.goto(`${origin}/owner/${shop}`);
+    await manager.page.getByRole('heading',{name:'Your customer journey',exact:true}).waitFor();
+    await manager.page.getByText('Personal offers used',{exact:true}).waitFor();
+    assert.equal(await manager.page.locator('.journey-owner-step').count(),3);
+    if(screenshots) await manager.page.screenshot({path:`${screenshots}/owner-journey-desktop.png`,fullPage:true});
+    await manager.page.setViewportSize({width:390,height:844});
+    assert.equal(await manager.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  });
+  await t.test('a late shop-search result cannot replace the current search',async()=>{
+    await manager.page.goto(`${origin}/business`);
+    const routePattern='**/rest/v1/places?**';
+    await manager.page.route(routePattern,async(route)=>{
+      const name=new URL(route.request().url()).searchParams.get('name');
+      if(!name) return route.fallback();
+      const old=name.includes('Old');
+      if(old) await new Promise(resolve=>setTimeout(resolve,1000));
+      await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{id:shop,name:old?'Old Cafe':'New Cafe',area:'Test',city:'Test'}])});
+    });
+    const oldRequest=manager.page.waitForRequest(req=>req.url().includes('name=')&&decodeURIComponent(req.url()).includes('Old'));
+    const oldResponse=manager.page.waitForResponse(res=>res.url().includes('name=')&&decodeURIComponent(res.url()).includes('Old'));
+    await manager.page.getByRole('searchbox',{name:'Find your shop'}).fill('Old');
+    await oldRequest;
+    await manager.page.getByRole('searchbox',{name:'Find your shop'}).fill('New');
+    await manager.page.getByText('New Cafe',{exact:true}).waitFor();
+    await oldResponse;
+    assert.equal(await manager.page.getByText('Old Cafe',{exact:true}).count(),0);
+    assert.equal(await manager.page.getByText('New Cafe',{exact:true}).count(),1);
+    await manager.page.unroute(routePattern);
   });
   assert.deepEqual(errors,[],'No uncaught browser errors');
 });

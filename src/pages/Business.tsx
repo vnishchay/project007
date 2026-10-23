@@ -12,16 +12,16 @@ import "../styles/manage.css";
 interface Found { id: string; name: string; area: string | null; city: string }
 
 const GAINS: [IconName, string, string, string][] = [
-  ["food", "", "Reviews of each dish", "Diners rate the exact item they had, so your best sellers rise in \"best X near me\"."],
-  ["people", "violet", "Friends see it first", "A review from a friend counts more than a stranger's star. That's what brings new people in."],
-  ["star", "amber", "Google reviews, honestly", "After rating, diners can copy their review to Google in one tap, for every rating."],
-  ["message", "", "Private notes", "Unhappy diners can tell you quietly, so you can fix it before it spreads."],
+  ["food", "", "Help people choose", "Show your menu, item prices and what reviewers liked. Customers can shortlist what they want to try."],
+  ["people", "violet", "Recommendations with context", "Friends' named recommendations add a familiar perspective when those reviews are available."],
+  ["star", "amber", "Honest feedback, item by item", "Learn which dishes or services customers liked. Every rating gets the same optional route to Google."],
+  ["message", "", "Follow through on problems", "Assign help requests, record the action and let the customer confirm the fix or ask for more help."],
   ["bell", "violet", "Table calls", "Call staff, ask for the bill, all from the table QR, with a live board for you."],
-  ["gift", "amber", "Offers to regulars", "See who visited and send them an offer in the app. Never tied to reviews."],
+  ["gift", "amber", "Give them a reason to return", "Run deals, visit-based stamp cards and personal in-app offers. Rewards never depend on leaving a review."],
 ];
 
 const PROMISES: [IconName, string][] = [
-  ["shield", "No fake or paid reviews. Every review comes from a real visit."],
+  ["shield", "Reviews require a QR or shop-link visit. Verification labels show the available visit evidence."],
   ["refresh", "Nothing renews on its own. Pay for a month or a year, that's it."],
   ["lock", "We never text or spam your customers."],
   ["store", "Your page stays up even if your plan ends."],
@@ -52,14 +52,19 @@ export default function Business() {
 
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Found[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
   useEffect(() => {
     const term = q.trim().replace(/[%_,()]/g, " ");
-    if (term.length < 3) { setFound(null); return; }
+    let alive = true;
+    setFound(null); setSearchError(false);
+    if (term.length < 3) { setSearching(false); return; }
+    setSearching(true);
     const t = setTimeout(() => {
       supabase.from("places").select("id, name, area, city").ilike("name", `%${term}%`).order("name").limit(6)
-        .then(({ data }) => setFound((data as Found[]) || []));
+        .then(({ data, error }) => { if (alive) { setSearching(false); setSearchError(Boolean(error)); setFound(error ? null : (data as Found[]) || []); } }, () => { if (alive) { setSearching(false); setSearchError(true); } });
     }, 300);
-    return () => clearTimeout(t);
+    return () => { alive = false; clearTimeout(t); };
   }, [q]);
 
   const startUrl = session ? "/business/setup" : "/signin?next=/business/setup";
@@ -74,9 +79,9 @@ export default function Business() {
           <span><Icon name="store" size={22} color="#fff" /></span><span><Icon name="star" size={22} color="#fff" fill="#fff" /></span>
           <span><Icon name="qr" size={22} color="#fff" /></span><span><Icon name="people" size={22} color="#fff" /></span>
         </div>
-        <span className="biz-hero-pills"><span><Icon name="message" size={13} />Customer help</span><span><Icon name="checkCircle" size={13} />Track the outcome</span></span>
-        <h1>Turn customer problems into action</h1>
-        <p>Give customers a simple way to ask for help. Assign responsibility, record the fix, and let them confirm it worked.</p>
+        <span className="biz-hero-pills"><span><Icon name="food" size={13} />Discovery & feedback</span><span><Icon name="gift" size={13} />Service & loyalty</span></span>
+        <h1>Make every visit worth coming back for</h1>
+        <p>Help people choose your best, look after them during their visit, and give them a reason to return. One connected experience for your customers and your team.</p>
         <Link to={startUrl} className="btn small"><Icon name="plus" size={17} />Set up my shop</Link>
       </div>
 
@@ -102,9 +107,9 @@ export default function Business() {
 
       <div className="biz-steps">
         {([
-          ["qr", "", "Make it easy to speak up", "A help request from your shop QR, with no public review required"],
-          ["message", "amber", "Follow through", "A named person responsible, a follow-up target and a recorded response"],
-          ["checkCircle", "violet", "Know what happened", "Customer confirmation, recovery costs and purchases recorded against bills"],
+          ["food", "", "Choose with confidence", "A useful menu, item recommendations and a personal shortlist"],
+          ["message", "amber", "Enjoy the visit", "Table service and trackable help, without requiring a public review"],
+          ["gift", "violet", "Keep the relationship going", "Honest feedback, visit-based rewards and relevant offers"],
         ] as [IconName, string, string, string][]).map(([icon, cls, t, s], i) => (
           <div key={t} className="biz-step">
             <span className="num">{i + 1}</span>
@@ -118,15 +123,17 @@ export default function Business() {
       </div>
 
       <section className="card stack" style={{ gap: 12 }} aria-label="How the service works">
-        <h2>Useful from your first customer</h2>
-        <p className="small">Start at one outlet. Add your details, print a QR and show your team how to check Customer help. Help requests and private notes stay accessible on every plan, even after a review plan ends.</p>
-        <p className="small muted">The help queue updates while the owner app is open. Optional background notifications need setup and permission on your device. Staff names are responsibility labels; staff invitations are not included. Keep a manager checking the queue during service.</p>
-        <p className="small muted">Track actual recovery costs before deciding whether the service is worthwhile. Recorded purchases are not a claim of additional revenue or profit.</p>
+        <h2>Start with one outlet. See the whole journey.</h2>
+        <p className="small">Add your menu, put your QR where customers can use it, and choose who checks table calls and help requests. Customers can browse before they sign in; their reviews and rewards remain separate.</p>
+        <p className="small muted">Your owner app brings together recorded scans, item feedback, customer help and offer redemptions. Review the results and costs before deciding what to expand. Customer help and private notes stay accessible on every plan.</p>
+        <Link to="/demo" className="btn ghost"><Icon name="eye" size={17} />Explore a sample shop</Link>
       </section>
       <div className="card stack biz-find">
         <div className="section-title"><span className="icon-chip sm"><Icon name="search" size={16} /></span>Already on Trusted Picks?</div>
         <p className="small muted">Many local places are listed already. Find yours and claim it for free.</p>
         <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Your shop's name" aria-label="Find your shop" />
+        {searching && <p className="small muted" role="status">Finding matching shops…</p>}
+        {searchError && <p className="notice warn" role="alert">We could not search right now. Try editing the name, or come back shortly before creating another listing.</p>}
         {found && (found.length ? found.map((f) => (
           <Link key={f.id} to={`/claim/${f.id}`} className="biz-found">
             <span className="grow stack tight"><span className="strong ellipsis">{f.name}</span><span className="tiny muted">{[f.area, f.city].filter(Boolean).join(" · ")}</span></span>

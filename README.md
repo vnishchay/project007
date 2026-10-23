@@ -1,5 +1,16 @@
 # Trusted Picks
 
+## Connected customer journey (24 October 2026)
+
+Trusted Picks brings together discovery, item feedback, service and loyalty. The business page describes that complete product; customer recovery remains one capability within it. Existing plan prices and entitlements are unchanged.
+
+- A table QR opens **Explore menu** (or the shop's catalog). Browsing and shortlisting do not require sign-in or register a visit. Customers can combine a shop-supplied dietary tag with a maximum listed item price, shortlist up to five items, see the listed-price estimate, and carry those selections into feedback. The estimate includes one of each priced item and excludes additional charges; customers place orders with staff. Picks are stored in that browser for six hours.
+- **Your visit** groups table service, trackable help, available deals, personal offers and stamp cards. **Feedback** keeps reviewing separate from rewards. Review links open directly to Feedback. Existing review authorization and subscription rules still apply.
+- The owner home balances scanner activity, customer reviews and personal-offer redemptions, with a Choose / Experience / Return overview and direct actions. Scan activity and offer redemption remain engagement measures, not claimed additional sales.
+- Pages load by route, so customer entry points do not eagerly download the complete owner and admin interface. The build checks bootstrap JavaScript, including shared preloads, against a 650 kB raw budget. Route-specific code is additional and loads when needed.
+
+No new database migration is needed for this release. Browser validation (`npm run test:recovery:ui`) covers signed-out browsing, combined filters, shortlist restoration, help resolution, owner navigation and out-of-order shop-search responses, using isolated fixture APIs.
+
 ## Customer help and recovery rollout (24 October 2026)
 
 The owner product now prioritizes resolving customer problems. The QR landing has **Need help with your visit?**, independent of public reviews; **Tell the shop now** opens that same trackable flow. Existing **Call staff** and **Get the bill** actions stay on the table-service board. A visit-authorized help request enters **Owner app > Customer help** with a responsible-person label, a 30-minute internal follow-up target, internal notes, a customer-facing response, recovery costs, and optional purchase records with unique bill references. Customers track requests at `/help/<shop id>` (or **Me > Your help requests**) and can confirm a fix or reopen the case. Their account ID, public reviews and marketing preferences are not exposed or attached to the owner's case. Contact details require explicit consent. A guest must keep the same browser session; the tracking URL is not an authentication token.

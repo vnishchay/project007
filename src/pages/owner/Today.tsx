@@ -4,6 +4,7 @@ import { Icon, type IconName } from "../../components/ui";
 import { printed } from "../../components/manage/Insights";
 import { bizOf } from "../../lib/modes";
 import { useOwner, type Section } from "./OwnerApp";
+import "../../styles/journey.css";
 
 /** Everything the Today screen shows, from owner_today(). Counts only, never who. */
 export interface OwnerToday {
@@ -38,7 +39,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
 
   useEffect(() => {
     let alive = true;
-    supabase.from("items").select("id", { count: "exact", head: true }).eq("place_id", place.id).then(({ count, error }) => { if (alive) setItems(error ? null : count ?? 0); });
+    supabase.from("items").select("id", { count: "exact", head: true }).eq("place_id", place.id).eq("is_hidden", false).then(({ count, error }) => { if (alive) setItems(error ? null : count ?? 0); });
     return () => { alive = false; };
   }, [place.id]);
 
@@ -94,12 +95,23 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
           </div>
         ) : (
           <div className="ow-kpis three">
-            <Kpi icon="message" label="Open help requests" value={t.recovery_open == null ? "–" : n(t.recovery_open)} sub={t.recovery_overdue ? `${t.recovery_overdue} past target` : "Check the help queue"} alert={Boolean(t.recovery_overdue)} onClick={() => go("help")} />
-            <Kpi icon="checkCircle" label="Customer confirmed" value={t.recovery_confirmed_30d == null ? "–" : n(t.recovery_confirmed_30d)} sub="resolved in last 30 days" onClick={() => go("help")} />
             <Kpi icon="people" label="People who scanned" value={n(t.visitors_today)} sub="today · not total footfall" onClick={() => go("customers")} />
+            <Kpi icon="star" label="Customer reviews" value={n(t.reviews_7d)} sub="last 7 days · item and visit ratings" onClick={() => go("reviews")} />
+            <Kpi icon="gift" label="Personal offers used" value={n(t.offers_used_7d)} sub="from offers sent in last 7 days" onClick={() => go("messages")} />
           </div>
         )}
       </section>
+
+      {!starting && <section className="ow-card journey-owner" aria-labelledby="journey-title">
+        <div className="ow-card-h"><span className="icon-chip sm"><Icon name="store" size={16} /></span><h2 id="journey-title">Your customer journey</h2></div>
+        <p className="small muted">Connect what customers choose, how you look after them, and what gives them a reason to return.</p>
+        <div className="journey-owner-grid">
+          <button className="journey-owner-step" onClick={() => go("menu")}><span className="journey-eyebrow">01 · Choose</span><strong>{items == null ? 'Your menu' : `${items} catalog items`}</strong><span>Keep descriptions and prices useful before customers order.</span><b>Improve your {catalogWord}<Icon name="chev" size={15} /></b></button>
+          <button className="journey-owner-step" onClick={() => go("help")}><span className="journey-eyebrow">02 · Experience</span><strong>{t.recovery_open == null ? 'Customer help' : `${t.recovery_open} open help requests`}</strong><span>{t.recovery_confirmed_30d == null ? 'Follow through on feedback and check the outcome.' : `${t.recovery_confirmed_30d} customer-confirmed fixes, resolved in the last 30 days.`}</span><b>Look after customers<Icon name="chev" size={15} /></b></button>
+          <button className="journey-owner-step" onClick={() => go("deals")}><span className="journey-eyebrow">03 · Return</span><strong>{t.deals_live} active deals</strong><span>Personal offers sent in the last 7 days: {t.offers_7d} sent → {t.offers_seen_7d} seen → {t.offers_used_7d} used.</span><b>Manage offers & loyalty<Icon name="chev" size={15} /></b></button>
+        </div>
+        <p className="tiny muted">Offer use records engagement; it does not establish additional sales. Review costs and the break-even estimate under How you're doing.</p>
+      </section>}
 
       <div className="ow-grid">
         <div className="ow-col">
@@ -114,7 +126,7 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
             </section>
           ) : (
             <section className="ow-card ow-o1" aria-label="All caught up">
-              <div className="ow-clear"><span className="icon-chip lg"><Icon name="checkCircle" size={24} /></span><b>All caught up</b><span className="small muted">Nothing waiting for you. Enjoy your day.</span></div>
+              <div className="ow-clear"><span className="icon-chip lg"><Icon name="checkCircle" size={24} /></span><b>Service is caught up</b><span className="small muted">Put the next visit in focus. Keep your menu fresh and your offers useful.</span><button className="btn ghost" onClick={() => go(t.deals_live ? 'menu' : 'deals')}>{t.deals_live ? 'Review your menu' : 'Create your first deal'}</button></div>
             </section>
           )}
 

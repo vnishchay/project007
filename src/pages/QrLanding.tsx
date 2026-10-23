@@ -21,6 +21,7 @@ import { VisitBadge } from "../components/VisitBadge";
 import { useVisitProof } from "../lib/visits";
 import { CustomerHelp } from "../components/CustomerHelp";
 import "../styles/review.css";
+import "../styles/journey.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
 interface Visit { visit_id: string; expires_at: string }
@@ -58,9 +59,11 @@ function friendly(e: unknown): string {
 export default function QrLanding({ link = false }: { link?: boolean }) {
   const footRef = useFootSpace<HTMLDivElement>();
   const helpRef = useRef<HTMLDetailsElement>(null);
+  const shortlistRef = useRef<HTMLElement>(null);
   const { token = "" } = useParams();
   // An NFC table tag opens this same page with a one-time signed tap (picc + cmac) instead of a plain scan.
   const [search] = useSearchParams();
+  const visitView = search.get('view') === 'visit';
   const tap = !link && search.get("picc") && search.get("cmac") ? { picc: search.get("picc")!, cmac: search.get("cmac")! } : null;
   const { session, loading, startGuest } = useAuth();
   const navTo = useNavigate();
@@ -97,6 +100,11 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const [menu, setMenu] = useState<ShopItem[]>([]);
   const [menuQ, setMenuQ] = useState("");
   const [menuAll, setMenuAll] = useState(false);
+  const [stage, setStage] = useState<'browse' | 'visit' | 'review'>(visitView ? 'visit' : link ? 'review' : 'browse');
+  const [dietFilter, setDietFilter] = useState('');
+  const [budget, setBudget] = useState('');
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState(false);
   // One visit per code per signed-in user per page view (StrictMode runs effects twice).
   const scannedFor = useRef<string | null>(null);
   const unlockFn = link ? "redeem_review_link" : "scan_qr";
@@ -132,6 +140,9 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     let alive = true;
     setPeek(undefined);
     setPeekErr("");
+    setStage(visitView ? 'visit' : link ? 'review' : 'browse'); setMenu([]); setSpecials([]); setSaid({}); setSelectedIds([]);
+    setVisit(null); setRefused(null); setLater(null); setLogo(null); setMode(null); setCurrency(null); setScanErr('');
+    setMenuLoading(true); setMenuError(false); setDietFilter(''); setBudget(''); setMenuQ(''); setMenuAll(false);
     supabase.rpc(link ? "peek_review_link" : "peek_qr", { p_token: token }).then(async ({ data, error }) => {
       if (!alive) return;
       if (error) { setPeekErr(friendly(error)); return; }
@@ -150,16 +161,19 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
             if (raw.startsWith("{")) {
               const parsed = JSON.parse(raw);
               if (parsed.expiresAt > Date.now() && Array.isArray(parsed.ids)) {
-                setSelectedIds(parsed.ids);
+                setSelectedIds([...new Set<string>(parsed.ids.filter((id: unknown) => typeof id === 'string'))].slice(0, MAX_TAGGED));
               }
             } else if (raw) {
               setSelectedIds([raw]);
             }
           }
         } catch {}
-        loadShopItems(pk.place_id).then(async ({ items }) => {
-          if (!alive || !items.length) return;
+        loadShopItems(pk.place_id).then(async ({ items, error }) => {
+          if (!alive) return;
+          setMenuLoading(false); setMenuError(Boolean(error));
+          if (!items.length) return;
           const ordered = [...items].sort((x, y) => x.sort_order - y.sort_order || x.name.localeCompare(y.name));
+          setSelectedIds((ids) => ids.filter((id) => ordered.some((it) => it.id === id)));
           setSpecials(ordered.filter((it) => it.is_listed).slice(0, 6));
           setMenu(ordered);
           try {
@@ -177,12 +191,12 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           } catch {
             if (alive) setSaid({});
           }
-        }).catch(() => {});
+        }).catch(() => { if (alive) { setMenuLoading(false); setMenuError(true); } });
       }
       setPeek(pk);
     }, (e: unknown) => { if (alive) setPeekErr(friendly(e)); });
     return () => { alive = false; };
-  }, [token, peekTry, link]);
+  }, [token, peekTry, link, visitView]);
 
   const toggleSelected = (item: ShopItem) => {
     if (!peek?.place_id) return;
@@ -346,14 +360,19 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
 
   const q = menuQ.trim().toLowerCase();
   const hasSaid = Object.values(said).some((x) => x.count >= MIN_SAID);
-  const matched = q ? menu.filter((it) => `${it.name} ${it.description || ""}`.toLowerCase().includes(q)) : menu;
+  const withinBudget = budget.trim() !== '' && Number.isFinite(Number(budget)) && Number(budget) >= 0;
+  const matched = menu.filter((it) => (!q || `${it.name} ${it.description || ""}`.toLowerCase().includes(q))
+    && (!dietFilter || it.diet?.includes(dietFilter)) && (!withinBudget || (it.price_inr != null && it.price_inr <= Number(budget))));
+  const selectedItems = menu.filter((it) => selectedIds.includes(it.id));
+  const pricedItems = selectedItems.filter((it) => it.price_inr != null);
+  const estimate = pricedItems.reduce((sum, it) => sum + Number(it.price_inr), 0);
   const found = lovedFirst && hasSaid ? [...matched].sort((a, b) => lovedRank(said[b.id]) - lovedRank(said[a.id])) : matched;
   const shown = q || menuAll ? found : found.slice(0, MENU_FIRST);
   const saidLine = (id: string) => {
     const x = said[id];
     if (!x) return null;
     return x.count >= MIN_SAID
-      ? <span className="rvx-said"><Icon name="heart" size={12} fill="currentColor" />{x.lovedPct}% of {x.count} loved it</span>
+      ? <span className="rvx-said"><Icon name="heart" size={12} fill="currentColor" />{x.lovedPct}% loved it · {x.count} recent ratings</span>
       : <span className="rvx-said new">New</span>;
   };
   const busy = scanning || starting;
@@ -371,6 +390,16 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         </div>
       </header>
 
+      <nav className="visit-modes" aria-label="Your visit">
+        <button type="button" aria-pressed={stage === 'browse'} aria-controls="visit-menu" onClick={() => setStage('browse')}><Icon name="box" size={20} />Explore {catalog.toLowerCase()}</button>
+        <button type="button" aria-pressed={stage === 'visit'} aria-controls="visit-service" onClick={() => setStage('visit')}><Icon name="gift" size={20} />Your visit</button>
+        <button type="button" aria-pressed={stage === 'review'} aria-controls="visit-feedback" onClick={() => setStage('review')}><Icon name="star" size={20} />Feedback</button>
+      </nav>
+      {stage === 'browse' && <div className="visit-intro"><div><h2>{isFood ? 'Find your next favourite' : 'Choose what suits you'}</h2><p>Explore prices and item feedback. Keep up to {MAX_TAGGED} picks in your shortlist.</p></div><button className="btn ghost small" onClick={() => setStage('visit')}>Need help?</button></div>}
+
+      <div className="visit-panel" id="visit-service" hidden={stage !== 'visit'}>
+      <div className="visit-intro"><div><h2>Make yourself at home</h2><p>Get help, check available offers, and collect visit rewards without leaving a review.</p></div></div>
+      {guestOff && !session && <div className="notice"><span>This shop needs you to sign in before sending a request.</span><Link className="btn green small" to={`/signin?next=${encodeURIComponent(`/${link ? 'r' : 'q'}/${token}?view=visit`)}`}>Sign in to get help</Link></div>}
       {!link && <TableService placeId={peek.place_id} shop={peek.place_name} table={peek.table_label ?? null} food={isFood} ensureVisit={prepareHelp}
         onHelp={() => { if (helpRef.current) { helpRef.current.open = true; helpRef.current.querySelector('summary')?.focus(); helpRef.current.scrollIntoView({ block: 'start' }); } }} />}
       <details className="help-entry" ref={helpRef}>
@@ -381,13 +410,18 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
 
       <TreatsRail placeId={peek.place_id} placeName={peek.place_name} currency={currency} onCollect={collectStamp} />
       <ForYouHere placeId={peek.place_id} placeName={peek.place_name} signedIn={Boolean(session)} newsOnly />
+      </div>
 
+      <div className="visit-panel" id="visit-menu" hidden={stage !== 'browse'}>
+      {menuLoading && <p role="status" className="notice">Loading the {catalog.toLowerCase()}…</p>}
+      {menuError && <div className="notice warn" role="alert">The {catalog.toLowerCase()} could not load.<button type="button" className="btn ghost small" onClick={() => setPeekTry((n) => n + 1)}>Try again</button></div>}
+      {!menuLoading && !menuError && menu.length === 0 && <p className="notice">This shop has not added its {catalog.toLowerCase()} yet. Ask the staff what is available, or open Your visit for help.</p>}
       {menu.length > 0 && (
         <section className="rvx-sec" aria-label={catalog}>
           <div className="rvx-row"><h3>{catalog}</h3>
-            <span aria-live="polite" className={full ? "rvx-full" : ""}>{full ? `Up to ${MAX_TAGGED} at a time` : selectedIds.length ? `${selectedIds.length} of ${MAX_TAGGED} picked` : isFood ? "Tap what you're having" : "Tap what you got"}</span>
+            <span aria-live="polite" className={full ? "rvx-full" : ""}>{full ? `Up to ${MAX_TAGGED} at a time` : selectedIds.length ? `${selectedIds.length} of ${MAX_TAGGED} shortlisted` : "Tap to shortlist"}</span>
           </div>
-          {specials.length > 0 && !q && (
+          {specials.length > 0 && !q && !dietFilter && !withinBudget && (
             <>
               <span className="rvx-sub"><Icon name="star" size={14} />Chosen by the shop</span>
               <div className="rvx-scroll">{specials.map((it) => renderCard(it))}</div>
@@ -404,6 +438,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
               <button type="button" className={`rvx-chip ${lovedFirst ? "on" : ""}`} aria-pressed={lovedFirst} onClick={() => setLovedFirst((v) => !v)}><Icon name="heart" size={14} />Most loved first</button>
             </div>
           )}
+          <div className="visit-filters" role="group" aria-label="Diet preferences">
+            {([['veg', 'Vegetarian'], ['vegan', 'Vegan'], ['jain', 'Jain'], ['egg', 'Contains egg']] as const).filter(([id]) => menu.some((it) => it.diet?.includes(id))).map(([id, label]) => <button key={id} type="button" className={`chip ${dietFilter === id ? 'on' : ''}`} aria-pressed={dietFilter === id} onClick={() => setDietFilter((cur) => cur === id ? '' : id)}>{label}</button>)}
+          </div>
+          {menu.some((it) => it.price_inr != null) && <label className="field" style={{ marginBottom: 14 }}><span className="small strong">Maximum listed price per item ({currency || 'INR'})</span><input className="input" type="number" inputMode="decimal" min="0" step="any" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Any price" /><span className="tiny muted">Items without a listed price are hidden when a maximum is set. Diet tags come from the shop.</span></label>}
           <div className="rvx-menu">
             {shown.map((it) => {
               const on = selectedIds.includes(it.id);
@@ -416,7 +454,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
                 </button>
               );
             })}
-            {q && !found.length && <p className="rvx-mrow" style={{ cursor: "default", color: "var(--muted)" }}>No match for "{menuQ.trim()}". You can type it in later.</p>}
+            {!found.length && <div className="notice"><span>No items match these filters.</span><button className="btn ghost small" onClick={() => { setMenuQ(''); setBudget(''); setDietFilter(''); }}>Clear filters</button></div>}
           </div>
           {!q && !menuAll && found.length > MENU_FIRST && (
             <button type="button" className="rvx-more" onClick={() => setMenuAll(true)}><Icon name="down" size={16} />Show all {found.length}</button>
@@ -424,6 +462,17 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         </section>
       )}
 
+      </div>
+      {stage !== 'visit' && selectedItems.length > 0 && <section className="visit-shortlist" aria-label="Your shortlist" ref={shortlistRef}>
+        <div className="row"><Icon name="heart" size={18} /><h3>Your shortlist</h3><span className="grow" /><span className="small">{selectedItems.length}/{MAX_TAGGED}</span></div>
+        <ul>{selectedItems.map((it) => <li key={it.id}><span>{it.name}</span><strong>{formatPrice(it.price_inr, currency) || 'Ask for price'}</strong><button type="button" aria-label={`Remove ${it.name} from shortlist`} onClick={() => toggleSelected(it)}><Icon name="close" size={16} /></button></li>)}</ul>
+        {pricedItems.length > 0 && <p>Listed-price estimate: <strong>{formatPrice(estimate, currency)}</strong> for {pricedItems.length} of {selectedItems.length} picks, one of each. Additional charges may apply.</p>}
+        <p>Ask the staff to place your order. Your picks stay in this browser for six hours and carry into your feedback.</p>
+        {stage === 'browse' && <button className="btn ghost" onClick={() => setStage('review')}>Leave feedback when you’re ready<Icon name="star" size={16} /></button>}
+      </section>}
+
+      <div className="visit-panel" id="visit-feedback" hidden={stage !== 'review'}>
+      <div className="visit-intro"><div><h2>How was your visit?</h2><p>Rate your experience and the items you tried. Your feedback is independent of offers and rewards.</p></div></div>
       <section className="rvx-sec" aria-label="Your review">
         <div aria-live="polite">
           {loading ? <Spinner /> : refused ? (
@@ -457,8 +506,10 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         )}
       </section>
 
-      {!loading && (
+      </div>
+      {!loading && (stage === 'review' || (stage === 'browse' && selectedItems.length > 0)) && (
         <div className="rvx-foot" ref={footRef}>
+          {stage === 'browse' ? <div className="visit-browse-foot"><span><strong>{selectedItems.length} {selectedItems.length === 1 ? 'pick' : 'picks'} shortlisted</strong><small>No sign-in needed to explore</small></span><button className="btn green" onClick={() => shortlistRef.current?.scrollIntoView({ block: 'center' })}>See shortlist<Icon name="chev" size={16} /></button></div> : <>
           {refused ? (
             refused === "guest_used"
               ? <Link to={`/signin?next=${encodeURIComponent(`/review/${peek.place_id}`)}`} className="rvx-cta"><span>Sign in to rate more</span><Icon name="chev" size={20} /></Link>
@@ -476,7 +527,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           {!refused && (
             <button type="button" className="rvx-trust" aria-expanded={showPerks} onClick={() => setShowPerks((v) => !v)}>
               <span><Icon name="eyeOff" size={14} />{session || guestOff ? "Anonymous unless you choose" : "No account"}</span>
-              <span><Icon name="verified" size={14} />Verified visit</span>
+              <span><Icon name="shield" size={14} />Visit-based reviews</span>
               {!link && <span><Icon name="pin" size={14} />Checks you're here</span>}
               <span className="more"><Icon name="info" size={14} />{showPerks ? "Less" : "More"}</span>
             </button>
@@ -491,6 +542,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
             </ul>
           )}
           <Link to={`/p/${peek.place_id}`} className="rvx-link"><Icon name="eye" size={16} />See reviews</Link>
+          </>}
         </div>
       )}
     </div>

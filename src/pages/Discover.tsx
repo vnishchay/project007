@@ -234,7 +234,8 @@ export default function Discover() {
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="hero-sub"><Glyph name={hi.icon} size={16} />{hi.text}{firstName && signedIn ? `, ${firstName}` : ""}</span>
-          <h1>{q ? <>Best {q} {nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}</> : "What are you looking for?"}</h1>
+          <h1>{q ? <>Best {q} {nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}</> : "Find your next favourite"}</h1>
+          {!q && <p className="small muted" style={{ margin: 0 }}>Explore dishes, services and products with item-level reviews. Browse freely, then keep the picks you love.</p>}
         </div>
         <form className="search" onSubmit={submit} role="search">
           <Icon name="search" color="var(--muted)" />
@@ -326,7 +327,7 @@ export default function Discover() {
         {!loading && !signedIn && (
           <Link to="/signin" className="callout violet">
             <Chip icon="people" tone="violet" size="sm" />
-            <span className="grow small strong">Rank by friends' ratings</span>
+            <span className="grow small strong">Save your picks and connect with friends</span>
             <Icon name="login" size={18} />
           </Link>
         )}
@@ -356,7 +357,7 @@ export default function Discover() {
         <Chip icon="store" size="lg" />
         <span className="grow stack tight">
           <span className="strong">List your business</span>
-          <span className="tiny">Item reviews and your own review QR</span>
+          <span className="tiny">Discovery, feedback, customer help and loyalty</span>
         </span>
         <Icon name="chev" size={18} />
       </Link>

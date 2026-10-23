@@ -152,7 +152,9 @@ export function useFootSpace<T extends HTMLElement>() {
     if (!el) { root.style.removeProperty("--foot-h"); return; }
     const set = () => { if (el.isConnected) root.style.setProperty("--foot-h", `${Math.ceil(el.getBoundingClientRect().height)}px`); };
     set();
-    if (typeof ResizeObserver !== "undefined") new ResizeObserver(set).observe(el);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(set) : null;
+    observer?.observe(el);
+    return () => { observer?.disconnect(); root.style.removeProperty("--foot-h"); };
   }, []);
 }
 
