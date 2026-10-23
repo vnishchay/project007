@@ -1,0 +1,252 @@
+/* Owner app: its own look, apart from the diner app. Dark slate frame, indigo accent, cool page,
+   data first. Phones: dark top bar + bottom tabs. Desktop (>= 960px): dark sidebar + wide dashboard.
+   Contrast: indigo #4338ca is 7.4:1 under white text; slate-400 text on the slate-900 frame is 6.9:1. */
+.app.owner-app { max-width: none; }
+
+.ow {
+  --accent: #4338ca;
+  --accent-dark: #3730a3;
+  --accent-soft: rgba(67, 56, 202, 0.09);
+  --ow-frame: #0f172a;
+  --ow-frame-2: #1e293b;
+  --ow-frame-ink: #e2e8f0;
+  --ow-frame-muted: #94a3b8;
+  --ow-page: #eef2f7;
+  --ow-up: #15803d;
+  --ow-down: #b91c1c;
+  min-height: 100dvh;
+  background: var(--ow-page);
+  display: flex;
+}
+.ow :focus-visible { outline-color: var(--accent); }
+.ow .chip.on { background: var(--ow-frame); }
+
+/* ---------- Frame ---------- */
+.ow-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ow-top {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: var(--ow-frame); color: #fff;
+}
+.ow-top b { font-size: 16px; }
+.ow-top small { font-size: 12px; color: var(--ow-frame-muted); }
+.ow-top-shop { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: #fff; }
+.ow-top-shop:hover { color: #fff; }
+.ow-top-title { display: none; }
+.ow-icon {
+  width: 44px; height: 44px; flex: none; border-radius: 12px; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: rgba(255, 255, 255, 0.08); color: #fff;
+  transition: background 0.15s var(--ease);
+}
+.ow-icon:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.ow-brand-t { font-weight: 700; }
+.ow-content { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; }
+.ow-content.narrow { max-width: 520px; padding-top: calc(28px + env(safe-area-inset-top)); gap: 18px; }
+
+.ow-status { display: inline-flex; align-items: center; gap: 6px; }
+.ow-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #64748b; }
+.ow-status.live::before { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); }
+.ow-status.paused::before, .ow-status.lapsed::before { background: #f59e0b; }
+.ow-status.removed::before { background: #ef4444; }
+
+.ow-shop-logo { width: 40px; height: 40px; flex: none; border-radius: 11px; overflow: hidden; display: grid; place-items: center; background: var(--ow-frame-2); color: var(--ow-frame-ink); font-weight: 700; font-size: 14px; }
+.ow-shop-logo.sm { width: 36px; height: 36px; border-radius: 10px; }
+.ow-shop-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ow-list .ow-shop-logo { background: var(--surface); color: var(--ink-2); }
+
+/* Bottom tabs (phones) */
+.ow-tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.ow-tabs a {
+  min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  border-radius: 12px; color: var(--ow-frame-muted); font-size: 11.5px; font-weight: 600;
+}
+.ow-tabs a:hover { color: #fff; }
+.ow-tabs a.on { color: #fff; }
+.ow-tabs a.on .ow-tab-ico { background: rgba(129, 140, 248, 0.22); }
+.ow-tab-ico { position: relative; width: 52px; height: 30px; border-radius: 999px; display: grid; place-items: center; transition: background 0.2s var(--ease); }
+.ow-dot { position: absolute; top: 3px; right: 12px; width: 9px; height: 9px; border-radius: 50%; background: #f97316; box-shadow: 0 0 0 2px var(--ow-frame); }
+
+/* Sidebar (desktop) */
+.ow-side { display: none; }
+
+/* ---------- Building blocks ---------- */
+.ow-card { background: var(--card); border-radius: 18px; padding: 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.04); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ow-card-h { display: flex; align-items: center; gap: 10px; }
+.ow-card-h h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.ow-count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: #f97316; color: #fff; font-size: 12px; font-weight: 700; display: inline-grid; place-items: center; }
+.ow-list { display: flex; flex-direction: column; }
+.ow-list.flush { padding: 4px 0; gap: 0; }
+.ow-row {
+  display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 4px;
+  background: none; border: 0; border-top: 1px solid var(--line-soft); width: 100%; text-align: left; cursor: pointer; color: var(--ink); font: inherit;
+}
+.ow-list .ow-row:first-child { border-top: 0; }
+.ow-list.flush .ow-row { padding: 8px 16px; }
+.ow-row:hover { background: rgba(15, 23, 42, 0.03); color: var(--ink); }
+.ow-row b { font-weight: 600; font-size: 15px; }
+.ow-row small { font-size: 13px; line-height: 1.35; }
+.ow-row.done { color: var(--muted); cursor: default; }
+.ow-row.done span.grow { text-decoration: line-through; }
+.ow-tick { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-dark); }
+.ow-row.done .ow-tick { background: var(--ow-up); color: #fff; }
+.ow-meter { height: 6px; border-radius: 999px; background: var(--surface); overflow: hidden; }
+.ow-meter span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.4s var(--ease); }
+.ow-clear { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 6px; text-align: center; }
+.ow-clear .icon-chip { background: linear-gradient(var(--good-soft), var(--good-soft)), #fff; color: var(--good-dark); }
+.ow-banner { border: 0; text-align: left; cursor: pointer; font: inherit; width: 100%; }
+.ow-foot { margin: 0; line-height: 1.45; }
+
+/* Segmented control (Offers: deals / messages) */
+.ow-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(15, 23, 42, 0.07); }
+.ow-seg button { min-height: 44px; border: 0; border-radius: 11px; background: none; font-weight: 600; font-size: 14px; color: var(--ink-2); display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; }
+.ow-seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+
+/* ---------- Today ---------- */
+.ow-today { display: flex; flex-direction: column; gap: 14px; }
+.ow-hello { background: linear-gradient(160deg, #1e1b4b 0%, #312e81 55%, #4338ca 100%); color: #fff; border-radius: 22px; padding: 18px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.ow-hello h1 { margin: 0; font-size: 24px; letter-spacing: -0.01em; }
+.ow-kicker { font-size: 13px; color: #c7d2fe; font-weight: 600; }
+.ow-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ow-kpi {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; min-height: 96px;
+  border: 0; border-radius: 16px; background: rgba(255, 255, 255, 0.1); color: #fff; text-align: left; cursor: pointer; font: inherit;
+  transition: background 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.ow-kpi:hover { background: rgba(255, 255, 255, 0.16); }
+.ow-kpi:active { transform: scale(0.98); }
+.ow-kpi.alert { background: rgba(249, 115, 22, 0.28); }
+.ow-kpi-l { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #e0e7ff; }
+.ow-kpi-n { font-size: 30px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.ow-kpi-s { font-size: 12.5px; color: #c7d2fe; display: inline-flex; align-items: center; gap: 4px; }
+.ow-kpi-s .up { color: #86efac; font-weight: 700; }
+.ow-kpi-s .down { color: #fca5a5; font-weight: 700; }
+
+.ow-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.ow-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* Phones: one column in order of need: what needs you, the tools, then the numbers. */
+@media (max-width: 959px) {
+  .ow-col { display: contents; }
+  .ow-o1 { order: 1; } .ow-o2 { order: 2; } .ow-o3 { order: 3; } .ow-o4 { order: 4; } .ow-o5 { order: 5; } .ow-o6 { order: 6; } .ow-o7 { order: 7; }
+}
+
+.ow-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ow-action {
+  display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 4px; min-height: 84px;
+  border: 0; border-radius: 14px; background: var(--ow-page); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  max-width: 100%; transition: background 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.ow-action > span:last-child { max-width: 100%; }
+.ow-action:hover { background: #e2e8f0; }
+.ow-action:active { transform: scale(0.97); }
+
+.ow-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ow-stat { padding: 10px 12px; border-radius: 12px; background: var(--ow-page); display: flex; flex-direction: column; gap: 1px; }
+.ow-stat b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.ow-stat small { font-size: 12.5px; color: var(--muted); }
+.ow-stat.good b { color: var(--ow-up); }
+
+.ow-plan { flex-direction: row; align-items: center; border: 0; cursor: pointer; font: inherit; color: var(--ink); text-align: left; }
+.ow-plan:hover { color: var(--ink); background: #fafbff; }
+
+/* Visitors chart: one series, indigo, 4px rounded tops, 2px gaps, baseline-anchored. */
+.ow-tip { min-height: 20px; }
+.ow-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 2px; align-items: end; height: 132px; border-bottom: 1px solid var(--line); }
+.ow-bar { height: 100%; display: flex; align-items: flex-end; padding: 0 1px; border: 0; background: none; cursor: pointer; border-radius: 6px 6px 0 0; }
+.ow-bar span { display: block; width: 100%; border-radius: 4px 4px 0 0; background: #a5b4fc; transition: background 0.15s var(--ease); }
+.ow-bar.now span { background: var(--accent); }
+.ow-bar.hot, .ow-bar:hover { background: rgba(67, 56, 202, 0.06); }
+.ow-bar.hot span, .ow-bar:hover span { background: var(--accent-dark); }
+.ow-axis { display: flex; justify-content: space-between; }
+
+/* ---------- More ---------- */
+.ow-group-h { margin: 0 4px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ow-tiles { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.ow-tile {
+  display: flex; align-items: center; gap: 12px; padding: 14px; min-height: 72px; text-align: left;
+  border: 0; border-radius: 16px; background: var(--card); cursor: pointer; font: inherit; color: var(--ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.ow-tile:hover { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.06); }
+.ow-tile:active { transform: scale(0.98); }
+.ow-tile b { font-size: 15px; }
+.ow-tile small { font-size: 13px; line-height: 1.35; }
+
+/* ---------- Start (pick a shop) ---------- */
+.ow-start { background: radial-gradient(120% 60% at 50% 0%, #1e1b4b 0%, var(--ow-page) 60%); }
+.ow-brand { display: flex; align-items: center; gap: 10px; color: #fff; }
+.ow-brand b { font-size: 15px; }
+.ow-brand small { font-size: 12px; color: var(--ow-frame-muted); }
+.ow-brand-mark { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, #6366f1, #4338ca); color: #fff; flex: none; }
+.ow-brand.big { justify-content: center; }
+.ow-brand.big b { font-size: 18px; }
+.ow-start-h { margin: 0 4px; font-size: 22px; color: #fff; }
+.ow-empty { align-items: center; text-align: center; padding: 28px 20px; }
+.ow-empty h1 { margin: 0; font-size: 21px; }
+.ow-empty p { margin: 0; max-width: 300px; }
+
+/* The shared Manage panels inside the owner frame. */
+.ow .mg-hero { margin: 0; }
+
+/* ---------- Tablet ---------- */
+@media (min-width: 600px) {
+  .ow-content { padding-left: 24px; padding-right: 24px; }
+  .ow-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ow-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ow-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ow-actions { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* ---------- Desktop: sidebar + dashboard ---------- */
+@media (min-width: 960px) {
+  .ow-tabs { display: none; }
+  .ow { background: linear-gradient(to right, var(--ow-frame) 264px, var(--ow-page) 264px); }
+  .ow-content { padding: 24px 32px 48px; gap: 18px; }
+  .ow-side {
+    position: sticky; top: 0; height: 100dvh; width: 264px; flex: none;
+    display: flex; flex-direction: column; gap: 14px; padding: 20px 14px;
+    background: var(--ow-frame); color: var(--ow-frame-ink); overflow-y: auto;
+  }
+  .ow-brand { padding: 0 6px; }
+  .ow-shop { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; background: var(--ow-frame-2); color: #fff; }
+  .ow-shop:hover { color: #fff; background: #26344d; }
+  .ow-shop small { font-size: 12px; color: var(--ow-frame-muted); }
+  .ow-side-nav { display: flex; flex-direction: column; gap: 2px; }
+  .ow-side-nav a { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 11px; color: var(--ow-frame-muted); font-weight: 600; font-size: 14.5px; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
+  .ow-side-nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+  .ow-side-nav a.on { color: #fff; background: rgba(129, 140, 248, 0.2); }
+  .ow-side-h { margin: 14px 12px 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
+  .ow-side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid rgba(148, 163, 184, 0.18); padding-top: 10px; }
+  .ow-side-foot a { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: var(--ow-frame-muted); font-size: 14px; font-weight: 600; }
+  .ow-side-foot a:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+
+  /* The top bar turns into a light page header: title left, quick tools right. */
+  .ow-top { background: var(--ow-page); color: var(--ink); padding: 18px 32px 0; position: static; }
+  .ow-top .ow-top-shop, .ow-top > .ow-icon[aria-label="Back"], .ow-top > .grow { display: none; }
+  .ow-top-title { display: block; flex: 1; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+  .ow-top .ow-icon { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08); }
+  .ow-top .ow-icon:hover { background: #fff; color: var(--accent); }
+
+  .ow-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  .ow-hello { flex-direction: row; align-items: center; padding: 20px; }
+  .ow-hello-head { flex: 0 0 200px; }
+  .ow-kpis { flex: 1; }
+  .ow-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ow-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ow-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ow-bars { height: 168px; }
+
+  /* Single-column panels (forms, lists) read better at a comfortable width. */
+  .ow-content > :not(.ow-today):not(.ow-wide) { max-width: 760px; width: 100%; }
+  .ow-start .ow-content.narrow > * { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ow *, .ow *::before { transition: none !important; }
+}

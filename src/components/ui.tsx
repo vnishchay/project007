@@ -85,8 +85,10 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => { if (account) clearFocusShop(); }, [account, loc.pathname]);
   const shop = account || loading ? null : focusShop();
   const tabbed = !shop && TAB_ROOTS.includes(loc.pathname);
+  // The owner app has its own full-width shell (sidebar on desktop, its own tab bar on phones).
+  const owner = loc.pathname === "/owner" || loc.pathname.startsWith("/owner/");
   return (
-    <div className={`app ${tabbed ? "tabbed" : ""}`}>
+    <div className={`app ${tabbed ? "tabbed" : ""} ${owner ? "owner-app" : ""}`}>
       {authError && loc.pathname !== "/signin" && (
         <div className="notice err row no-print" style={{ margin: "12px 20px 0" }} role="alert">
           <span className="grow">Sign-in didn't finish: {authError}. <Link to="/signin">Try again</Link></span>
@@ -114,11 +116,12 @@ function InviteAcceptor() {
   return null;
 }
 
-export function TopBar({ title, sub, right, tone }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; tone?: "hero" | "sunset" }) {
+/** back: where Back goes when the page was opened directly (no history in the app). */
+export function TopBar({ title, sub, right, tone, back = "/" }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; tone?: "hero" | "sunset"; back?: string }) {
   const nav = useNavigate();
   return (
     <div className={tone ? `topbar on-${tone}` : "topbar"}>
-      {!focusShop() && <button className="icon-btn" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>}
+      {!focusShop() && <button className="icon-btn" aria-label="Back" onClick={() => goBack(nav, back)}><Icon name="back" /></button>}
       <div className="grow">
         {title && <div className="strong ellipsis" style={{ fontSize: 16 }}>{title}</div>}
         {sub && <div className="tiny muted ellipsis">{sub}</div>}

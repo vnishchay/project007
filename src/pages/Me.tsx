@@ -193,8 +193,9 @@ export default function Me() {
           <InviteCard />
 
           <div className="menu">
+            {shops.length > 0 && <MenuRow to="/owner" icon="dashboard" tone="violet" title="Owner app" sub="Today's visitors, reviews to reply to, deals and QR codes" />}
             {shops.map((s) => (
-              <Link key={s.id} to={`/manage/${s.id}`} className="menu-row">
+              <Link key={s.id} to={`/owner/${s.id}`} className="menu-row">
                 <span className="thumb" style={{ width: 40, height: 40, borderRadius: 12 }}><Cover url={placeMediaUrl(s.logo_path) || placeMediaUrl(s.cover_path)} category={s.name} size={20} /></span>
                 <span className="grow stack tight" style={{ minWidth: 0 }}>
                   <span className="t ellipsis">{s.name}</span>
