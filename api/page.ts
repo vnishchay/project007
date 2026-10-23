@@ -118,7 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (kind === "robots") {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Cache-Control", "public, s-maxage=86400");
-    return res.send(["User-agent: *", "Allow: /", ...["/api/", "/q/", "/r/", "/review/", "/manage/", "/admin", "/saved/", "/me", "/signin", "/check"].map((p) => `Disallow: ${p}`), `Sitemap: ${origin}/sitemap.xml`, ""].join("\n"));
+    return res.send(["User-agent: *", "Allow: /", ...["/api/", "/q/", "/r/", "/review/", "/manage/", "/owner", "/admin", "/saved/", "/me", "/signin", "/check"].map((p) => `Disallow: ${p}`), `Sitemap: ${origin}/sitemap.xml`, ""].join("\n"));
   }
   if (kind === "sitemap") {
     res.setHeader("Content-Type", "application/xml; charset=utf-8");

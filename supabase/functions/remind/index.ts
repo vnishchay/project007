@@ -79,7 +79,7 @@ async function alertShop(db: ReturnType<typeof createClient>, id: string): Promi
     const payload = JSON.stringify({
       title: `${who} ${CALL[t.kind] ?? "needs you"}`,
       body: t.message || t.place_name,
-      url: `/manage/${t.place_id}?tab=live`,
+      url: `/owner/${t.place_id}/live`,
       tag: `call-${id}`,
       renotify: true,
     });

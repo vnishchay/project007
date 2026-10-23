@@ -1,4 +1,4 @@
-/* Table calls (migration 51): the diner's "Need something?" buttons and the shop's live board. */
+/* Table calls (migration 52): the diner's "Need something?" buttons and the shop's live board. */
 .sv .tone-sky, .lv .tone-sky { --t: #0062cc; --t-soft: rgba(0, 98, 204, 0.12); }
 .sv .tone-green, .lv .tone-green { --t: #1f7a36; --t-soft: rgba(31, 122, 54, 0.12); }
 .sv .tone-coral, .lv .tone-coral, .sv-sheet .tone-coral { --t: #c70d40; --t-soft: rgba(199, 13, 64, 0.12); }

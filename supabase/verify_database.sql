@@ -46,6 +46,7 @@ with needed(fn, params) as (values
   ('my_shop_updates', array['p_limit']::text[]),
   ('my_table_requests', array['p_place']::text[]),
   ('nfc_tag_setup', array['p_new_key', 'p_qr']::text[]),
+  ('owner_today', array['p_place']::text[]),
   ('owner_update_qr', array['p_active', 'p_label', 'p_qr']::text[]),
   ('peek_qr', array['p_token']::text[]),
   ('person_reviews', array['p_limit', 'p_user']::text[]),
