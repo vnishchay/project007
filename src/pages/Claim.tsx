@@ -35,7 +35,7 @@ export default function Claim() {
   if (name === null) return <div className="page"><Spinner /></div>;
   if (guest) return (
     <div className="page">
-      <TopBar title="Claim your shop" />
+      <TopBar back="/business" title="Claim your shop" />
       <div className="card rv-gate center">
         <span className="icon-chip lg" style={{ margin: "0 auto" }}><Icon name="store" size={26} /></span>
         <h2>Sign in to claim {name || "this shop"}</h2>
@@ -107,7 +107,7 @@ export default function Claim() {
 
   return (
     <div className="page">
-      <TopBar title="Claim your shop" sub={name || undefined} />
+      <TopBar back="/business" title="Claim your shop" sub={name || undefined} />
       {step < 3 && <div className="cl-dots" aria-label={`Step ${step + 1} of 3`}>{[0, 1, 2].map((i) => <span key={i} className={i <= step ? "on" : ""} />)}</div>}
       <div className="card rv-gate center cl-slide" key={step}>{slides[step]}</div>
       {step > 0 && step < 3 && <button className="btn quiet" onClick={() => setStep((s) => (s - 1) as Step)}><Icon name="back" size={16} />Back</button>}

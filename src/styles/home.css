@@ -122,6 +122,8 @@ a.menu-row:hover { color: inherit; }
 
 .stat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .stat-tile { border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 2px; background: rgba(255, 255, 255, 0.14); color: #fff; }
+.stat-tile.tap { border: 0; font: inherit; text-align: left; cursor: pointer; }
+.stat-tile.tap .l { display: inline-flex; align-items: center; gap: 2px; }
 .stat-tile .n { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .stat-tile .l { font-size: 12px; font-weight: 500; opacity: 0.8; }
 .stat-tiles.light .stat-tile { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }

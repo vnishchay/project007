@@ -212,10 +212,11 @@ export default function Discover() {
   const kindMode = type && type in MODES ? MODES[type as Kind] : null;
   const dishTitle = q ? `Best ${q}` : kindMode && type !== "food" ? `Most loved ${kindMode.itemPlural}` : `${type === "food" ? mealNow() : "Top"} picks ${nearYou ? "near you" : effective.kind === "all" ? "" : `in ${whereLabel(effective)}`}`.trim();
   const extraTopics = topics.filter((t) => !CATS.some((c) => c.label.toLowerCase() === t.name.toLowerCase() || c.q === t.name.toLowerCase()));
-  // Topics are dish names, so they sit with Food.
+  // Topics are mostly dish names, so they sit with Food; ones that look like a salon, spa or gym thing don't.
+  const NOT_FOOD = new Set<GlyphName>(["scissors", "spa", "dumbbell", "bag", "basket"]);
   const subCats: { label: string; q: string; icon: GlyphName }[] = [
     ...CATS.filter((c) => c.kind === type),
-    ...(type === "food" ? extraTopics.map((t) => ({ label: t.name, q: t.name, icon: lookFor(t.name).icon })) : []),
+    ...(type === "food" ? extraTopics.filter((t) => !NOT_FOOD.has(lookFor(t.name).icon)).map((t) => ({ label: t.name, q: t.name, icon: lookFor(t.name).icon })) : []),
   ];
 
   return (

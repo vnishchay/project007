@@ -3,9 +3,8 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { goBack } from "../lib/nav";
 import { supabase, PROFILE_COLS, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { useFollowing } from "../lib/follows";
 import type { Profile, ReviewRow } from "../lib/types";
-import { Avatar, Icon, Spinner, TopBar, useToast } from "../components/ui";
+import { Avatar, Icon, Spinner, TopBar } from "../components/ui";
 import { EmptyArt, Retry } from "../components/home/Kit";
 import "../styles/home.css";
 import { ReviewCard, REVIEW_SELECT } from "../components/ReviewCard";
@@ -18,9 +17,7 @@ export default function Person() {
   const { id = "" } = useParams();
   const { session } = useAuth();
   const me = session?.user.id;
-  const toast = useToast();
   const nav = useNavigate();
-  const { following, toggleFollow, pending } = useFollowing(me);
   const [p, setP] = useState<Profile | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [expertOn, setExpertOn] = useState<string[]>([]);
@@ -68,16 +65,9 @@ export default function Person() {
     </div>
   );
 
-  const on = following.has(id);
-  const busy = pending.has(id);
   const verified = reviews.filter((r) => r.verified).length;
   const name = p.display_name || "Someone";
 
-  async function toggle() {
-    if (!me) { toast("Sign in to follow people"); return; }
-    const e = await toggleFollow(id);
-    if (e) toast(e);
-  }
 
   return (
     <div className="page" style={{ gap: 18 }}>
@@ -85,12 +75,6 @@ export default function Person() {
         <div className="row">
           <button type="button" className="glass-btn round" aria-label="Back" onClick={() => goBack(nav)}><Icon name="back" /></button>
           <span className="grow" />
-          {me && on ? (
-            <button type="button" className={`btn small ${on ? "glass" : "white"}`} onClick={toggle} disabled={busy}
-              aria-pressed={on} aria-label={`${on ? "Following" : "Follow"} ${name}`} style={on ? undefined : { color: "#37609a" }}>
-              <Icon name={on ? "check" : "userPlus"} size={16} />{on ? "Following" : "Follow"}
-            </button>
-          ) : null}
         </div>
         <div className="row" style={{ gap: 14 }}>
           <Avatar id={p.id} name={p.display_name} path={p.avatar_path} size="lg" />

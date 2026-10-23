@@ -72,11 +72,11 @@ export default function Saved() {
   if (loadErr) return (
     <div className="page">
       <Retry msg={`Your review may be saved, but it couldn't be loaded: ${loadErr}`} onRetry={() => setReload((n) => n + 1)} />
-      <Link to="/me" className="btn ghost block"><Icon name="star" size={18} />See your reviews</Link>
+      <Link to="/picks" className="btn ghost block"><Icon name="star" size={18} />See your reviews</Link>
     </div>
   );
   if (r === undefined) return <div className="page"><Spinner /></div>;
-  if (!r) return <div className="page"><EmptyArt icon="ghost" tone="sky" title="Review not found"><Link to="/" className="btn ghost small"><Icon name="home" size={16} />Home</Link></EmptyArt></div>;
+  if (!r) return <div className="page"><TopBar back="/picks" /><EmptyArt icon="ghost" tone="sky" title="Review not found"><Link to="/" className="btn ghost small"><Icon name="home" size={16} />Home</Link></EmptyArt></div>;
 
   const gid = r.places?.google_place_id;
   const placeName = r.places?.name || "";

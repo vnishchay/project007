@@ -69,7 +69,7 @@ export default function AdminPlace() {
   }, [id]);
 
   if (p === undefined) return <div className="page"><Spinner /></div>;
-  if (!p) return <div className="page"><TopBar /><div className="empty"><h2>Place not found</h2></div></div>;
+  if (!p) return <div className="page"><TopBar back="/admin?tab=places" /><div className="empty"><h2>Place not found</h2></div></div>;
 
   const set = <K extends keyof Place>(k: K, val: Place[K]) => setP({ ...p, [k]: val });
 
@@ -125,7 +125,7 @@ export default function AdminPlace() {
   return (
     <div className="page">
       <div className="no-print stack" style={{ gap: 20 }}>
-        <TopBar title={p.name} sub={[p.category, p.area, p.city].filter(Boolean).join(" · ")}
+        <TopBar back="/admin?tab=places" title={p.name} sub={[p.category, p.area, p.city].filter(Boolean).join(" · ")}
           right={<Link to={`/p/${p.id}`} className="icon-btn" aria-label="Open public page"><Icon name="eye" size={20} /></Link>} />
 
         <Link to={`/manage/${p.id}`} className="ad-manage-link">

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { allowedInFocus, clearFocusShop, focusShop } from "../lib/focus";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate, useNavigationType } from "react-router-dom";
@@ -14,7 +15,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 const ICONS = {
   search: L.Search, back: L.ChevronLeft, chev: L.ChevronRight, down: L.ChevronDown, up: L.ArrowUp, arrowDown: L.ArrowDown,
   star: L.Star, locate: L.LocateFixed, globe: L.Globe, close: L.X, home: L.House, scan: L.ScanLine, qr: L.QrCode,
-  people: L.Users, user: L.UserRound, userPlus: L.UserPlus, pin: L.MapPin, check: L.Check, checkCircle: L.CircleCheck,
+  people: L.Users, user: L.UserRound, userPlus: L.UserPlus, userMinus: L.UserMinus, pin: L.MapPin, check: L.Check, checkCircle: L.CircleCheck,
   bookmark: L.Bookmark, share: L.Share2, mic: L.Mic, spark: L.Sparkles, copy: L.Copy, external: L.ExternalLink,
   store: L.Store, shield: L.ShieldCheck, plus: L.Plus, print: L.Printer, download: L.Download, camera: L.Camera,
   image: L.Image, imagePlus: L.ImagePlus, edit: L.Pencil, trash: L.Trash2, eye: L.Eye, eyeOff: L.EyeOff,
@@ -138,6 +139,17 @@ export function RvxBack({ fallback = "/" }: { fallback?: string }) {
   return <button type="button" className="rvx-back" aria-label="Back" onClick={() => goBack(nav, fallback)}><Icon name="back" size={20} /></button>;
 }
 
+/** Ref for a fixed bottom bar (.rvx-foot): keeps the page's bottom space as tall as the bar, so nothing ends up under it. */
+export function useFootSpace<T extends HTMLElement>() {
+  return useCallback((el: T | null) => {
+    const root = document.documentElement;
+    if (!el) { root.style.removeProperty("--foot-h"); return; }
+    const set = () => { if (el.isConnected) root.style.setProperty("--foot-h", `${Math.ceil(el.getBoundingClientRect().height)}px`); };
+    set();
+    if (typeof ResizeObserver !== "undefined") new ResizeObserver(set).observe(el);
+  }, []);
+}
+
 export function Spinner() { return <div className="spinner" role="status" aria-label="Loading" />; }
 
 /**
@@ -200,8 +212,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             )}
           </div>
         )}
-        {ask && (
-          <div className="sheet-backdrop" onClick={() => answer(false)}>
+        {/* On <body> and above other sheets: a confirm is often asked from inside a sheet (tags, coupon). */}
+        {ask && createPortal(
+          <div className="sheet-backdrop confirm-layer" onClick={() => answer(false)}>
             <div className="sheet confirm-sheet" role="alertdialog" aria-modal="true" aria-labelledby="cf-t" onClick={(e) => e.stopPropagation()}>
               <h2 id="cf-t">{ask.title}</h2>
               {ask.body && <p className="small muted">{ask.body}</p>}
@@ -212,7 +225,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 <button type="button" className="btn block ghost" onClick={() => answer(false)}>{ask.cancel || "Cancel"}</button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
       </ConfirmCtx.Provider>
     </ToastCtx.Provider>

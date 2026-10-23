@@ -366,13 +366,13 @@ export function Setup() {
           const ok = fits(p);
           const amt = p.code === "trial" ? 0 : (interval === "year" ? p.price_inr_year : p.price_inr_month) ?? 0;
           return (
-            <button key={p.code} type="button" disabled={!ok} aria-pressed={plan === p.code} onClick={() => { setManual(true); setPlan(p.code); }}
+            <button key={p.code} type="button" aria-pressed={plan === p.code} onClick={() => { if (!ok) setTables(p.qr_limit); setManual(true); setPlan(p.code); }}
               className={`card pn-plan pn-pick ${plan === p.code ? "on" : ""}`}>
               <span className="row" style={{ gap: 8 }}>
                 <strong className="grow">{p.name}{p.code === suggested && <span className="badge" style={{ marginLeft: 8 }}>Best fit</span>}</strong>
                 <span className="pn-price">{amt ? rupees(amt) : "Free"}{amt ? <span className="tiny muted">/{interval === "year" ? "yr" : "mo"}</span> : null}</span>
               </span>
-              <span className="tiny muted">{ok ? p.features.join(" · ") : `Covers ${p.qr_limit} QR${p.qr_limit === 1 ? "" : "s"}. You chose ${tables}.`}</span>
+              <span className="tiny muted">{ok ? p.features.join(" · ") : `Covers ${p.qr_limit} QR${p.qr_limit === 1 ? "" : "s"}. You chose ${tables}: tap to use ${p.qr_limit} instead.`}</span>
             </button>
           );
         })}

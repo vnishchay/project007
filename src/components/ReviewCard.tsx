@@ -90,7 +90,7 @@ export function ReviewCard({ r, mine, friend, expert, showPlace = false, itemIma
       <div className="rc-foot">
         {r.source && <span className="tiny muted row" style={{ gap: 4 }}><Icon name={r.source === "link" ? "link" : "qr"} size={12} />{r.source === "link" ? "From the shop's review link" : "Scanned at the shop"}</span>}
         <span className="grow" />
-        {!mine && <ReportButton reviewId={r.id} />}
+        {!mine && !reveal && <ReportButton reviewId={r.id} />}
       </div>
       {children}
     </article>

@@ -63,7 +63,7 @@ function Img({ src, className, alt = "" }: { src: string | null; className?: str
 /** A review photo in the Photos tab; drops out quietly if the picture can't be loaded. */
 function PhotoTile({ path, name, delay }: { path: string; name?: string; delay: number }) {
   const [broken, setBroken] = useState(false);
-  if (broken) return null;
+  if (broken) return <figure style={{ animationDelay: `${delay}s` }} className="ph-broken" aria-label={`Photo of ${name || "the visit"} didn't load`}><Icon name="image" size={22} /><figcaption>{name}</figcaption></figure>;
   return <figure style={{ animationDelay: `${delay}s` }}><img src={reviewPhotoUrl(path)!} alt={`Photo of ${name || "the visit"}`} loading="lazy" onError={() => setBroken(true)} /><figcaption>{name}</figcaption></figure>;
 }
 
