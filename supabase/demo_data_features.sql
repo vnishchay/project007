@@ -115,6 +115,41 @@ begin
 end
 $demo$;
 
+-- =====================================================================================
+-- Contacts on demo shops can never reach anyone: phone and WhatsApp numbers become +91 00000 xxxxx (no Indian number
+-- starts with 0), every outside link points at example.com and emails at a .example address. This also fixes shops
+-- made by older copies of demo_data.sql, which used real-looking numbers and real Instagram, Zomato and Swiggy links.
+-- =====================================================================================
+create or replace function pg_temp.fake_phone(seed text) returns text language sql immutable as $$
+  select '+9100000' || lpad((abs(hashtext('phone' || seed)::bigint) % 100000)::text, 5, '0')
+$$;
+create or replace function pg_temp.safe_url(u text, seed text) returns text language sql immutable as $$
+  select case
+    when u ~* '^tel:' then 'tel:' || pg_temp.fake_phone(seed)
+    when u ~* '^mailto:' then case when u ~* '\.example$' then u else 'mailto:hello@' || regexp_replace(lower(seed), '[^a-z0-9]', '', 'g') || '.example' end
+    when u ~* '^https?://(www\.)?(wa\.me|api\.whatsapp\.com|whatsapp\.com)' or u ~* '^https?://example\.com/wa/' then 'https://example.com/wa/' || ltrim(pg_temp.fake_phone(seed), '+')
+    when u ~* '^https?://(www\.)?(example\.com|google\.com/maps)' then u
+    when u ~* '^https?://' then regexp_replace(u, '^https?://(www\.)?([^./]+)[^/]*', 'https://example.com/\2', 'i')
+    else u end
+$$;
+update public.places p set links = (
+  select coalesce(jsonb_agg(case when jsonb_typeof(l -> 'url') = 'string' then jsonb_set(l, '{url}', to_jsonb(pg_temp.safe_url(l ->> 'url', p.name))) else l end
+                            order by o), '[]'::jsonb)
+  from jsonb_array_elements(p.links) with ordinality as x (l, o))
+where p.about like '[Demo]%' and jsonb_typeof(p.links) = 'array' and jsonb_array_length(p.links) > 0;
+update public.places set contact_phone = pg_temp.fake_phone(name) where about like '[Demo]%' and contact_phone is not null;
+update public.listing_requests set phone = pg_temp.fake_phone(business_name) where note like '[Demo]%';
+update public.place_claims set phone = pg_temp.fake_phone(user_id::text || place_id::text) where user_id::text like 'de000000-%' and phone is not null;
+do $demo$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'listing_requests' and column_name = 'links') then
+    execute $q$update public.listing_requests r set links = (
+      select coalesce(jsonb_agg(case when jsonb_typeof(l -> 'url') = 'string' then jsonb_set(l, '{url}', to_jsonb(pg_temp.safe_url(l ->> 'url', r.business_name))) else l end
+                                order by o), '[]'::jsonb)
+      from jsonb_array_elements(r.links) with ordinality as x (l, o))
+    where r.note like '[Demo]%' and jsonb_typeof(r.links) = 'array' and jsonb_array_length(r.links) > 0$q$;
+  end if;
+end $demo$;
+
 -- Your real account(s): the admin account(s) and the email above. They get visits, offers and friends, never reviews.
 drop table if exists tp_real;
 create temp table tp_real as
@@ -301,7 +336,7 @@ cross join (values
   ('Hyderabad Biryani House', 20, 'Today only: a free cup of Irani chai with any biryani. Show this at the counter.', null, false, false),
   ('Forno Napoli', 2 * 1440, 'Tuesday pizza club: the second Margherita is half price, dine-in only.', null, true, false),
   ('Burger Barn', 4 * 1440, 'Free loaded fries with any two burgers this week.', null, true, true),
-  ('Kaapi Corner', 6 * 1440, 'Cold filter coffee is back for summer. Your first glass is on us.', 'https://instagram.com/kaapicorner', true, false),
+  ('Kaapi Corner', 6 * 1440, 'Cold filter coffee is back for summer. Your first glass is on us.', 'https://example.com/instagram/kaapicorner', true, false),
   ('Brew Society', 25 * 1440, 'Brunch for two at 599 this weekend.', null, true, false)) v (shop, ago_min, body, link, seen, used)
 join tp_pl l on l.name = v.shop join public.places p on p.id = l.id
 where p.owner_id is distinct from u.id;
@@ -349,7 +384,7 @@ from tp_vshop s
 cross join (values
   (1, true,  'It was a bit too salty tonight, otherwise a lovely evening. Thank you!', null, 'unread', 90, 4),
   (2, false, 'Please add a vegan option, we would come every week.', null, 'read', 3 * 1440, 6),
-  (3, false, 'Can I book the back room for 12 people next Saturday? Please call me.', '+91 98765 43210', 'replied', 6 * 1440, 2),
+  (3, false, 'Can I book the back room for 12 people next Saturday? Please call me.', '+91 00000 43210', 'replied', 6 * 1440, 2),
   (4, false, 'The music was a little loud near the window tables.', null, 'unread', 1440, 13)) n (k, with_item, body, contact, state, ago_min, slot);
 
 -- =====================================================================================
