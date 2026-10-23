@@ -470,7 +470,7 @@ function SeenByShop({ placeId, shop }: { placeId: string; shop: string }) {
       <Icon name={hidden ? "eyeOff" : "eye"} size={20} />
       <span className="grow">
         <b>{hidden ? `Hidden from ${shop}` : `${shop} can see you visited`}</b>
-        <small>{hidden ? "They can't see you or send you offers." : "Your name and table, so they can send you offers. Never your review."}</small>
+        <small>{hidden ? "They can't see you, group you, or send you offers." : "Your name and table, so they can group visitors (like Regulars) and send offers. Never your review."}</small>
       </span>
       <button type="button" className="rvx-tool" disabled={busy} onClick={flip}>{hidden ? "Show" : "Hide me"}</button>
     </div>
