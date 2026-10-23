@@ -34,6 +34,7 @@ import OwnerStart, { ManageRedirect } from "./pages/owner/OwnerStart";
 import { HomeGate } from "./pages/owner/HomeGate";
 import { OwnerManifest } from "./lib/ownerManifest";
 import BestDish from "./pages/BestDish";
+import "./styles/responsive.css";
 
 function Setup() {
   return (

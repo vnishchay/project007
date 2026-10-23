@@ -306,7 +306,7 @@ export default function PlacePage() {
   ];
 
   return (
-    <div className="page pl-page pl-night">
+    <div className="page wide pl-page pl-night">
       <div className={`pn-hero ${cover ? "has-cover" : ""}`}>
         {cover ? <img className="pn-cover" src={cover} alt="" onError={() => setCoverOk(false)} /> : (
           <>
@@ -553,10 +553,12 @@ export default function PlacePage() {
             <div className="pn-empty"><Icon name="message" size={28} /><b>No reviews yet</b><span className="small">Customers review by scanning the shop's QR code</span></div>
           )
         ) : shown.length === 0 ? <div className="pn-empty"><Icon name="filter" size={28} /><b>No reviews match this filter</b><button type="button" className="link-btn small" onClick={() => setFilter("all")}>Show all reviews</button></div> :
-          shown.map((r) => (
-            <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={isFriend(r)} expert={r.user_id ? experts[r.user_id] || null : null}
-              itemImage={imageOf.get(r.item_id)} itemIcon={look.icon} />
-          ))}
+          <div className="pl-review-list">
+            {shown.map((r) => (
+              <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={isFriend(r)} expert={r.user_id ? experts[r.user_id] || null : null}
+                itemImage={imageOf.get(r.item_id)} itemIcon={look.icon} />
+            ))}
+          </div>}
         {moreReviews && reviews.length > 0 && (
           <button type="button" className="btn ghost block" disabled={loadingReviews} onClick={showMoreReviews}><Icon name="down" size={18} />{loadingReviews ? "Loading…" : "Show older reviews"}</button>
         )}

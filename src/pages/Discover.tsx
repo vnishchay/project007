@@ -220,7 +220,7 @@ export default function Discover() {
   ];
 
   return (
-    <div className="page" style={{ gap: 18 }}>
+    <div className="page wide" style={{ gap: 18 }}>
       <header className="dtop">
         <div className="row between">
           <button className="loc-btn" onClick={() => setPicking(true)} aria-haspopup="dialog" aria-label={`Location: ${label}. Change location`}>
@@ -344,7 +344,7 @@ export default function Discover() {
             </div>
           </EmptyArt>
         ) : (
-          <div className="stack" style={{ gap: 12 }}>
+          <div className="stack rsp-grid wide-3" style={{ gap: 12 }}>
             {nearYou && wider && results.length < 6 && <button type="button" className="notice small row" style={{ border: 0, font: "inherit", textAlign: "left", cursor: "pointer", gap: 6 }} onClick={() => setRadius(wider.m)}><Icon name="navigate" size={14} /><span className="grow">Only {results.length} within {radiusLabel}.</span><b>Show {wider.label}</b></button>}
             {results.map((r) => <PlaceCard key={r.place_id} r={r} people={people} coverUrl={cover(r.place_id)} currency={media[r.place_id]?.currency} google={media[r.place_id]} />)}
             {hasMore && <button type="button" className="btn ghost block" disabled={loadingMore} onClick={loadMore}><Icon name="down" size={18} />{loadingMore ? "Loading…" : "Show more places"}</button>}
