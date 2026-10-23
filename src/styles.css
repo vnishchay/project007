@@ -185,7 +185,7 @@ a.list-item:active { background: var(--fill); }
 .notice.ok { background: var(--good-soft); color: var(--good-dark); }
 .notice.err { background: var(--danger-soft); color: var(--danger); }
 .notice.warn { background: var(--warn-soft); color: #8a5300; }
-.toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: rgba(28, 28, 30, 0.88); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); color: #fff; padding: 12px 20px; border-radius: 999px; font-weight: 500; font-size: 15px; z-index: 50; max-width: calc(100% - 32px); box-shadow: var(--shadow-lg); animation: toast-in 0.35s var(--ease); }
+.toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: rgba(28, 28, 30, 0.88); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); color: #fff; padding: 12px 20px; border-radius: 999px; font-weight: 500; font-size: 15px; z-index: 70; max-width: calc(100% - 32px); box-shadow: var(--shadow-lg); animation: toast-in 0.35s var(--ease); }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px) scale(0.96); } }
 .toast { display: flex; align-items: center; gap: 12px; }
 .toast.has-act { padding: 6px 6px 6px 20px; border-radius: 22px; }
@@ -253,6 +253,7 @@ a.list-item:active { background: var(--fill); }
 @keyframes fade-in { from { opacity: 0; } }
 .sheet-list > *, .sheet > :not(.sheet-list) { flex-shrink: 0; }
 .sheet-list { overflow-y: auto; margin: 0 -20px; padding: 0 20px; }
+.sheet-backdrop.confirm-layer { z-index: 60; }
 button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5px solid var(--line); text-align: left; cursor: pointer; font-size: 15px; }
 .list-item.pick.sub { padding-left: 34px; color: var(--ink-2); }
 .list-item.pick.on { color: var(--accent-dark); font-weight: 700; }
@@ -362,3 +363,5 @@ button.list-item { width: 100%; background: none; border: 0; border-bottom: 0.5p
 .link-btn { min-height: 44px; }
 .chip { position: relative; }
 .chip::after { content: ""; position: absolute; inset: -4px 0; }
+/* Buttons inside a chip (remove x) sit above the chip's invisible tap extension. */
+.chip > button, .chip > a { position: relative; z-index: 1; }

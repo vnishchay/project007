@@ -92,7 +92,7 @@ export default function BestDish() {
             ))}
           </ol>
         )}
-      <p className="tiny muted center">Only people who scanned the table QR or had a shop's review link can rate.</p>
+      <p className="tiny muted center">Only people who scanned the shop's QR or had a shop's review link can rate.</p>
     </div>
   );
 }

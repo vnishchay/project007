@@ -2,11 +2,13 @@ import { focusShop } from "../lib/focus";
 import { playAppleChime, playHapticTap, playWaxStamp } from "../lib/haptics";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { VISIT_ITEM, isNegativeTag, ratingWord } from "../lib/reviews";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type Place, type Tag } from "../lib/types";
-import { Icon, RvxBack, Spinner, useToast, type IconName } from "../components/ui";
+import { Icon, RvxBack, Spinner, useFootSpace, useToast, type IconName } from "../components/ui";
+import { VisitBadge } from "../components/VisitBadge";
+import { useVisitProof } from "../lib/visits";
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ItemThumb } from "../components/place/ItemThumb";
@@ -14,7 +16,7 @@ import { loadShopItems, shopLook, sortShopItems, type ShopItem } from "../compon
 import { formatPrice } from "../lib/money";
 import { deviceId } from "../lib/device";
 import { callAi } from "../lib/assist";
-import { modeOf, tagFits } from "../lib/modes";
+import { bizOf, modeOf, tagFits } from "../lib/modes";
 import { fetchGoogleRating } from "../lib/google";
 import { copyText, googleReviewUrl } from "../lib/util";
 import { bumpStat } from "../lib/stats";
@@ -73,22 +75,6 @@ function Face({ v, size = 26 }: { v: Verdict; size?: number }) {
     </svg>
   );
 }
-
-/** Quick tags for the whole visit, by verdict. Each label is a row in the tags table, so it shows up on the shop page. */
-const VISIT_TAGS: Record<"food" | "other", Record<Verdict, { title: string; tags: string[] }>> = {
-  food: {
-    meh: { title: "What let it down?", tags: ["Poor food", "Poor service", "Long wait", "Noisy", "Too pricey", "Not clean"] },
-    ok: { title: "What stood out?", tags: ["Food", "Service", "Value", "Long wait", "Too pricey", "Noisy"] },
-    good: { title: "What was good?", tags: ["Food", "Service", "Ambience", "Value", "Quick"] },
-    love: { title: "What made it great?", tags: ["Amazing food", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
-  },
-  other: {
-    meh: { title: "What let it down?", tags: ["Poor service", "Long wait", "Unhelpful staff", "Too pricey", "Not clean"] },
-    ok: { title: "What stood out?", tags: ["Service", "Staff", "Value", "Long wait", "Too pricey"] },
-    good: { title: "What was good?", tags: ["Service", "Staff", "Value", "Quick", "Clean"] },
-    love: { title: "What made it great?", tags: ["Great service", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
-  },
-};
 
 /** Two taps the AI writer asks before writing about a visit, so it sounds like the person. */
 const AI_QUESTIONS: Record<"food" | "other", { q: string; opts: string[]; say: (a: string) => string }[]> = {
@@ -155,6 +141,19 @@ const averageStars = (dishes: Dish[]) => Math.max(1, Math.min(5, Math.round(dish
 
 /** Can this person write a review here? Only during a visit started by a table QR scan. */
 type Gate = "loading" | "ok" | "scan" | "guest_used" | "owner" | "paused";
+
+/** What this person already rated on their open visit here (another tab or an earlier session). */
+async function priorOnVisit(placeId: string, uid: string): Promise<{ keys: string[]; visit: boolean }> {
+  const v = await supabase.from("visits").select("id").eq("user_id", uid).eq("place_id", placeId).gt("expires_at", new Date().toISOString()).order("scanned_at", { ascending: false }).limit(1);
+  const id = (v.data as { id: string }[] | null)?.[0]?.id;
+  if (!id) return { keys: [], visit: false };
+  const r = await supabase.from("reviews").select("item_id, items(name)").eq("user_id", uid).eq("visit_id", id);
+  const rows = (r.data as unknown as { item_id: string; items: { name: string } | null }[] | null) || [];
+  return {
+    keys: rows.filter((x) => x.items && x.items.name !== VISIT_ITEM).map((x) => newDish(x.items!.name, x.item_id).key),
+    visit: rows.some((x) => x.items?.name === VISIT_ITEM),
+  };
+}
 
 async function checkGate(placeId: string, uid: string): Promise<{ gate: Gate; visitKey: string | null }> {
   const r = await supabase.rpc("can_review", { p_place: placeId, p_device: deviceId() });
@@ -228,10 +227,17 @@ export default function Review() {
 }
 
 function ReviewForm() {
+  const footRef = useFootSpace<HTMLDivElement>();
   const { placeId = "" } = useParams();
+  const [search] = useSearchParams();
   const { session, isGuest } = useAuth();
   const uid = session?.user.id;
+  const proof = useVisitProof(placeId, uid);
   const nav = useNavigate();
+  /** Reviews already saved on this visit before this page opened. */
+  const [prior, setPrior] = useState<Set<string>>(() => new Set());
+  /** What this page has already sent once: only those may be matched to an earlier save after a lost reply. */
+  const sentKeys = useRef(new Set<string>());
   const [place, setPlace] = useState<Place | null | undefined>(undefined);
   const [loadErr, setLoadErr] = useState("");
   const [reload, setReload] = useState(0);
@@ -281,7 +287,7 @@ function ReviewForm() {
     setPlace(undefined);
     (async () => {
       try {
-        const [p, it, st, tg, g] = await Promise.all([
+        const [p, it, st, tg, g, pr] = await Promise.all([
           supabase.from("places").select("id, name, area, category, city, google_place_id, status, kind, currency").eq("id", placeId).maybeSingle()
             .then((r) => r.error && /kind/.test(r.error.message) ? supabase.from("places").select("id, name, area, category, city, google_place_id, status").eq("id", placeId).maybeSingle() : r),
           loadShopItems(placeId),
@@ -289,6 +295,7 @@ function ReviewForm() {
           supabase.from("tags").select("id, label, kinds").order("id")
             .then((r) => r.error && /kinds/.test(r.error.message) ? supabase.from("tags").select("id, label").order("id") : r),
           checkGate(placeId, uid),
+          priorOnVisit(placeId, uid).catch(() => ({ keys: [] as string[], visit: false })),
         ]);
         if (!alive) return;
         // A failed query is not the same as "this place isn't listed".
@@ -318,17 +325,21 @@ function ReviewForm() {
           else if (!kv?.reviewId) setStage("visit");
           else if (open >= 0) { setAt(open); setStage("dish"); } else setStage(kept.dishes.length ? "preview" : "pick");
         } else {
-          // Things the diner tapped "Having this" on at the QR landing (never ticked for them).
-          const planned = readPlan(placeId);
-          const list = opts.filter((i) => planned.includes(i.id)).slice(0, MAX_DISHES).map((i) => newDish(i.name, i.id));
+          // Things the diner tapped "Having this" on at the QR landing, or the one they tapped "Rate" on (never ticked for them).
+          const planned = [...readPlan(placeId), ...(search.get("item") ? [search.get("item")!] : [])];
+          const done0 = new Set(pr.keys);
+          const list = opts.filter((i) => planned.includes(i.id)).map((i) => newDish(i.name, i.id)).filter((d) => !done0.has(d.key)).slice(0, MAX_DISHES);
           if (list.length) setDishes(list);
           if (!opts.length) setOther(true);
+          // The visit itself was already rated on this visit: go straight to the things they had.
+          if (pr.visit) { setVisit({ ...NO_VISIT, reviewId: "earlier" }); setStage(list.length ? "dish" : "pick"); }
         }
         const kind = modeOf(pl?.kind, pl?.category).kind;
         setTags(((tg.data as Tag[]) || []).filter((t) => tagFits(t, kind)));
         setGate(g.gate);
         if (g.gate === "ok") bumpStat("review_started", `review_started:${placeId}`);
         setVisitKey(g.visitKey);
+        setPrior(new Set(pr.keys));
       } catch (e) {
         if (alive) setLoadErr(errorText(e) === "Failed to fetch" ? "You seem to be offline." : errorText(e));
       }
@@ -361,8 +372,10 @@ function ReviewForm() {
   }, [visit, dishes, done, isPublic, stage, place, placeId, uid, googleOpened, visitKey]);
 
   const isFood = modeOf(place?.kind, place?.category).kind === "food";
+  // Quick visit tags and the AI writer's questions fit the business type (a salon is not a meal).
+  const biz = bizOf(place?.kind, place?.category);
   const patch = (i: number, p: Partial<Dish>) => setDishes((all) => all.map((d, k) => (k === i ? { ...d, ...p } : d)));
-  const postedKeys = new Set(done.map((d) => d.key));
+  const postedKeys = new Set([...prior, ...done.map((d) => d.key)]);
   const rated = dishes.filter((d) => d.rating > 0);
 
   function toggleItem(i: ShopItem) {
@@ -487,7 +500,7 @@ function ReviewForm() {
       for (const t of tags) if (d.picked.includes(t.id)) (isNegativeTag(t.label) ? downs : liked).push(t.label);
       liked.push(...d.custom);
     }
-    const qs = AI_QUESTIONS[isFood ? "food" : "other"];
+    const qs = AI_QUESTIONS[biz.socialVisit ? "food" : "other"];
     const answers = isVisit ? s.answers.map((a, i) => (a && qs[i] ? qs[i]!.say(a) : "")).filter(Boolean) : [];
     try {
       const j = await callAi<{ text?: string }>("draft", {
@@ -612,15 +625,21 @@ function ReviewForm() {
     try {
       if (visitDue) {
         setSaving("Saving your visit…");
+        const firstTry = !sentKeys.current.has("visit");
         const { data, error } = await supabase.rpc("submit_visit_review", {
           p_place_id: placeId, p_rating: visit.rating, p_body: visit.body.trim(), p_tags: visit.tags,
           p_ai_drafted: visit.aiDrafted, p_is_public: isPublic, p_device: deviceId(),
         });
         let id = (data as { id?: string } | null)?.id;
+        sentKeys.current.add("visit");
         if (error) {
           if (error.code === "PGRST202") throw new Error("Rating the whole visit isn't switched on for this app yet. Rate what you had instead, or try again later");
-          // Saved on an earlier try whose answer never arrived: use that one.
+          // Saved on an earlier try from this page whose answer never arrived: use that one.
           if (!/already reviewed this visit/i.test(errorText(error))) throw error;
+          if (firstTry) {
+            setVisit({ ...NO_VISIT, reviewId: "earlier" });
+            throw new Error("You already rated this visit. You can still rate what you had");
+          }
           const prior = await supabase.from("reviews").select("id, items!inner(name)").eq("user_id", uid).eq("place_id", placeId).eq("items.name", VISIT_ITEM).order("created_at", { ascending: false }).limit(1);
           id = (prior.data as { id: string }[] | null)?.[0]?.id;
           if (!id) throw error;
@@ -668,6 +687,8 @@ function ReviewForm() {
             p_device: deviceId(),
           };
           sent = true;
+          const retry = sentKeys.current.has(d.key);
+          sentKeys.current.add(d.key);
           let { data, error } = await supabase.rpc("submit_review", args);
           // Database without migration 0014 doesn't know p_device yet.
           if (error?.code === "PGRST202") {
@@ -675,6 +696,10 @@ function ReviewForm() {
             ({ data, error } = await supabase.rpc("submit_review", older));
           }
           // The review may have been saved on an earlier try whose answer never arrived: use that one.
+          if (error && /already reviewed/i.test(errorText(error)) && !retry) {
+            setPrior((x) => new Set([...x, d.key]));
+            throw new Error(`You already rated ${d.name} on this visit. Take it off to post the rest`);
+          }
           if (error && /already reviewed/i.test(errorText(error))) {
             const prior = await supabase.from("reviews").select("id, photo_path, voice_path, items(name)").eq("user_id", uid).eq("place_id", placeId).order("created_at", { ascending: false }).limit(30);
             const hit = ((prior.data as unknown as { id: string; photo_path: string | null; voice_path: string | null; items: { name: string } | null }[]) || []).find((r) => r.items?.name.toLowerCase() === d.name.toLowerCase());
@@ -845,7 +870,7 @@ function ReviewForm() {
     const a = ai[key];
     const st = a?.stage ?? "idle";
     const hasText = bodyOf(key).trim().length > 0;
-    const qs = AI_QUESTIONS[isFood ? "food" : "other"];
+    const qs = AI_QUESTIONS[biz.socialVisit ? "food" : "other"];
     const label = !enabled ? "Choose how it went to use AI" : st === "typing" ? "Writing…" : st === "ask" ? "Not now" : st === "done" ? "Write again" : hasText ? "Improve my words with AI" : "Write it with AI";
     const refines: { k: "short" | "long" | "casual" | "polite" | "undo"; label: string; on: boolean }[] = [
       { k: "short", label: "Shorter", on: a?.len === "short" }, { k: "long", label: "More detail", on: a?.len === "long" },
@@ -894,7 +919,7 @@ function ReviewForm() {
   /* ---------- the visit: how did it go? ---------- */
   if (stage === "visit") {
     const vv = verdictOf(visit.rating);
-    const set = VISIT_TAGS[isFood ? "food" : "other"];
+    const set = biz.visitTags;
     const tagged = dishes.length;
     return (
       <div className="rvx" data-stage="visit">
@@ -903,7 +928,7 @@ function ReviewForm() {
           {(place.category || place.area) && <div className="rvx-kicker">{[place.category, place.area].filter(Boolean).join(" · ")}</div>}
           <h1>{place.name}</h1>
           <div className="rvx-meta">
-            <span className="rvx-verified"><Icon name="verified" size={15} />Verified visit</span>
+            <VisitBadge proof={proof} />
             {googleLive?.rating != null && <span className="rvx-pill"><Icon name="star" size={14} fill="var(--star)" color="var(--star)" />{googleLive.rating.toFixed(1)} on Google</span>}
           </div>
         </header>
@@ -926,7 +951,7 @@ function ReviewForm() {
           {aiPanel("visit", Boolean(visit.rating))}
         </section>
         {err && <div className="notice err" role="alert">{err}</div>}
-        <div className="rvx-foot">
+        <div className="rvx-foot" ref={footRef}>
           <button type="button" className={`rvx-cta ${visit.rating ? "" : "idle"}`} onClick={postVisit}>{visit.rating ? "Continue" : "Choose how it went"}</button>
           <button type="button" className="rvx-link" onClick={toDishes}><Icon name={look.icon} size={16} />{tagged ? `Rate the ${things(tagged)} you picked` : `Rate a ${mode.item} too`}</button>
         </div>
@@ -1023,7 +1048,7 @@ function ReviewForm() {
           );
         })()}
         {err && <div className="notice err" role="alert">{err}</div>}
-        <div className="rvx-foot">
+        <div className="rvx-foot" ref={footRef}>
           <button type="button" className={`rvx-cta ${dishes.length ? "" : "idle"}`} onClick={() => { if (dishes.length) goDish(first >= 0 ? first : 0); }}>
             {dishes.length ? `Rate ${things(dishes.length)}` : `Tap the ${mode.itemPlural} you had`}
           </button>
@@ -1083,7 +1108,7 @@ function ReviewForm() {
           </div>
         </section>
         {err && <div className="notice err" role="alert">{err}</div>}
-        <div className="rvx-foot">
+        <div className="rvx-foot" ref={footRef}>
           <button type="button" className={`rvx-cta ${dish.rating ? "" : "idle"}`} disabled={recording} onClick={next}>
             {!dish.rating ? `Skip this ${mode.item}` : backToPreview ? "Done" : last ? "Continue" : <>Next: {dishes[at + 1]!.name}</>}
           </button>
@@ -1131,7 +1156,7 @@ function ReviewForm() {
             })}
           </div>
           {!sending && rated.length < MAX_DISHES && (
-            <button type="button" className="rvx-more" onClick={toDishes}><Icon name="plus" size={16} />{dishes.some((d) => !d.rating) ? `Rate your other ${things(dishes.filter((d) => !d.rating).length)}` : rated.length ? `Add another ${mode.item}` : `Rate a ${mode.item} too`}</button>
+            <button type="button" className="rvx-more" onClick={toDishes}><Icon name="plus" size={16} />{dishes.some((d) => !d.rating) ? (rated.length ? `Rate your other ${things(dishes.filter((d) => !d.rating).length)}` : `Rate the ${things(dishes.length)} you picked`) : rated.length ? `Add another ${mode.item}` : `Rate a ${mode.item} too`}</button>
           )}
         </section>
 

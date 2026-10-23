@@ -63,7 +63,7 @@ function Img({ src, className, alt = "" }: { src: string | null; className?: str
 /** A review photo in the Photos tab; drops out quietly if the picture can't be loaded. */
 function PhotoTile({ path, name, delay }: { path: string; name?: string; delay: number }) {
   const [broken, setBroken] = useState(false);
-  if (broken) return null;
+  if (broken) return <figure style={{ animationDelay: `${delay}s` }} className="ph-broken" aria-label={`Photo of ${name || "the visit"} didn't load`}><Icon name="image" size={22} /><figcaption>{name}</figcaption></figure>;
   return <figure style={{ animationDelay: `${delay}s` }}><img src={reviewPhotoUrl(path)!} alt={`Photo of ${name || "the visit"}`} loading="lazy" onError={() => setBroken(true)} /><figcaption>{name}</figcaption></figure>;
 }
 
@@ -550,7 +550,7 @@ export default function PlacePage() {
             </Link>
           ) : (
             // Not a button: nothing happens on tap, so it shouldn't look tappable.
-            <div className="pn-empty"><Icon name="message" size={28} /><b>No reviews yet</b><span className="small">Customers review by scanning the QR on their table</span></div>
+            <div className="pn-empty"><Icon name="message" size={28} /><b>No reviews yet</b><span className="small">Customers review by scanning the shop's QR code</span></div>
           )
         ) : shown.length === 0 ? <div className="pn-empty"><Icon name="filter" size={28} /><b>No reviews match this filter</b><button type="button" className="link-btn small" onClick={() => setFilter("all")}>Show all reviews</button></div> :
           shown.map((r) => (
@@ -647,7 +647,7 @@ export default function PlacePage() {
               <button type="button" className="icon-act" aria-label="Close" autoFocus onClick={() => setPeek(null)}><Icon name="close" size={18} /></button>
             </div>
             {peek.description && <p className="small" style={{ margin: 0, color: "var(--ink-2)" }}>{peek.description}</p>}
-            <p className="small muted row" style={{ gap: 6, margin: 0 }}><Icon name="star" size={14} />No ratings yet. People rate it after scanning the QR on their table.</p>
+            <p className="small muted row" style={{ gap: 6, margin: 0 }}><Icon name="star" size={14} />No ratings yet. People rate it after scanning the shop's QR code.</p>
           </div>
         </div>
       )}

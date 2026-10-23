@@ -5,7 +5,7 @@
 .rvx {
   --rv-ease: cubic-bezier(0.25, 0.8, 0.25, 1);
   width: 100%; max-width: 520px; min-height: 100dvh; margin: 0 auto; box-sizing: border-box;
-  padding: 0 0 150px; display: flex; flex-direction: column; gap: 22px; position: relative; overflow-x: clip;
+  padding: 0 0 max(150px, calc(var(--foot-h, 0px) + 24px)); display: flex; flex-direction: column; gap: 22px; position: relative; overflow-x: clip;
   background: var(--bg); color: var(--ink);
 }
 .rvx .notice { margin: 0 20px; }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase, errorText } from "./supabase";
 import { fetchGoogleLocation, googleConfigured } from "./google";
+import { isUuid } from "./types";
 
 /** Where a shop's map pin stands, as the owner sees it. */
 export interface PinInfo {
@@ -16,6 +17,7 @@ export interface PinInfo {
 export const PIN_REFRESH_DAYS = 25;
 
 export async function loadPin(placeId: string): Promise<PinInfo | null> {
+  if (!isUuid(placeId)) return null;
   const r = await supabase.rpc("place_pin", { p_place: placeId });
   if (r.error) return null; // a database without map-pin tracking yet
   return ((r.data as PinInfo[]) || [])[0] ?? null;

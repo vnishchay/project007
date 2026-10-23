@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { loadPlans, type PlanRow } from "../lib/billing";
+import { useSettings } from "../lib/settings";
 import { Icon, TopBar, type IconName } from "../components/ui";
 
 // Pages Razorpay asks for before going live: pricing, terms, refunds, privacy, contact.
@@ -102,11 +103,13 @@ export function Privacy() {
 }
 
 export function Contact() {
+  const phone = String(useSettings()[0].support_phone || "").replace(/\D/g, "");
   return (
     <Doc title="Contact" icon="message">
       <h2>Contact us</h2>
       <p>{BUSINESS}</p>
-      {CONTACT ? <p>Email: <a href={`mailto:${CONTACT}`}>{CONTACT}</a></p> : <p className="muted">Email address coming soon.</p>}
+      {CONTACT ? <p>Email: <a href={`mailto:${CONTACT}`}>{CONTACT}</a></p> : !phone && <p className="muted">Email address coming soon.</p>}
+      {phone && <p>WhatsApp: <a href={`https://wa.me/${phone}`} target="_blank" rel="noopener noreferrer">+{phone}</a></p>}
       <p className="small muted">We reply within 2 working days.</p>
     </Doc>
   );

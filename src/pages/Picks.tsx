@@ -160,7 +160,7 @@ export default function Picks() {
             reviews.length === 0 ? (
               <div className="card">
                 <EmptyArt icon="star" tone="amber" title="No reviews yet">
-                  <span className="small muted">At a shop, point your phone camera at the QR on your table to review.</span>
+                  <span className="small muted">At a shop, point your phone camera at the shop's QR code to review.</span>
                 </EmptyArt>
               </div>
             ) : <>

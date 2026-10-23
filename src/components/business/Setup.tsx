@@ -8,26 +8,16 @@ import { extractPlaceId, googleMapsUrl, QR_STYLES, rupees } from "../../lib/util
 import type { QrStyle } from "../../lib/types";
 import { areaCityFromAddress, GoogleFind, GooglePreview, matchCategory } from "../manage/Google";
 import { Icon, QrImage, useConfirm } from "../ui";
-import { LinkIcon, guessLinkKind } from "../LinkIcon";
 import { CurrencyField } from "../manage/CurrencyField";
 import { DEFAULT_CURRENCY, localCurrency } from "../../lib/money";
-import { KINDS, MODES, type Kind } from "../../lib/modes";
+import { BIZ, KINDS, MODES, type Kind } from "../../lib/modes";
 import "../../styles/manage.css";
 import "../../styles/setup.css";
 
 const EMPTY = { business_name: "", category: "", area: "", city: "", phone: "", google_place_id: "", note: "" };
 const TABLE_CHOICES = [1, 3, 5, 10, 15, 25];
 type Interval = "year" | "month";
-const LAST = 5;
-const LINK_FIELDS = [
-  { key: "zomato", label: "Zomato", ph: "Paste your Zomato link", only: "food" },
-  { key: "swiggy", label: "Swiggy", ph: "Paste your Swiggy link", only: "food" },
-  { key: "instagram", label: "Instagram", ph: "Paste your Instagram link", only: null },
-  { key: "website", label: "Website", ph: "Paste your website or booking page", only: null },
-] as const;
-type LinkKey = (typeof LINK_FIELDS)[number]["key"];
-/** Only the link boxes that make sense for this type of business: Zomato and Swiggy are for food. */
-const linkFieldsFor = (kind: Kind | "") => LINK_FIELDS.filter((f) => !f.only || f.only === kind);
+const LAST = 3;
 
 /** Phone country codes, with how many digits a local number has there. */
 const DIAL: { region: string; code: string; label: string; digits: [number, number] }[] = [
@@ -56,22 +46,15 @@ function localDial(): string {
 }
 
 const DRAFT_KEY = "tp-setup-draft";
-interface SetupDraft { kind: Kind | ""; form: typeof EMPTY; urls: Record<LinkKey, string>; extras: string[]; currency: string; dial: string; tables: number; style: QrStyle; plan: string; interval: Interval }
+interface SetupDraft { kind: Kind | ""; form: typeof EMPTY; currency: string; dial: string; tables: number; style: QrStyle; plan: string; interval: Interval }
 function readDraft(): SetupDraft | null {
   try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "null") as SetupDraft | null; } catch { return null; }
 }
 
-/** A pasted address, with https:// added when it is missing; null when it can't be a web address. */
-function cleanUrl(raw: string): string | null {
-  const t = raw.trim();
-  if (!t) return "";
-  const u = /^https?:\/\//i.test(t) ? t : `https://${t}`;
-  try { const x = new URL(u); return x.hostname.includes(".") ? x.toString() : null; } catch { return null; }
-}
-
 /**
- * Setting up a business as a stack of full screens, one question each: the shop, how to reach you,
- * where else you are listed, how many tables need a QR, which plan, and last of all the payment.
+ * Setting up a business in four short screens: the shop, how to reach you, how many QR codes, and the plan.
+ * Everything else (links, photos, menu, hours) waits for the owner app, where the Today checklist asks for it.
+ * Rarely changed things (currency, QR look, a note for us) sit behind a "change" so the screens stay short.
  * The step lives in the address (?s=) but replaces itself, so the phone's back button leaves the setup in one press;
  * the arrow in the footer goes to the screen before, and the X discards the setup.
  * Every screen flies in from the direction you are travelling.
@@ -87,8 +70,6 @@ export function Setup() {
   const dir: "fwd" | "back" = step >= lastStep.current ? "fwd" : "back";
   useEffect(() => { lastStep.current = step; }, [step]);
   const [kind, setKind] = useState<Kind | "">(draft0?.kind ?? "");
-  const [urls, setUrls] = useState<Record<LinkKey, string>>(draft0?.urls ?? { zomato: "", swiggy: "", instagram: "", website: "" });
-  const [extras, setExtras] = useState<string[]>(draft0?.extras ?? []);
   const [form, setForm] = useState(draft0?.form ?? EMPTY);
   // What the shop's prices are in: the phone's region to start (India gives rupees).
   const [currency, setCurrency] = useState(() => draft0?.currency ?? localCurrency());
@@ -110,8 +91,8 @@ export function Setup() {
   useEffect(() => { loadPlans().then(setPlans); }, []);
   useEffect(() => {
     if (shopId) return;
-    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ kind, form, urls, extras, currency, dial, tables, style, plan, interval } satisfies SetupDraft)); } catch { /* storage blocked */ }
-  }, [kind, form, urls, extras, currency, dial, tables, style, plan, interval, shopId]);
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ kind, form, currency, dial, tables, style, plan, interval } satisfies SetupDraft)); } catch { /* storage blocked */ }
+  }, [kind, form, currency, dial, tables, style, plan, interval, shopId]);
   const clearDraft = () => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage blocked */ } };
   const dialRow = DIAL.find((d) => d.region === dial) ?? DIAL[DIAL.length - 1]!;
   /** The phone as saved: country code first, so owners abroad are reachable too. */
@@ -124,8 +105,8 @@ export function Setup() {
   useEffect(() => { if (step > 0 && !form.business_name.trim() && !outcome) setParams({}, { replace: true }); }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  // The smallest plan that covers the tables is pre-selected; the free trial covers one QR.
-  const fits = (p: PlanRow) => p.qr_limit >= tables;
+  // The smallest plan that covers the tables is pre-selected. The free trial always fits: it starts with one QR, the rest come with a plan.
+  const fits = (p: PlanRow) => p.code === "trial" || p.qr_limit >= tables;
   const suggested = useMemo(() => (tables <= 1 && plans.some((p) => p.code === "trial") ? "trial" : plans.filter((p) => p.code !== "trial" && fits(p)).sort((a, b) => a.qr_limit - b.qr_limit)[0]?.code ?? ""), [plans, tables]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const cur = plans.find((p) => p.code === plan);
@@ -147,16 +128,11 @@ export function Setup() {
     if (step === 0 && !kind) { setErr("Pick what kind of business it is."); return; }
     if (step === 0 && !form.business_name.trim()) { setErr("Add your shop's name."); return; }
     if (step === 1) {
-      if (!form.category.trim() || !form.city.trim()) { setErr("Add a category and a city."); return; }
+      if (!form.city.trim()) { setErr("Add your city."); return; }
       const digits = form.phone.replace(/\D/g, "").replace(/^0+/, "");
       const [lo, hi] = form.phone.trim().startsWith("+") ? [8, 15] : dialRow.digits;
       if (digits.length < lo || digits.length > hi) { setErr(lo === hi ? `Enter the ${lo}-digit phone number so we can reach you.` : `Enter a full phone number (${lo} to ${hi} digits) so we can reach you.`); return; }
     }
-    if (step === 2) {
-      for (const f of linkFieldsFor(kind)) if (cleanUrl(urls[f.key]) === null) { setErr(`Check the ${f.label} link.`); return; }
-      if (extras.some((x) => cleanUrl(x) === null)) { setErr("Check the extra link."); return; }
-    }
-    if (step === 4 && !chosen) { setErr("Pick a plan."); return; }
     go(1);
   }
   function go(d: 1 | -1) {
@@ -166,18 +142,14 @@ export function Setup() {
     window.scrollTo({ top: 0 });
   }
 
-  /** What goes on the shop page: Google Maps first, then whatever was pasted. */
+  /** What goes on the shop page: the Google Maps button when the shop was found on Google. Other links are added later. */
   function buildLinks() {
-    const out: { kind: string; url: string }[] = [];
     const gid = extractPlaceId(form.google_place_id.trim());
-    if (gid) out.push({ kind: "maps", url: googleMapsUrl(gid, form.business_name) });
-    for (const f of linkFieldsFor(kind)) { const u = cleanUrl(urls[f.key]); if (u) out.push({ kind: f.key === "website" ? "website" : f.key, url: u }); }
-    for (const x of extras) { const u = cleanUrl(x); if (u) out.push({ kind: guessLinkKind(u), url: u }); }
-    return out;
+    return gid ? [{ kind: "maps", url: googleMapsUrl(gid, form.business_name) }] : [];
   }
 
   async function finish() {
-    if (!chosen) return;
+    if (!chosen) { setErr("Pick a plan."); return; }
     setBusy(true); setErr("");
     let id = shopId;
     try {
@@ -186,7 +158,7 @@ export function Setup() {
         const placeId = raw ? extractPlaceId(raw) : null;
         const note = [form.note.trim(), raw && !placeId ? `Google Maps link: ${raw}` : ""].filter(Boolean).join("\n");
         const ins = await supabase.rpc("list_my_shop", {
-          p_name: form.business_name.trim(), p_category: form.category.trim(), p_city: form.city.trim(), p_phone: fullPhone(),
+          p_name: form.business_name.trim(), p_category: form.category.trim() || (kind ? MODES[kind].label : "Business"), p_city: form.city.trim(), p_phone: fullPhone(),
           p_area: form.area.trim() || null, p_google_place_id: placeId, p_links: buildLinks(), p_note: note || null,
         });
         if (ins.error) throw ins.error;
@@ -228,11 +200,11 @@ export function Setup() {
           <span className={`icon-chip lg ${outcome === "unpaid" || outcome === "pending" ? "amber" : ""}`} style={{ margin: "0 auto" }}><Icon name={outcome === "unpaid" || outcome === "pending" ? "wallet" : "check"} size={26} /></span>
           <h2>{paid ? "Paid. Your shop is live" : outcome === "live" ? "Your shop is live" : outcome === "pending" ? "Payment received. Your shop is live" : "Your shop is live. The payment didn't go through"}</h2>
           <p className="small muted">{outcome === "unpaid"
-            ? `No money was taken. You're on the free trial QR for now, so customers can already review. Try paying again, or pay later from your shop's Plan tab.`
+            ? `No money was taken. You're on the free trial QR for now, so customers can already review. Try paying again, or pay later from Plan in your shop.`
             : outcome === "pending"
-            ? "We're confirming your payment with Razorpay; your plan turns on in a few minutes, so there's no need to pay again. Then add your QR codes from the QR tab."
+            ? "We're confirming your payment with Razorpay; your plan turns on in a few minutes, so there's no need to pay again. Then add your QR codes from QR codes in your shop."
             : qrCount == null
-            ? "Your shop is live, but the QR codes didn't get made. Open your shop and add them from the QR tab."
+            ? "Your shop is live, but the QR codes didn't get made. Open your shop and add them from QR codes."
             : `${qrCount} QR code${qrCount === 1 ? " is" : "s are"} ready to print. We'll check your Google page and links, usually within a day, then show your links on your page.`}</p>
           {outcome === "unpaid" && payErr && <details className="tiny muted" style={{ textAlign: "left" }}><summary>What went wrong</summary>{payErr}</details>}
         </main>
@@ -282,7 +254,6 @@ export function Setup() {
       <span className="icon-chip lg sky" style={{ margin: "0 auto" }}><Icon name="phone" size={26} /></span>
       <h2>Where are you, and how do we reach you?</h2>
       <div className="stack" style={{ textAlign: "left" }}>
-        <div className="field"><label className="mg-label" htmlFor="cat"><Icon name="tag" size={15} />Category</label><input id="cat" className="input" value={form.category} onChange={set("category")} placeholder="Pizzeria, Salon…" /></div>
         <div className="field"><label className="mg-label" htmlFor="ph"><Icon name="phone" size={15} />Phone</label>
           <div className="su-phone">
             <select className="select" aria-label="Country code" value={dial} onChange={(e) => setDial(e.target.value)}>
@@ -290,52 +261,36 @@ export function Setup() {
             </select>
             <input id="ph" className="input" type="tel" autoComplete="tel-national" value={form.phone} onChange={set("phone")} placeholder={dialRow.region === "IN" ? "98765 43210" : "Phone number"} />
           </div>
+          <span className="tiny muted">So we can reach you. It isn't shown on your page.</span>
         </div>
         <div className="grid2">
-          <div className="field"><label className="mg-label" htmlFor="ar"><Icon name="pin" size={15} />Area</label><input id="ar" className="input" value={form.area} onChange={set("area")} placeholder="Koregaon Park" /></div>
+          <div className="field"><label className="mg-label" htmlFor="ar"><Icon name="pin" size={15} />Area <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></label><input id="ar" className="input" value={form.area} onChange={set("area")} placeholder="Koregaon Park" /></div>
           <div className="field"><label className="mg-label" htmlFor="ct"><Icon name="map" size={15} />City</label><input id="ct" className="input" value={form.city} onChange={set("city")} placeholder="Pune" /></div>
         </div>
-        <CurrencyField id="cur" value={currency} onChange={setCurrency} />
+        <details className="su-more">
+          <summary><Icon name="settings" size={15} /><span className="grow">{form.category.trim() || (kind ? MODES[kind].label : "Category")} · {currency}</span><span className="link-btn tiny">Change</span></summary>
+          <div className="stack" style={{ gap: 10, paddingTop: 10 }}>
+            <div className="field"><label className="mg-label" htmlFor="cat"><Icon name="tag" size={15} />What you are, in a few words</label><input id="cat" className="input" value={form.category} onChange={set("category")} placeholder={kind === "beauty" ? "Hair salon" : kind === "food" ? "Pizzeria" : "Bakery, tailor, dentist…"} /></div>
+            <CurrencyField id="cur" value={currency} onChange={setCurrency} />
+          </div>
+        </details>
       </div>
-    </>,
-    <>
-      <span className="icon-chip lg violet" style={{ margin: "0 auto" }}><Icon name="link" size={26} /></span>
-      <h2>Where else are you listed?</h2>
-      <p className="small muted">Paste what you have and skip the rest. Customers get one button for each, and you can add more later.</p>
-      <div className="stack" style={{ textAlign: "left", gap: 10 }}>
-        {extractPlaceId(form.google_place_id.trim()) ? (
-          <div className="su-link on"><LinkIcon kind="maps" size={40} /><span className="grow"><b className="tiny muted">Google Maps</b><br /><span className="strong small">{form.business_name || "Found on Google"}</span></span><span className="su-found"><Icon name="check" size={16} width={3} /></span></div>
-        ) : (
-          <label className="su-link"><LinkIcon kind="maps" size={40} /><span className="grow"><b className="tiny muted">Google Maps</b>
-            <input className="su-input" value={form.google_place_id} onChange={set("google_place_id")} placeholder="Paste your Google Maps link" inputMode="url" /></span></label>
-        )}
-        {linkFieldsFor(kind).map((f) => (
-          <label key={f.key} className={`su-link ${urls[f.key].trim() ? "on" : ""}`}><LinkIcon kind={f.key} size={40} /><span className="grow"><b className="tiny muted">{f.label}</b>
-            <input className="su-input" value={urls[f.key]} onChange={(e) => setUrls((u) => ({ ...u, [f.key]: e.target.value }))} placeholder={f.ph} inputMode="url" autoCapitalize="off" /></span></label>
-        ))}
-        {extras.map((x, i) => (
-          <label key={i} className={`su-link ${x.trim() ? "on" : ""}`}><LinkIcon kind={guessLinkKind(x)} size={40} /><span className="grow"><b className="tiny muted">Another link</b>
-            <input className="su-input" value={x} onChange={(e) => setExtras((a) => a.map((v, j) => (j === i ? e.target.value : v)))} placeholder="Facebook, YouTube, Justdial…" inputMode="url" autoCapitalize="off" /></span></label>
-        ))}
-        {extras.length < 3 && <button type="button" className="su-add" onClick={() => setExtras((a) => [...a, ""])}><Icon name="plus" size={16} />Add another link</button>}
-      </div>
-      <p className="tiny muted su-note"><Icon name="info" size={14} />Your Google rating and reviews show on your page by themselves.{kind === "food" ? " Zomato and Swiggy appear as buttons because those sites don't share their reviews." : ""}</p>
     </>,
     <>
       <span className="icon-chip lg amber" style={{ margin: "0 auto" }}><Icon name="qr" size={26} /></span>
-      <h2>How many counters, desks or tables need a QR?</h2>
-      <p className="small muted">Customers scan it to review. You can add more later.</p>
+      <h2>{kind ? `How many ${BIZ[kind].spots} need a QR?` : "How many counters, desks or tables need a QR?"}</h2>
+      <p className="small muted">{kind ? `Put them ${BIZ[kind].qrWhere}. ` : ""}Customers scan it to rate their visit. You can add more later.</p>
+      <div className="row" style={{ justifyContent: "center", gap: 18 }}>
+        <button type="button" className="icon-btn su-step" aria-label="Fewer" onClick={() => setTables((n) => Math.max(1, n - 1))}><Icon name="minus" /></button>
+        <strong className="su-count" aria-live="polite">{tables}</strong>
+        <button type="button" className="icon-btn su-step" aria-label="More" onClick={() => setTables((n) => Math.min(40, n + 1))}><Icon name="plus" /></button>
+      </div>
       <div className="row wrap" style={{ gap: 8, justifyContent: "center" }}>
         {TABLE_CHOICES.map((n) => <button key={n} type="button" className={`chip ${tables === n ? "on" : ""}`} aria-pressed={tables === n} onClick={() => setTables(n)}>{n}</button>)}
       </div>
-      <div className="row" style={{ justifyContent: "center", gap: 14 }}>
-        <button type="button" className="icon-btn" aria-label="Fewer" onClick={() => setTables((n) => Math.max(1, n - 1))}><Icon name="minus" /></button>
-        <strong style={{ fontSize: 28, minWidth: 48 }}>{tables}</strong>
-        <button type="button" className="icon-btn" aria-label="More" onClick={() => setTables((n) => Math.min(40, n + 1))}><Icon name="plus" /></button>
-      </div>
-      <div className="stack" style={{ textAlign: "left" }}>
-        <span className="mg-label"><Icon name="spark" size={15} />QR style</span>
-        <div className="biz-styles" role="radiogroup" aria-label="QR style">
+      <details className="su-more" style={{ textAlign: "left" }}>
+        <summary><QrImage text={`${window.location.origin}/q/preview`} size={28} dark={QR_STYLES[style].dark} light={QR_STYLES[style].light} /><span className="grow">QR look: {QR_STYLES[style].label}</span><span className="link-btn tiny">Change</span></summary>
+        <div className="biz-styles" role="radiogroup" aria-label="QR style" style={{ paddingTop: 10 }}>
           {(Object.keys(QR_STYLES) as QrStyle[]).map((k) => {
             const st = QR_STYLES[k];
             return (
@@ -348,50 +303,44 @@ export function Setup() {
             );
           })}
         </div>
-      </div>
+      </details>
     </>,
     <>
       <span className="icon-chip lg violet" style={{ margin: "0 auto" }}><Icon name="crown" size={26} /></span>
-      <h2>Pick a plan</h2>
-      <p className="small muted">Your page is free. A plan switches on {tables} review QR{tables === 1 ? "" : "s"}.</p>
-      <p className="tiny muted row" style={{ justifyContent: "center", gap: 6 }}><Icon name="rupee" size={13} />Prices and billing are in Indian rupees (INR)</p>
-      <div className="pn-seg" role="radiogroup" aria-label="Pay for">
-        {(["year", "month"] as const).map((i) => (
-          <button key={i} type="button" role="radio" aria-checked={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>{i === "year" ? "Yearly (2 months free)" : "Monthly"}</button>
-        ))}
-      </div>
+      <h2>Start free, or pick a plan</h2>
+      <p className="small muted">Your page is always free. A plan turns on all {tables} QR{tables === 1 ? "" : "s"} and adds deals and replies. One payment, no auto-renew.</p>
       {plans.length === 0 && <div className="notice row" style={{ textAlign: "left" }}><span className="grow">Loading plans…</span><button type="button" className="link-btn" onClick={() => loadPlans().then(setPlans)}><Icon name="refresh" size={15} />Retry</button></div>}
       <div className="stack" style={{ textAlign: "left" }}>
         {plans.map((p) => {
           const ok = fits(p);
-          const amt = p.code === "trial" ? 0 : (interval === "year" ? p.price_inr_year : p.price_inr_month) ?? 0;
+          const trial = p.code === "trial";
+          const amt = trial ? 0 : (interval === "year" ? p.price_inr_year : p.price_inr_month) ?? 0;
           return (
-            <button key={p.code} type="button" disabled={!ok} aria-pressed={plan === p.code} onClick={() => { setManual(true); setPlan(p.code); }}
+            <button key={p.code} type="button" aria-pressed={plan === p.code} onClick={() => { if (!ok) setTables(p.qr_limit); setManual(true); setPlan(p.code); }}
               className={`card pn-plan pn-pick ${plan === p.code ? "on" : ""}`}>
               <span className="row" style={{ gap: 8 }}>
-                <strong className="grow">{p.name}{p.code === suggested && <span className="badge" style={{ marginLeft: 8 }}>Best fit</span>}</strong>
+                <span className="su-radio" aria-hidden="true">{plan === p.code && <Icon name="check" size={13} width={3} />}</span>
+                <strong className="grow">{p.name}{p.code === suggested && !trial && <span className="badge" style={{ marginLeft: 8 }}>Best fit</span>}</strong>
                 <span className="pn-price">{amt ? rupees(amt) : "Free"}{amt ? <span className="tiny muted">/{interval === "year" ? "yr" : "mo"}</span> : null}</span>
               </span>
-              <span className="tiny muted">{ok ? p.features.join(" · ") : `Covers ${p.qr_limit} QR${p.qr_limit === 1 ? "" : "s"}. You chose ${tables}.`}</span>
+              <span className="tiny muted">{trial ? `1 QR, 30 days or 25 reviews.${tables > 1 ? ` Add the other ${tables - 1} when you pick a plan.` : ""}` : ok ? p.features.join(" · ") : `Covers ${p.qr_limit} QR${p.qr_limit === 1 ? "" : "s"}. You chose ${tables}: tap to use ${p.qr_limit} instead.`}</span>
             </button>
           );
         })}
       </div>
-    </>,
-    <>
-      <span className="icon-chip lg" style={{ margin: "0 auto" }}><Icon name="wallet" size={26} /></span>
-      <h2>{price > 0 ? "Review and pay" : "Review and send"}</h2>
-      <div className="stack small" style={{ textAlign: "left", gap: 8 }}>
-        <span className="row"><Icon name="store" size={16} /><span className="grow"><b>{form.business_name}</b><br /><span className="muted">{[form.category, form.area, form.city].filter(Boolean).join(" · ")}</span></span></span>
-        <span className="row"><Icon name="qr" size={16} /><span className="grow">{tables} table QR{tables === 1 ? "" : "s"}, {QR_STYLES[style].label} style</span></span>
-        <span className="row"><Icon name="crown" size={16} /><span className="grow">{chosen?.name}{price > 0 ? `, ${interval === "year" ? "1 year" : "1 month"}` : ", 30 days or 25 reviews"}</span><b>{price > 0 ? rupees(price) : "Free"}</b></span>
-      </div>
-      <div className="field" style={{ textAlign: "left" }}>
-        <label className="mg-label" htmlFor="nt"><Icon name="message" size={15} />Anything else <span className="muted" style={{ fontWeight: 500 }}>(optional)</span></label>
-        <textarea id="nt" className="textarea" style={{ minHeight: 60 }} value={form.note} onChange={set("note")} placeholder="Best time to call…" />
-      </div>
+      {chosen && chosen.code !== "trial" && (
+        <div className="pn-seg" role="radiogroup" aria-label="Pay for">
+          {(["year", "month"] as const).map((i) => (
+            <button key={i} type="button" role="radio" aria-checked={interval === i} className={interval === i ? "on" : ""} onClick={() => setInterval(i)}>{i === "year" ? "1 year (2 months free)" : "1 month"}</button>
+          ))}
+        </div>
+      )}
+      <details className="su-more" style={{ textAlign: "left" }}>
+        <summary><Icon name="message" size={15} /><span className="grow">Anything we should know? (optional)</span></summary>
+        <textarea id="nt" aria-label="Note for us" className="textarea" style={{ minHeight: 60, marginTop: 10 }} value={form.note} onChange={set("note")} placeholder="Best time to call…" />
+      </details>
       <p className="tiny muted center row" style={{ justifyContent: "center", gap: 6 }}><Icon name="shield" size={14} />
-        {price > 0 ? <>One payment, no auto-renew. <Link to="/refunds">Refunds</Link></> : "No payment now. Pick a plan any time."}</p>
+        {price > 0 ? <>Prices in Indian rupees (INR). <Link to="/refunds">Refunds</Link></> : "No payment now. Pick a plan any time from your shop."}</p>
     </>,
   ];
 
@@ -419,12 +368,11 @@ export function Setup() {
       <main className="su-body su-card" key={step} data-dir={dir} data-step={step}>
         {slides[step]}
         {err && <div className="notice err">{err}</div>}
-        {step === 2 && <button type="button" className="link-btn su-skip" onClick={() => { setUrls({ zomato: "", swiggy: "", instagram: "", website: "" }); setExtras([]); go(1); }}>Skip for now</button>}
       </main>
       <footer className="su-foot">
         {step > 0 && <button type="button" className="icon-btn su-back" aria-label="Back" disabled={busy} onClick={() => go(-1)}><Icon name="back" /></button>}
         {final
-          ? <button className="btn green grow" disabled={busy} onClick={finish}><Icon name={price > 0 ? "wallet" : "check"} size={18} />{busy ? "One moment…" : price > 0 ? `Pay ${rupees(price)} with Razorpay` : "Start free"}</button>
+          ? <button className="btn green grow" disabled={busy} onClick={finish}><Icon name={price > 0 ? "wallet" : "check"} size={18} />{busy ? "One moment…" : price > 0 ? `Pay ${rupees(price)}` : "Open my shop free"}</button>
           : <button className="btn green grow su-cta" onClick={next}>Next<Icon name="chev" size={18} /></button>}
       </footer>
     </div>

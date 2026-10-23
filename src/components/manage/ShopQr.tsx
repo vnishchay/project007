@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../../lib/supabase";
 import type { Place, QrCode, QrStyle } from "../../lib/types";
+import { byTableLabel } from "../../lib/types";
 import { qrUrl, QR_STYLES } from "../../lib/util";
 import { BrandQr, brandQrPngDataUrl, Icon, useConfirm, useToast } from "../ui";
+import { bizOf, spotLabel } from "../../lib/modes";
 import { markPrinted } from "./Insights";
 import { NfcSheet } from "./NfcSheet";
 import { WalletButton } from "../WalletButton";
@@ -29,7 +31,7 @@ export function QrPrintSheet({ place, codes, topItem }: { place: Pick<Place, "na
             <span style={{ fontWeight: 800, fontSize: 28, letterSpacing: "-0.02em" }}>{place.name}</span>
             <BrandQr text={qrUrl(c.token)} size={200} dark={col.dark} light={col.light} />
             <span className="strong">Scan to see what people love here</span>
-            <span className="small" style={{ opacity: 0.7 }}>and rate what you had</span>
+            <span className="small" style={{ opacity: 0.7 }}>and rate your visit</span>
             {topItem && <span className="small" style={{ opacity: 0.7 }}>{topItem}</span>}
             <span className="small strong" style={{ color: c.style === "paper" ? "var(--accent)" : col.dark }}>● Trusted Picks</span>
           </div>
@@ -58,7 +60,7 @@ function AddQrs({ placeId, active, style, onMade }: { placeId: string; active: n
   const room = limit - active;
   return (
     <div className="card row wrap" style={{ gap: 10 }}>
-      <span className="grow small"><b>{active} of {limit}</b> table codes in use</span>
+      <span className="grow small"><b>{active} of {limit}</b> codes in use</span>
       {room > 0 ? <>
         <button className="btn small ghost" disabled={busy} onClick={() => make(active + 1)}><Icon name="plus" size={16} />One more</button>
         {room > 1 && <button className="btn small" disabled={busy} onClick={() => make(limit)}><Icon name="qr" size={16} />Make all {limit}</button>}
@@ -69,6 +71,8 @@ function AddQrs({ placeId, active, style, onMade }: { placeId: string; active: n
 
 /** The shop's table QR codes if this account can read them, else a way to get some. */
 export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boolean; onCodes: (c: QrCode[]) => void }) {
+  // Where codes go and what one is called: tables for food, chairs for salons, the bill or visiting card for services.
+  const biz = bizOf(place.kind, place.category);
   const toast = useToast();
   const confirm = useConfirm();
   const [codes, setCodes] = useState<QrCode[] | null>(null);
@@ -76,7 +80,7 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
   const [naming, setNaming] = useState<{ id: string; text: string } | null>(null);
   const load = useCallback(() => {
     supabase.from("qr_codes").select("id, place_id, token, style, table_label, active").eq("place_id", place.id).order("created_at")
-      .then(({ data }) => { const c = (data as QrCode[]) || []; setCodes(c); onCodes(c); });
+      .then(({ data }) => { const c = ((data as QrCode[]) || []).sort(byTableLabel); setCodes(c); onCodes(c); });
   }, [place.id, onCodes]);
   useEffect(load, [load]);
 
@@ -105,9 +109,9 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
       <div className="mg-promo">
         <span className="mg-promo-art"><Icon name="qr" size={150} width={1.5} /></span>
         <span className="icon-chip lg" style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}><Icon name="qr" size={26} /></span>
-        <h2 style={{ fontSize: 20, color: "#fff" }}>Table QR codes</h2>
+        <h2 style={{ fontSize: 20, color: "#fff" }}>Your review QR codes</h2>
         <div className="stack tight small" style={{ opacity: 0.95 }}>
-          <span className="row" style={{ gap: 6 }}><Icon name="scan" size={15} />Customers scan at the table</span>
+          <span className="row" style={{ gap: 6 }}><Icon name="scan" size={15} />Put them {biz.qrWhere}</span>
           <span className="row" style={{ gap: 6 }}><Icon name="verified" size={15} />Every review is verified</span>
           <span className="row" style={{ gap: 6 }}><Icon name="print" size={15} />Print-ready, four styles</span>
         </div>
@@ -121,7 +125,7 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
   return (
     <div className="stack" style={{ gap: 14 }}>
       <div className="row">
-        <span className="section-title grow"><span className="icon-chip sm"><Icon name="qr" size={16} /></span>{active.length} table {active.length === 1 ? "code" : "codes"}</span>
+        <span className="section-title grow"><span className="icon-chip sm"><Icon name="qr" size={16} /></span>{active.length} {active.length === 1 ? "code" : "codes"}</span>
         <button className="btn small ghost" onClick={() => { markPrinted(place.id); window.print(); }}><Icon name="print" size={17} />Print all</button>
       </div>
       <div className="mg-qr-grid">
@@ -137,13 +141,13 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
                 </form>
               ) : (
                 <button type="button" className="mg-qr-name" onClick={() => setNaming({ id: c.id, text: c.table_label || "" })} aria-label={`Rename ${c.table_label || "this code"}`}>
-                  <span className="ellipsis">{c.table_label || "Table"}</span><Icon name="edit" size={13} />
+                  <span className="ellipsis">{c.table_label || spotLabel(biz)}</span><Icon name="edit" size={13} />
                 </button>
               )}
               <div className="row" style={{ justifyContent: "center" }}>
                 <span className="mg-acts">
                   <WalletButton compact pass={{ kind: "shop", qrId: c.id }} label={`Add ${c.table_label || "this code"} to your wallet`} />
-                  <button className="mg-act" aria-label={`NFC tag for ${c.table_label || "this table"}`} title="NFC tag" onClick={() => setNfcFor(c)}><Icon name="nfc" size={16} /></button>
+                  <button className="mg-act" aria-label={`NFC tag for ${c.table_label || "this code"}`} title="NFC tag" onClick={() => setNfcFor(c)}><Icon name="nfc" size={16} /></button>
                   <button className="mg-act" aria-label={`Download ${c.table_label || "QR"}`} onClick={() => downloadQr(place.name, c)}><Icon name="download" size={16} /></button>
                   <button className="mg-act" aria-label={`Turn off ${c.table_label || "this code"}`} title="Turn off" onClick={() => void turnOff(c)}><Icon name="eyeOff" size={16} /></button>
                 </span>
@@ -156,7 +160,7 @@ export function ShopQr({ place, isAdmin, onCodes }: { place: Place; isAdmin: boo
       {off.length > 0 && <OffCodes codes={off} onOn={(c) => void update(c, { active: true })} />}
       <div className="notice row" style={{ gap: 10 }}>
         <span className="icon-chip sm sky"><Icon name="nfc" size={16} /></span>
-        <span className="grow">Want tap-to-review too? Tap <Icon name="nfc" size={13} /> on a table to set up an NFC tag next to its QR.</span>
+        <span className="grow">Want tap-to-review too? Tap <Icon name="nfc" size={13} /> on a code to set up an NFC tag next to it.</span>
       </div>
       {isAdmin && <Link to={`/admin/place/${place.id}`} className="link-btn"><Icon name="settings" size={15} />Admin: all codes</Link>}
       {nfcFor && <NfcSheet code={nfcFor} onClose={() => setNfcFor(null)} />}
@@ -173,7 +177,7 @@ function OffCodes({ codes, onOn }: { codes: QrCode[]; onOn: (c: QrCode) => void 
         {codes.map((c) => (
           <div key={c.id} className="menu-row" style={{ cursor: "default" }}>
             <span className="icon-chip sm"><Icon name="qr" size={16} /></span>
-            <span className="grow t ellipsis">{c.table_label || "Table"}</span>
+            <span className="grow t ellipsis">{c.table_label || "Code"}</span>
             <button type="button" className="btn small ghost" onClick={() => onOn(c)}><Icon name="refresh" size={15} />Turn on</button>
           </div>
         ))}

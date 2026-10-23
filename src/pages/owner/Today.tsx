@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Icon, Stars, type IconName } from "../../components/ui";
 import { printed } from "../../components/manage/Insights";
+import { bizOf } from "../../lib/modes";
 import { useOwner, type Section } from "./OwnerApp";
 
 /** Everything the Today screen shows, from owner_today(). Counts only, never who. */
@@ -27,7 +27,10 @@ function greeting() {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-/** The owner's home: what happened today, what needs them, and the tools they use most, one tap away. */
+/**
+ * The owner's home, kept to one idea per card: today's three numbers, the one thing to do next (with a big button),
+ * then four quick actions. A new shop sees its setup list instead of empty numbers and charts.
+ */
 export function Today({ hasPin }: { hasPin: boolean | null }) {
   const { place, today: t, go, catalog } = useOwner();
   const [items, setItems] = useState<number | null>(null);
@@ -52,50 +55,88 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
   const delta = t.visitors_today - t.visitors_yesterday;
   const daysLeft = t.period_end ? Math.ceil((new Date(t.period_end).getTime() - Date.now()) / DAY_MS) : null;
   const catalogWord = catalog.toLowerCase();
+  const biz = bizOf(place.kind, place.category);
 
   // What needs the owner, most urgent first. Each row opens the screen that fixes it.
-  const todo: { icon: IconName; tone: string; text: string; sub?: string; to: Section }[] = [];
-  if (!t.reviews_open) todo.push({ icon: "lock", tone: "coral", text: "Reviews are paused", sub: "Your plan ended or the trial is used up. Renew to take reviews again.", to: "plan" });
-  if (t.low_open > 0) todo.push({ icon: "alert", tone: "coral", text: `${t.low_open} low ${t.low_open === 1 ? "rating" : "ratings"} without a reply`, sub: "Last 30 days. A kind reply often wins people back.", to: "reviews" });
-  if (t.need_reply > 0) todo.push({ icon: "reply", tone: "amber", text: `${n(t.need_reply)} ${t.need_reply === 1 ? "review needs" : "reviews need"} a reply`, to: "reviews" });
-  if (t.notes_unread > 0) todo.push({ icon: "message", tone: "violet", text: `${t.notes_unread} private ${t.notes_unread === 1 ? "note" : "notes"} to read`, sub: "Only you can see these.", to: "reviews" });
-  if (t.plan_status === "trial" && t.trial_reviews_left != null && t.trial_reviews_left <= 5 && t.reviews_open) todo.push({ icon: "crown", tone: "amber", text: `${t.trial_reviews_left} free ${t.trial_reviews_left === 1 ? "review" : "reviews"} left on your trial`, to: "plan" });
-  else if (daysLeft != null && daysLeft >= 0 && daysLeft <= 7 && t.reviews_open) todo.push({ icon: "clock", tone: "amber", text: `Your plan ends in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`, to: "plan" });
-  if (t.deals_live === 0) todo.push({ icon: "ticket", tone: "sky", text: "Add a deal", sub: "Deals show as tickets at the top of your page.", to: "deals" });
+  const todo: Todo[] = [];
+  if (!t.reviews_open) todo.push({ icon: "lock", tone: "coral", text: "Reviews are paused", sub: "Your plan ended or the trial is used up. Renew to take reviews again.", to: "plan", cta: "Renew" });
+  if (t.low_open > 0) todo.push({ icon: "alert", tone: "coral", text: `${t.low_open} unhappy ${t.low_open === 1 ? "customer" : "customers"} waiting for a reply`, sub: "A kind reply often wins people back.", to: "reviews", cta: "Reply" });
+  if (t.need_reply > 0) todo.push({ icon: "reply", tone: "amber", text: `${n(t.need_reply)} ${t.need_reply === 1 ? "review needs" : "reviews need"} a reply`, sub: "Say thanks. It shows on your page.", to: "reviews", cta: "Reply" });
+  if (t.notes_unread > 0) todo.push({ icon: "message", tone: "violet", text: `${t.notes_unread} private ${t.notes_unread === 1 ? "note" : "notes"} to read`, sub: "Only you can see these.", to: "reviews", cta: "Read" });
+  if (t.plan_status === "trial" && t.trial_reviews_left != null && t.trial_reviews_left <= 5 && t.reviews_open) todo.push({ icon: "crown", tone: "amber", text: `${t.trial_reviews_left} free ${t.trial_reviews_left === 1 ? "review" : "reviews"} left on your trial`, to: "plan", cta: "See plans" });
+  else if (daysLeft != null && daysLeft >= 0 && daysLeft <= 7 && t.reviews_open) todo.push({ icon: "clock", tone: "amber", text: `Your plan ends in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`, to: "plan", cta: "Renew" });
 
-  const setup = [
-    { done: hasPin === true, label: "Put your shop on the map", icon: "pin" as IconName, to: "details" as Section },
-    { done: (items ?? 0) >= 5, label: `Add 5 things to your ${catalogWord}${items ? ` (${Math.min(items, 5)} of 5)` : ""}`, icon: "box" as IconName, to: "menu" as Section },
-    { done: t.qr_active > 0 && printed(place.id), label: "Print your table QR codes", icon: "print" as IconName, to: "qr" as Section },
-    { done: t.reviews > 0, label: "Get your first review", icon: "star" as IconName, to: "qr" as Section },
+  // The four things every new shop needs, in the order that makes sense.
+  const setup: (Todo & { done: boolean })[] = [
+    { done: hasPin === true, icon: "pin", tone: "sky", text: "Put your shop on the map", sub: "So people nearby can find you.", to: "details", cta: "Add map pin" },
+    { done: (items ?? 0) >= 5, icon: "box", tone: "", text: `Add 5 things to your ${catalogWord}${items ? ` (${Math.min(items, 5)} of 5)` : ""}`, sub: "Customers tick what they liked. A photo of your menu works.", to: "menu", cta: `Add to ${catalogWord}` },
+    { done: t.qr_active > 0 && (printed(place.id) || t.reviews > 0), icon: "print", tone: "violet", text: "Print your QR codes", sub: `Put them ${biz.qrWhere}.`, to: "qr", cta: "Print" },
+    { done: t.reviews > 0, icon: "star", tone: "amber", text: "Get your first review", sub: "Ask a happy customer to scan your QR code.", to: biz.linkFirst ? "reviews" : "qr", cta: biz.linkFirst ? "Send a review link" : "Show my QR" },
   ];
-  const setupLeft = setup.filter((s) => !s.done).length;
+  const setupLeft = items === null ? 0 : setup.filter((s) => !s.done).length;
+  const starting = setupLeft > 0 && t.reviews === 0;
+  // One clear next step: something urgent first, then the next setup step.
+  const next = todo[0] ?? setup.find((s) => !s.done && items !== null) ?? null;
+  const rest = todo.slice(1);
+  const visits14 = t.days.reduce((a, d) => a + d.visitors, 0);
 
   return (
     <div className="ow-today">
       <section className="ow-hello" aria-label="Today">
         <div className="ow-hello-head">
-          <span className="stack tight"><span className="ow-kicker">{new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span><h1>{greeting()}</h1></span>
+          <span className="stack tight"><span className="ow-kicker">{new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span><h1>{starting ? "Let's get you ready" : greeting()}</h1></span>
         </div>
-        <div className="ow-kpis">
-          <Kpi icon="people" label="Visitors today" value={n(t.visitors_today)}
-            sub={t.visitors_yesterday || t.visitors_today ? <><span className={delta > 0 ? "up" : delta < 0 ? "down" : ""}>{delta > 0 ? `+${delta}` : delta}</span> vs yesterday</> : "Scans of your table QR"} onClick={() => go("customers")} />
-          <Kpi icon="star" label="Reviews today" value={n(t.reviews_today)} sub={`${n(t.reviews_7d)} this week`} onClick={() => go("reviews")} />
-          <Kpi icon="reply" label="Need a reply" value={n(t.need_reply)} sub={t.low_open ? `${t.low_open} low rated` : "All reviews"} alert={t.low_open > 0} onClick={() => go("reviews")} />
-          <Kpi icon="trophy" label="Average rating" value={t.avg_rating != null ? Number(t.avg_rating).toFixed(1) : "–"}
-            sub={t.avg_rating != null ? <><Stars value={Number(t.avg_rating)} size={11} /> {n(t.reviews)}</> : "No reviews yet"} onClick={() => go("insights", { replace: false })} />
-        </div>
+        {starting ? (
+          <div className="ow-ready">
+            <div className="ow-meter light" aria-hidden="true"><span style={{ width: `${((setup.length - setupLeft) / setup.length) * 100}%` }} /></div>
+            <span className="small">{setup.length - setupLeft} of {setup.length} done. About 10 minutes in all.</span>
+          </div>
+        ) : (
+          <div className="ow-kpis three">
+            <Kpi icon="people" label="Visitors" value={n(t.visitors_today)}
+              sub={t.visitors_yesterday || t.visitors_today ? <>today <span className={delta > 0 ? "up" : delta < 0 ? "down" : ""}>{delta > 0 ? `+${delta}` : delta}</span></> : "today"} onClick={() => go("customers")} />
+            <Kpi icon="star" label="Reviews" value={n(t.reviews_today)} sub={`today · ${n(t.reviews_7d)} this week`} onClick={() => go("reviews")} />
+            <Kpi icon="trophy" label="Rating" value={t.avg_rating != null ? Number(t.avg_rating).toFixed(1) : "–"}
+              sub={t.avg_rating != null ? <><Stars value={Number(t.avg_rating)} size={11} /> {n(t.reviews)}</> : "No reviews yet"} onClick={() => go("insights", { replace: false })} />
+          </div>
+        )}
       </section>
 
       <div className="ow-grid">
         <div className="ow-col">
-          <section className="ow-card ow-o1" aria-labelledby="todo-h">
-            <div className="ow-card-h"><span className="icon-chip sm coral"><Icon name="bell" size={16} /></span><h2 id="todo-h" className="grow">Needs you</h2>{todo.length > 0 && <span className="ow-count">{todo.length}</span>}</div>
-            {todo.length === 0 ? (
-              <div className="ow-clear"><span className="icon-chip lg"><Icon name="checkCircle" size={24} /></span><b>All caught up</b><span className="small muted">Nothing waiting for you right now.</span></div>
-            ) : (
+          {next ? (
+            <section className={`ow-card ow-next ow-o1 ${next.tone}`} aria-labelledby="next-h">
+              <span className="ow-kicker dark">{todo[0] ? "Do this first" : "Next step"}</span>
+              <div className="row" style={{ gap: 12, alignItems: "flex-start" }}>
+                <span className={`icon-chip ${next.tone}`}><Icon name={next.icon} size={22} /></span>
+                <span className="grow stack tight" style={{ minWidth: 0 }}><h2 id="next-h">{next.text}</h2>{next.sub && <span className="small muted">{next.sub}</span>}</span>
+              </div>
+              <button type="button" className="btn green ow-next-btn" onClick={() => go(next.to, { replace: false })}>{next.cta}<Icon name="chev" size={18} /></button>
+            </section>
+          ) : (
+            <section className="ow-card ow-o1" aria-label="All caught up">
+              <div className="ow-clear"><span className="icon-chip lg"><Icon name="checkCircle" size={24} /></span><b>All caught up</b><span className="small muted">Nothing waiting for you. Enjoy your day.</span></div>
+            </section>
+          )}
+
+          {starting ? (
+            <section className="ow-card ow-o3" aria-labelledby="setup-h">
+              <div className="ow-card-h"><span className="icon-chip sm"><Icon name="checkCircle" size={16} /></span><h2 id="setup-h" className="grow">Your setup list</h2><span className="badge gray">{setup.length - setupLeft} of {setup.length}</span></div>
               <div className="ow-list">
-                {todo.map((x) => (
+                {setup.map((x, i) => (
+                  <button key={x.text} type="button" className={`ow-row ${x.done ? "done" : ""}`} disabled={x.done} onClick={() => go(x.to, { replace: false })}>
+                    <span className="ow-tick" aria-hidden="true">{x.done ? <Icon name="check" size={14} width={3} /> : i + 1}</span>
+                    <span className="grow">{x.text}</span>
+                    {x.done ? <span className="sr-only">Done</span> : <Icon name="chev" size={16} color="var(--muted)" />}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : rest.length > 0 && (
+            <section className="ow-card ow-o3" aria-labelledby="todo-h">
+              <div className="ow-card-h"><span className="icon-chip sm coral"><Icon name="bell" size={16} /></span><h2 id="todo-h" className="grow">Also waiting</h2><span className="ow-count">{rest.length}</span></div>
+              <div className="ow-list">
+                {rest.map((x) => (
                   <button key={x.text} type="button" className="ow-row" onClick={() => go(x.to, { replace: false })}>
                     <span className={`icon-chip sm ${x.tone}`}><Icon name={x.icon} size={16} /></span>
                     <span className="grow stack tight" style={{ minWidth: 0 }}><b>{x.text}</b>{x.sub && <small className="muted">{x.sub}</small>}</span>
@@ -103,67 +144,41 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
                   </button>
                 ))}
               </div>
-            )}
-          </section>
-
-          {setupLeft > 0 && items !== null && (
-            <section className="ow-card ow-o3" aria-labelledby="setup-h">
-              <div className="ow-card-h"><span className="icon-chip sm"><Icon name="checkCircle" size={16} /></span><h2 id="setup-h" className="grow">Finish setting up</h2><span className="badge gray">{setup.length - setupLeft} of {setup.length}</span></div>
-              <div className="ow-meter" aria-hidden="true"><span style={{ width: `${((setup.length - setupLeft) / setup.length) * 100}%` }} /></div>
-              <div className="ow-list">
-                {setup.map((x) => (
-                  <button key={x.label} type="button" className={`ow-row ${x.done ? "done" : ""}`} disabled={x.done} onClick={() => go(x.to, { replace: false })}>
-                    <span className="ow-tick" aria-hidden="true">{x.done ? <Icon name="check" size={14} width={3} /> : <Icon name={x.icon} size={15} />}</span>
-                    <span className="grow">{x.label}</span>
-                    {x.done ? <span className="sr-only">Done</span> : <Icon name="chev" size={16} color="var(--muted)" />}
-                  </button>
-                ))}
-              </div>
             </section>
           )}
 
-          <VisitsChart days={t.days} />
+          {!starting && visits14 > 0 && <VisitsChart days={t.days} />}
         </div>
 
         <div className="ow-col">
-          <section className="ow-card ow-o2" aria-labelledby="qa-h">
+          <section className={`ow-card ${starting ? "ow-o4" : "ow-o2"}`} aria-labelledby="qa-h">
             <div className="ow-card-h"><span className="icon-chip sm violet"><Icon name="zap" size={16} /></span><h2 id="qa-h" className="grow">Quick actions</h2></div>
-            <div className="ow-actions">
-              <Action icon="service" tone="sky" label="Table calls" onClick={() => go("live", { replace: false })} />
-              <Action icon="qr" tone="violet" label="QR codes" onClick={() => go("qr", { replace: false })} />
+            <div className="ow-actions four">
+              <Action icon="print" tone="violet" label="Print QR" onClick={() => go("qr", { replace: false })} />
+              {biz.linkFirst
+                ? <Action icon="link" tone="sky" label="Review link" onClick={() => go("reviews")} />
+                : <Action icon="reply" tone="sky" label="Reply" onClick={() => go("reviews")} />}
               <Action icon="ticket" tone="coral" label="New deal" onClick={() => go("deals")} />
-              <Action icon="gift" tone="amber" label="Send offer" onClick={() => go("customers")} />
-              <Action icon="send" tone="sky" label="Post news" onClick={() => go("messages")} />
-              <Action icon="plus" tone="" label={`Add to ${catalogWord}`} onClick={() => go("menu", { replace: false })} />
-              <Action icon="link" tone="sky" label="Review link" onClick={() => go("reviews")} />
+              <Action icon="plus" tone="" label="Add item" onClick={() => go("menu", { replace: false })} />
             </div>
           </section>
 
-          <section className="ow-card ow-o4" aria-labelledby="off-h">
-            <div className="ow-card-h"><span className="icon-chip sm coral"><Icon name="ticket" size={16} /></span><h2 id="off-h" className="grow">Offers today</h2><button type="button" className="link-btn small" onClick={() => go("deals")}>Manage</button></div>
-            <div className="ow-stats">
-              <Stat value={t.deals_live ? `${t.deals_on_now} of ${t.deals_live}` : "None"} label="deals on now" tone={t.deals_on_now > 0 ? "good" : ""} />
-              <Stat value={n(t.deal_uses_today)} label="deals used today" />
-              {t.stamp_goal ? <Stat value={n(t.stamps_today)} label="stamps given today" /> : <Stat value="Off" label="stamp card" />}
-              <Stat value={n(t.rewards_today)} label="rewards claimed" />
-            </div>
-            <p className="small muted ow-foot">
-              {t.offers_7d > 0 ? <>Private offers this week: <b>{t.offers_7d}</b> sent, <b>{t.offers_seen_7d}</b> opened, <b>{t.offers_used_7d}</b> used.</> : "No private offers sent this week."}
-              {" "}{3 - Math.min(t.updates_today, 3)} news {3 - Math.min(t.updates_today, 3) === 1 ? "post" : "posts"} left today.
-            </p>
-          </section>
-
-          <section className="ow-card ow-o5" aria-labelledby="qr-h">
-            <div className="ow-card-h"><span className="icon-chip sm violet"><Icon name="scan" size={16} /></span><h2 id="qr-h" className="grow">QR codes</h2></div>
-            <div className="ow-stats">
-              <Stat value={n(t.scans_today)} label="scans today" />
-              <Stat value={`${t.qr_active} of ${t.qr_limit}`} label="codes on" />
-            </div>
-            <div className="row" style={{ gap: 8 }}>
-              <button type="button" className="btn small green grow" onClick={() => go("qr", { replace: false })}><Icon name="print" size={16} />Print codes</button>
-              <Link to={`/p/${place.id}`} className="btn small ghost grow"><Icon name="eye" size={16} />My page</Link>
-            </div>
-          </section>
+          {!starting && (
+            <section className="ow-card ow-o4" aria-labelledby="wk-h">
+              <div className="ow-card-h"><span className="icon-chip sm coral"><Icon name="ticket" size={16} /></span><h2 id="wk-h" className="grow">Deals and QR codes</h2></div>
+              <div className="ow-list">
+                <button type="button" className="ow-row" onClick={() => go("deals")}>
+                  <span className="grow stack tight"><b>{t.deals_live ? `${t.deals_on_now} of ${t.deals_live} deals on now` : "No deals yet"}</b>
+                    <small className="muted">{t.deals_live ? `Used ${n(t.deal_uses_today)} ${t.deal_uses_today === 1 ? "time" : "times"} today` : "A deal shows as a ticket on your page and brings people back."}</small></span>
+                  <Icon name="chev" size={18} color="var(--muted)" />
+                </button>
+                <button type="button" className="ow-row" onClick={() => go("qr", { replace: false })}>
+                  <span className="grow stack tight"><b>{n(t.scans_today)} {t.scans_today === 1 ? "scan" : "scans"} today</b><small className="muted">{t.qr_active} of {t.qr_limit} QR codes on</small></span>
+                  <Icon name="chev" size={18} color="var(--muted)" />
+                </button>
+              </div>
+            </section>
+          )}
 
           <button type="button" className="ow-card ow-plan ow-o7" onClick={() => go("plan", { replace: false })}>
             <span className="icon-chip sm amber"><Icon name="crown" size={16} /></span>
@@ -181,6 +196,8 @@ export function Today({ hasPin }: { hasPin: boolean | null }) {
     </div>
   );
 }
+
+interface Todo { icon: IconName; tone: string; text: string; sub?: string; to: Section; cta: string }
 
 function Kpi({ icon, label, value, sub, alert, onClick }: { icon: IconName; label: string; value: string; sub?: React.ReactNode; alert?: boolean; onClick: () => void }) {
   return (
@@ -201,10 +218,6 @@ function Action({ icon, tone, label, onClick }: { icon: IconName; tone: string; 
   );
 }
 
-function Stat({ value, label, tone = "" }: { value: string; label: string; tone?: string }) {
-  return <div className={`ow-stat ${tone}`}><b>{value}</b><small>{label}</small></div>;
-}
-
 /** Visitors per day for two weeks: one series, so no legend; each bar has its own tooltip. */
 function VisitsChart({ days }: { days: OwnerToday["days"] }) {
   const max = Math.max(1, ...days.map((d) => d.visitors));
@@ -219,7 +232,7 @@ function VisitsChart({ days }: { days: OwnerToday["days"] }) {
       <div className="ow-bars" role="list" onMouseLeave={() => setHover(null)}>
         {days.map((d, i) => (
           <button key={d.day} type="button" role="listitem" className={`ow-bar ${i === days.length - 1 ? "now" : ""} ${hover === i ? "hot" : ""}`}
-            aria-label={`${label(d)}: ${d.visitors} visitors, ${d.reviews} reviews`}
+            aria-label={`${label(d)}: ${d.visitors} ${d.visitors === 1 ? "visitor" : "visitors"}, ${d.reviews} ${d.reviews === 1 ? "review" : "reviews"}`}
             onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onClick={() => setHover(i)}>
             <span style={{ height: `${Math.max(d.visitors ? 6 : 2, (d.visitors / max) * 100)}%` }} />
           </button>

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { olderThan } from "../lib/reviews";
 import { demoArtUrl, isDemoArt } from "../lib/demoArt";
@@ -14,12 +14,15 @@ import { GoogleFind, areaCityFromAddress, matchCategory } from "../components/ma
 import "../styles/manage.css";
 
 type Tab = "verify" | "places" | "reviews" | "alerts" | "claims" | "billing" | "stats" | "settings";
-const TABS: [Tab, IconName, string][] = [["verify", "shield", "Verify"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["claims", "shield", "Claims"], ["billing", "wallet", "Billing"], ["stats", "chart", "Stats"], ["settings", "settings", "Settings"]];
+const TABS: [Tab, IconName, string][] = [["verify", "shield", "Verify"], ["places", "store", "Places"], ["reviews", "star", "Reviews"], ["alerts", "flag", "Alerts"], ["claims", "key", "Claims"], ["billing", "wallet", "Billing"], ["stats", "chart", "Stats"], ["settings", "settings", "Settings"]];
 
 interface Summary { to_review: number; live_places: number; collected_inr: number }
 
 export default function Admin() {
-  const [tab, setTab] = useState<Tab>("verify");
+  // The tab lives in ?tab= so Back from a place returns to the same tab.
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.some(([k]) => k === params.get("tab")) ? (params.get("tab") as Tab) : "verify";
+  const setTab = useCallback((t: Tab) => setParams(t === "verify" ? {} : { tab: t }, { replace: true }), [setParams]);
   const [sum, setSum] = useState<Summary | null>(null);
   const [n, setN] = useState(0);
   const refresh = () => setN((x) => x + 1);
@@ -60,7 +63,7 @@ export default function Admin() {
 }
 
 /* ---------- Verify: shops list themselves; the team checks the Google page and links ---------- */
-interface ToVerify { id: string; name: string; category: string; area: string | null; city: string; google_place_id: string | null; links: { kind: string; url: string }[] | null; contact_phone: string | null; verification_note: string | null; owner_name: string | null; created_at: string; has_location: boolean }
+interface ToVerify { id: string; name: string; category: string; area: string | null; city: string; google_place_id: string | null; links: { kind: string; url: string }[] | null; contact_phone: string | null; verification_note: string | null; owner_name: string | null; created_at: string; has_location: boolean; recheck_at?: string | null; recheck_note?: string | null }
 
 function Verify({ onChange }: { onChange: () => void }) {
   const [rows, setRows] = useState<ToVerify[] | null>(null);
@@ -97,13 +100,15 @@ function VerifyCard({ r, onDone }: { r: ToVerify; onDone: () => void }) {
     <div className="card">
       <div className="row between"><Link to={`/p/${r.id}`} className="strong ellipsis grow">{r.name}</Link><span className="tiny muted">{timeAgo(r.created_at)}</span></div>
       <span className="small muted">{[r.category, r.area, r.city].filter(Boolean).join(" · ")}{r.owner_name ? ` · by ${r.owner_name}` : ""}{r.contact_phone ? ` · ${r.contact_phone}` : ""}</span>
-      {r.verification_note && <p className="small">{r.verification_note}</p>}
+      {r.recheck_at && <span className="badge warn" style={{ alignSelf: "flex-start" }}><Icon name="refresh" size={13} />Recheck asked {timeAgo(r.recheck_at)}</span>}
+      {r.verification_note && <p className="small">{r.recheck_at ? <><b>Your team's note:</b> {r.verification_note}</> : r.verification_note}</p>}
+      {r.recheck_note && <p className="small"><b>Owner's reply:</b> {r.recheck_note}</p>}
       <div className="stack tight">
         {gmaps ? <a className="small" href={gmaps} target="_blank" rel="noopener noreferrer">Google page: check name and address match</a> : <span className="small" style={{ color: "var(--danger)" }}>No Google page given</span>}
         {(r.links || []).map((l) => <a key={l.url} className="small ellipsis" href={l.url} target="_blank" rel="noopener noreferrer">{l.kind}: {l.url}</a>)}
       </div>
       {!r.has_location && <CoordsField value={coords} onChange={setCoords} />}
-      <input className="input" placeholder="Note to the owner (needed to remove)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <input className="input" placeholder="Note to the owner" aria-label="Note to the owner (needed to remove)" value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="grid2">
         <button className="btn small danger" disabled={busy} onClick={() => decide(false)}>Remove</button>
         <button className="btn small green" disabled={busy} onClick={() => decide(true)}><Icon name="check" size={16} />Verify</button>
@@ -123,7 +128,9 @@ function Places({ onChange }: { onChange: () => void }) {
   const [f, setF] = useState({ name: "", category: "", area: "", city: "", google_place_id: "" });
   const [coords, setCoords] = useState("");
   const [show, setShow] = useState<"all" | "renewals">("all");
-  const [find, setFind] = useState("");
+  // Kept for the session, so Back from a place shows the same search.
+  const [find, setFindState] = useState(() => { try { return sessionStorage.getItem("ad-find") || ""; } catch { return ""; } });
+  const setFind = (v: string) => { setFindState(v); try { sessionStorage.setItem("ad-find", v); } catch { /* private mode */ } };
   const [more, setMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [noPin, setNoPin] = useState<Set<string>>(new Set());
@@ -269,9 +276,13 @@ function Settings() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    const hours = Number(v.visit_window_hours);
+    if (!Number.isInteger(hours) || hours < 1 || hours > 48) { toast("Visit window must be a whole number of hours, 1 to 48"); return; }
+    const phone = v.support_phone.replace(/[^\d]/g, "");
+    if (phone && (phone.length < 10 || phone.length > 15)) { toast("Give the WhatsApp number with country code, e.g. 919800000000"); return; }
     const rows = [
-      { key: "visit_window_hours", value: Math.max(1, Number(v.visit_window_hours) || 6) },
-      { key: "support_phone", value: v.support_phone.trim() },
+      { key: "visit_window_hours", value: hours },
+      { key: "support_phone", value: phone },
     ];
     const { error } = await supabase.from("app_settings").upsert(rows);
     if (error) toast(errorText(error)); else { toast("Settings saved"); reload(); }
@@ -283,7 +294,7 @@ function Settings() {
 
   return (
     <form className="stack" onSubmit={save}>
-      {field("support_phone", "WhatsApp number for businesses", "tel", "919800000000")}
+      {field("support_phone", "WhatsApp number for businesses (shown on For businesses and Contact)", "tel", "919800000000")}
       {field("visit_window_hours", "Hours a QR scan counts as a visit", "number")}
       <button className="btn green block"><Icon name="check" size={18} />Save settings</button>
       <p className="tiny muted">Plan prices and QR limits are under Billing.</p>
@@ -420,7 +431,7 @@ function Alerts() {
               </div>
               <p className="small" style={{ overflowWrap: "anywhere" }}>{a.detail}{a.kind === "reported" && a.n > 1 ? ` (${a.n} reports)` : ""}</p>
               <div className="row" style={{ gap: 8 }}>
-                {a.place_id && <Link to={`/p/${a.place_id}`} className="btn small ghost"><Icon name="store" size={15} />Open shop</Link>}
+                {a.place_id && <Link to={`/p/${a.place_id}`} className="btn small ghost" style={{ whiteSpace: "nowrap", flexShrink: 0 }}><Icon name="store" size={15} />Open shop</Link>}
                 {a.kind === "reported" && a.review_id && <>
                   <button className="btn small ghost" onClick={() => act(a, false)}>Keep</button>
                   <button className="btn small danger" onClick={() => act(a, true)}>Hide review</button>
@@ -438,11 +449,14 @@ interface ClaimRow { id: string; place_id: string; place_name: string; area: str
 
 function ClaimPhoto({ path }: { path: string }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [broken, setBroken] = useState(false);
   useEffect(() => {
+    setBroken(false);
     if (isDemoArt(path)) { setSrc(demoArtUrl(path, 600)); return; }
     supabase.storage.from("claim-photos").createSignedUrl(path, 600).then(({ data }) => setSrc(data?.signedUrl ?? null));
   }, [path]);
-  return src ? <img src={src} alt="Shop front" className="cl-photo" /> : null;
+  if (broken) return <div className="cl-photo row tiny muted" style={{ justifyContent: "center", gap: 6, background: "var(--fill)" }}><Icon name="image" size={16} />Photo didn't load</div>;
+  return src ? <img src={src} alt="Shop front" className="cl-photo" onError={() => setBroken(true)} /> : null;
 }
 
 function Claims() {
@@ -562,14 +576,14 @@ function Payments() {
     <div className="stack">
       {err && <div className="notice err">{err}</div>}
       <BillingAlerts />
-      {rows && !err && <div className="card row"><span className="icon-chip"><Icon name="rupee" size={18} /></span><span className="grow stack tight"><span className="strong">₹{total.toLocaleString("en-IN")}</span><span className="tiny muted">{paid.length} Razorpay payments</span></span></div>}
-      {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>No Razorpay payments yet.</p></div> :
+      {rows && !err && <div className="card row"><span className="icon-chip"><Icon name="rupee" size={18} /></span><span className="grow stack tight"><span className="strong">₹{total.toLocaleString("en-IN")}</span><span className="tiny muted">{paid.length} payments (Razorpay and entered by the team)</span></span></div>}
+      {rows === null ? <div className="skeleton" /> : rows.length === 0 && !err ? <div className="empty"><p>No payments yet.</p></div> :
         rows.map((r) => (
           <div key={r.id} className="card row" style={{ gap: 10 }}>
             <span className={`icon-chip sm ${r.status === "paid" ? "" : r.status === "created" ? "amber" : "coral"}`}><Icon name={r.status === "paid" ? "check" : "clock"} size={15} /></span>
             <span className="grow stack tight">
               {r.place_id ? <Link to={`/p/${r.place_id}`} className="strong" style={{ color: "inherit" }}>{r.place_name}</Link> : <span className="strong">{r.place_name} <span className="tiny muted">(sign-up)</span></span>}
-              <span className="tiny muted">{r.plan}, 1 {r.billing_interval} · {r.status === "created" ? "not paid" : r.status} · {timeAgo(r.paid_at || r.created_at)}{r.provider_payment_id ? ` · ${r.provider_payment_id}` : ""}</span>
+              <span className="tiny muted">{r.plan}{r.billing_interval ? `, 1 ${r.billing_interval}` : ""} · {r.status === "created" ? "not paid" : r.status} · {timeAgo(r.paid_at || r.created_at)}{r.provider_payment_id ? ` · ${r.provider_payment_id}` : ""}</span>
             </span>
             <span className="strong">₹{(r.amount_minor / 100).toLocaleString("en-IN")}</span>
           </div>
@@ -741,7 +755,7 @@ function Vocabulary() {
     const v = value.trim();
     if (!v) return;
     const { error } = await supabase.from(table).insert(table === "topics" ? { name: v } : { label: v });
-    if (error) toast(errorText(error)); else { done(); load(); toast("Added"); }
+    if (error) toast(error.code === "23505" ? `“${v}” is already there` : errorText(error)); else { done(); load(); toast("Added"); }
   }
   async function remove(table: "topics" | "tags", id: number, name: string) {
     if (!(await confirm({ title: `Remove “${name}”?`, body: "It comes off every item or review that uses it.", ok: "Remove", danger: true }))) return;

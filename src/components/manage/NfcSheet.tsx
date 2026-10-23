@@ -42,7 +42,7 @@ export function NfcSheet({ code, onClose }: { code: QrCode; onClose: () => void 
   }
   useEffect(() => { load(); }, [code.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const label = code.table_label || "this table";
+  const label = code.table_label || "this code";
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet mg-sheet" role="dialog" aria-modal="true" aria-label={`NFC tag for ${label}`} onClick={(e) => e.stopPropagation()}>
