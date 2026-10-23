@@ -11,6 +11,7 @@ import { Icon, QrImage, useConfirm } from "../ui";
 import { CurrencyField } from "../manage/CurrencyField";
 import { DEFAULT_CURRENCY, localCurrency } from "../../lib/money";
 import { BIZ, KINDS, MODES, type Kind } from "../../lib/modes";
+import { getSource } from "../../lib/source";
 import "../../styles/manage.css";
 import "../../styles/setup.css";
 
@@ -156,7 +157,8 @@ export function Setup() {
       if (!id) {
         const raw = form.google_place_id.trim();
         const placeId = raw ? extractPlaceId(raw) : null;
-        const note = [form.note.trim(), raw && !placeId ? `Google Maps link: ${raw}` : ""].filter(Boolean).join("\n");
+        const src = getSource();
+        const note = [form.note.trim(), raw && !placeId ? `Google Maps link: ${raw}` : "", src ? `Came from: ${src}` : ""].filter(Boolean).join("\n");
         const ins = await supabase.rpc("list_my_shop", {
           p_name: form.business_name.trim(), p_category: form.category.trim() || (kind ? MODES[kind].label : "Business"), p_city: form.city.trim(), p_phone: fullPhone(),
           p_area: form.area.trim() || null, p_google_place_id: placeId, p_links: buildLinks(), p_note: note || null,

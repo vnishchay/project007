@@ -35,6 +35,9 @@ import { HomeGate } from "./pages/owner/HomeGate";
 import { OwnerManifest } from "./lib/ownerManifest";
 import BestDish from "./pages/BestDish";
 import "./styles/responsive.css";
+import { rememberSource } from "./lib/source";
+
+rememberSource();
 
 function Setup() {
   return (
