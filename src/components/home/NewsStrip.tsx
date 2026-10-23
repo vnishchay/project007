@@ -5,6 +5,7 @@ import { placeMediaUrl } from "../../lib/media";
 import { initials, timeAgo } from "../../lib/util";
 import { Icon, useToast } from "../ui";
 import { SectionTitle } from "./Kit";
+import { CouponSheet } from "../ForYouHere";
 
 interface Offer { id: string; place_id: string; place_name: string; logo_path: string | null; body: string; link_url: string | null; created_at: string; seen: boolean }
 interface ShopUpdate { id: string; place_id: string; place_name: string; logo_path: string | null; body: string; link_url: string | null; created_at: string }
@@ -41,6 +42,7 @@ export function NewsStrip({ userId }: { userId: string }) {
     toast(`No more offers from ${o.place_name}`);
   }
 
+  const [showing, setShowing] = useState<Offer | null>(null);
   if (!rows.length && !offers.length) return null;
   return (
     <section className="stack" style={{ gap: 10 }} aria-label="News from your places">
@@ -58,7 +60,7 @@ export function NewsStrip({ userId }: { userId: string }) {
             </Link>
             <span className="news-body">{o.body}</span>
             <span className="row" style={{ gap: 8, marginTop: "auto" }}>
-              {o.link_url && <a className="link-btn small" href={o.link_url} target="_blank" rel="noopener noreferrer"><Icon name="external" size={14} />Open</a>}
+              <button type="button" className="link-btn small" onClick={() => setShowing(o)}><Icon name="ticket" size={14} />Show at counter</button>
               <span className="grow" />
               <button type="button" className="link-btn small" style={{ color: "var(--muted)" }} onClick={() => stop(o)}><Icon name="bell" size={14} />Stop offers</button>
             </span>
@@ -78,6 +80,8 @@ export function NewsStrip({ userId }: { userId: string }) {
           </Link>
         ))}
       </div>
+      {showing && <CouponSheet offer={{ ...showing, used_at: null }} placeName={showing.place_name} onClose={() => setShowing(null)}
+        onUsed={() => { setOffers((xs) => xs.filter((x) => x.id !== showing.id)); setShowing(null); toast("Marked as used"); }} />}
     </section>
   );
 }

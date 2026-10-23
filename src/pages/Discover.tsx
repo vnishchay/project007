@@ -11,6 +11,7 @@ import { LocationPicker } from "../components/LocationPicker";
 import { Chip, EmptyArt, Glyph, SectionTitle, greeting, lookFor, type GlyphName, type Tone } from "../components/home/Kit";
 import { PickCard, PlaceCard, type Media } from "../components/home/PlaceCard";
 import { NewsStrip } from "../components/home/NewsStrip";
+import { ReadyToRate } from "../components/home/ReadyToRate";
 import { KINDS, MODES, type Kind } from "../lib/modes";
 import { bestPath, mealNow, openNow, topDishes, type TopDish } from "../lib/dishes";
 import { DishCard } from "../components/home/DishCard";
@@ -241,6 +242,9 @@ export default function Discover() {
           {SR && <button type="button" className={`mic-btn ${listening ? "on" : ""}`} onClick={voiceSearch} aria-label={listening ? "Listening" : "Search by voice"} disabled={listening}><Icon name="mic" size={18} /></button>}
         </form>
       </header>
+
+      {/* A review that runs out soon comes before everything else. */}
+      {session && !q && <ReadyToRate userId={session.user.id} />}
 
       {picking && <LocationPicker current={where} onPick={setWhere} onClose={() => setPicking(false)} denied={denied} radius={radius} choices={choices} onRadius={setRadius} />}
 

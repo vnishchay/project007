@@ -44,3 +44,14 @@ Tested on a local Postgres 16 + PostGIS with a stand-in for Supabase Auth: QR sc
 | Similar dishes | Migration 44 (pgvector) and redeploy `ai` (`scripts/deploy-ai.ps1`) for its `embed` task. Vectors fill in as shop pages are opened, when owners change products, and at the end of each onboarding run. |
 | Wallet passes | Deploy `wallet` (`scripts/deploy-wallet.ps1`) and set its secrets: `SITE_URL`, then Apple (`APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, `APPLE_PASS_CERT`, `APPLE_PASS_KEY`, `APPLE_PASS_KEY_PASSPHRASE` if any, `APPLE_WWDR_CERT`) and/or Google (`GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_SA_JSON`). Buttons appear only for a wallet that's set up. |
 | Bot check | Off by default. During a bot flood: set `VITE_TURNSTILE_SITE_KEY` on Vercel and turn on CAPTCHA (Turnstile, same site's secret key) in Supabase > Authentication > Attack Protection. Turn both off again afterwards. |
+
+## Offers at the counter and review reminders (migration 47)
+
+- **Offers:** a diner sees the shop's offers for them on the scan page and on Home, shows one at the counter (a live clock shows it isn't a screenshot) and marks it used. Owners see "used by N" under Offers sent. Nothing to switch on.
+- **Ready to rate:** Home shows a shop you scanned at and haven't reviewed while the review is still open. Nothing to switch on.
+- **Review reminders (Web Push):** people who tap "Rate later" on the scan page, or switch on Review reminders in Profile, get a phone notification about 90 minutes after scanning and a last one 45 minutes before the review closes, unless they already reviewed. To turn it on:
+  1. Run `run-now-47.sql` (or `update_existing_database.sql`).
+  2. On the PC: `powershell -ExecutionPolicy Bypass -File scripts/setup-reminders.ps1`. It makes the Web Push keys, sets the Supabase secrets, deploys the `remind` function and prints two last steps.
+  3. Run the one SQL line it prints (stores the project address and the cron secret in Vault).
+  4. Add `VITE_VAPID_PUBLIC_KEY` on Vercel (it prints the value) and redeploy.
+  On iPhone, notifications need the app added to the home screen (iOS 16.4+); the app says so. Until step 4 the app hides the switch and keeps Ready to rate on Home.

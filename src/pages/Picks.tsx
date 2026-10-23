@@ -9,22 +9,14 @@ import { Icon, Spinner, TopBar, useConfirm, useTabKeys, useToast } from "../comp
 import { ReviewCard, REVIEW_SELECT } from "../components/ReviewCard";
 import { FacePicker } from "../components/FacePicker";
 import { Chip, EmptyArt, MenuRow, Retry, SectionTitle, lookFor } from "../components/home/Kit";
+import { timeLeft, useOpenVisits } from "../lib/visits";
 import "../styles/home.css";
 
 interface SavedRow { place_id: string; places: { name: string; area: string | null; category: string } | null }
 interface Draft { id: string; rating: number; body: string; tags: number[] }
-interface OpenVisit { place_id: string; expires_at: string; places: { name: string; area: string | null; category: string } | null }
 
 const TABS = ["reviews", "saved"] as const;
 type Tab = (typeof TABS)[number];
-
-/** "45 min left" for a visit that is still open, so people know how long they have to rate. */
-function timeLeft(iso: string): string {
-  const mins = Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 60000));
-  if (mins < 60) return `${mins} min left`;
-  const h = Math.floor(mins / 60);
-  return h < 24 ? `${h} h ${mins % 60 ? `${mins % 60} min ` : ""}left` : `Until ${new Date(iso).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
-}
 
 /** Your picks: what you can rate now, your diary, your reviews and saved places. Profile and settings live on /me. */
 export default function Picks() {
@@ -43,7 +35,7 @@ export default function Picks() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [savingReview, setSavingReview] = useState(false);
-  const [openVisits, setOpenVisits] = useState<OpenVisit[]>([]);
+  const openVisits = useOpenVisits(me);
   const tabKeys = useTabKeys(TABS, tab, setTab);
 
   const loadReviews = useCallback(() => {
@@ -73,16 +65,6 @@ export default function Picks() {
       .then(({ data, error }) => { if (error) setSavedErr(errorText(error)); else setSaved((data as unknown as SavedRow[]) || []); });
   }, [me]);
   useEffect(() => { loadReviews(); loadSaved(); }, [loadReviews, loadSaved]);
-
-  // Shops you scanned into recently and can still review (the visit is open).
-  useEffect(() => {
-    supabase.from("visits").select("place_id, expires_at, places(name, area, category)").eq("user_id", me)
-      .gt("expires_at", new Date().toISOString()).order("scanned_at", { ascending: false }).limit(10)
-      .then(({ data }) => {
-        const seen = new Set<string>();
-        setOpenVisits(((data as unknown as OpenVisit[]) || []).filter((v) => v.places && !seen.has(v.place_id) && seen.add(v.place_id)));
-      });
-  }, [me]);
 
   async function setVisibility(id: string, isPublic: boolean) {
     const { data, error } = await supabase.from("reviews").update({ is_public: isPublic }).eq("id", id).select("id");
@@ -148,12 +130,12 @@ export default function Picks() {
           <div className="menu">
             {openVisits.map((v) => (
               <Link key={v.place_id} to={`/review/${v.place_id}`} className="menu-row">
-                <Chip icon={lookFor(v.places!.category).icon} tone={lookFor(v.places!.category).tone} />
+                <Chip icon={lookFor(v.category).icon} tone={lookFor(v.category).tone} />
                 <span className="grow stack tight" style={{ minWidth: 0 }}>
-                  <span className="t ellipsis">{v.places!.name}</span>
-                  <span className="s ellipsis row" style={{ gap: 4 }}><Icon name="clock" size={12} />{timeLeft(v.expires_at)}{v.places!.area ? ` · ${v.places!.area}` : ""}</span>
+                  <span className="t ellipsis">{v.place_name}</span>
+                  <span className="s ellipsis row" style={{ gap: 4 }}><Icon name="clock" size={12} />{timeLeft(v.expires_at)}{v.area ? ` · ${v.area}` : ""}</span>
                 </span>
-                <span className="pill verified"><Icon name="star" size={13} />Rate now</span>
+                {v.reviewed ? <span className="pill gray"><Icon name="plus" size={13} />Rate more</span> : <span className="pill verified"><Icon name="star" size={13} />Rate now</span>}
               </Link>
             ))}
           </div>

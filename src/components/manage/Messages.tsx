@@ -13,7 +13,7 @@ const LIMIT = 280;
 const DAY = 86_400_000;
 
 export type Audience = "update" | "offer";
-interface SentOffer { body: string; link_url: string | null; sent_at: string; recipients: number; seen: number }
+interface SentOffer { body: string; link_url: string | null; sent_at: string; recipients: number; seen: number; used?: number }
 
 function friendlyOfferError(e: unknown): string {
   const t = errorText(e);
@@ -118,7 +118,7 @@ export function Messages({ placeId, placeName, logoPath, live, audience, onAudie
           <label className={!isOffer ? "on" : ""}><input type="radio" name="aud" checked={!isOffer} onChange={() => onAudience("update")} />
             <Icon name="people" size={18} /><span><b>Everyone who saved or reviewed you</b><small>An update on your page and their home page. You never see who they are.</small></span></label>
           <label className={isOffer ? "on" : ""}><input type="radio" name="aud" checked={isOffer} onChange={() => onAudience("offer")} />
-            <Icon name="gift" size={18} /><span><b>Visitors you pick{picked.length ? ` (${picked.length})` : ""}</b><small>A private offer to people who scanned your QR. One per person per day.</small></span></label>
+            <Icon name="gift" size={18} /><span><b>Visitors you pick{picked.length ? ` (${picked.length})` : ""}</b><small>A private offer to people who scanned your QR. They show it at your counter and mark it used. One per person per day.</small></span></label>
         </fieldset>
         {isOffer && !picked.length && <button type="button" className="link-btn small" style={{ alignSelf: "flex-start" }} onClick={onPick}><Icon name="people" size={15} />Pick visitors first</button>}
 
@@ -171,7 +171,7 @@ export function Messages({ placeId, placeName, logoPath, live, audience, onAudie
             <div key={`${o.sent_at}-${o.body}`} className="up-item">
               <p className="up-body">{o.body}</p>
               {o.link_url && <span className="tiny row ellipsis" style={{ gap: 4 }}><Icon name="external" size={12} />{o.link_url.replace(/^https?:\/\/(www\.)?/, "")}</span>}
-              <span className="tiny muted row" style={{ gap: 6 }}><Icon name="send" size={12} />{timeAgo(o.sent_at)} · to {o.recipients} · <Icon name="eye" size={12} />seen by {o.seen}</span>
+              <span className="tiny muted row" style={{ gap: 6 }}><Icon name="send" size={12} />{timeAgo(o.sent_at)} · to {o.recipients} · <Icon name="eye" size={12} />seen by {o.seen}{o.used ? <> · <Icon name="ticket" size={12} />used by {o.used}</> : null}</span>
             </div>
           ))}
         </div>
