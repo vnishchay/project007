@@ -82,3 +82,14 @@
 /* Phone with its country code. */
 .su-phone { display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 1fr); gap: 8px; }
 .su-phone .select { padding-right: 24px; }
+
+/* Things most owners never change, folded into one tappable line. */
+.su-more { border-radius: 14px; background: var(--card); box-shadow: inset 0 0 0 0.5px var(--line); padding: 0 14px; }
+.su-more > summary { list-style: none; display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; font-size: 14px; color: var(--ink-2); }
+.su-more > summary::-webkit-details-marker { display: none; }
+.su-more[open] { padding-bottom: 14px; }
+.su-more[open] > summary .link-btn { visibility: hidden; }
+.su-step { width: 52px; height: 52px; }
+.su-count { font-size: 40px; min-width: 64px; line-height: 1; }
+.su-radio { width: 22px; height: 22px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); display: grid; place-items: center; color: #fff; }
+.pn-pick.on .su-radio { background: var(--accent); box-shadow: none; }
