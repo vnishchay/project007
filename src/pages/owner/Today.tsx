@@ -232,7 +232,7 @@ function VisitsChart({ days }: { days: OwnerToday["days"] }) {
       <div className="ow-bars" role="list" onMouseLeave={() => setHover(null)}>
         {days.map((d, i) => (
           <button key={d.day} type="button" role="listitem" className={`ow-bar ${i === days.length - 1 ? "now" : ""} ${hover === i ? "hot" : ""}`}
-            aria-label={`${label(d)}: ${d.visitors} visitors, ${d.reviews} reviews`}
+            aria-label={`${label(d)}: ${d.visitors} ${d.visitors === 1 ? "visitor" : "visitors"}, ${d.reviews} ${d.reviews === 1 ? "review" : "reviews"}`}
             onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onClick={() => setHover(i)}>
             <span style={{ height: `${Math.max(d.visitors ? 6 : 2, (d.visitors / max) * 100)}%` }} />
           </button>

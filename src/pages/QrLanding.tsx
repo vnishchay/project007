@@ -16,6 +16,8 @@ import { ForYouHere } from "../components/ForYouHere";
 import { TreatsRail } from "../components/treats/TreatsRail";
 import { laterNote } from "../components/Reminders";
 import { turnOnReminders, type PushState } from "../lib/push";
+import { VisitBadge } from "../components/VisitBadge";
+import { useVisitProof } from "../lib/visits";
 import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
@@ -68,6 +70,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   const [peekErr, setPeekErr] = useState("");
   const [peekTry, setPeekTry] = useState(0);
   const [visit, setVisit] = useState<Visit | null>(null);
+  const proof = useVisitProof(visit ? peek?.place_id : undefined, session?.user.id, visit);
   const [scanErr, setScanErr] = useState("");
   const [scanning, setScanning] = useState(false);
   const [refused, setRefused] = useState<Refusal | null>(null);
@@ -350,7 +353,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         <h1>{peek.place_name}</h1>
         <div className="rvx-meta">
           {peek.table_label && <span className="rvx-pill"><Icon name="qr" size={14} />{peek.table_label}</span>}
-          {visit && !refused && <span className="rvx-verified"><Icon name="verified" size={15} />Verified visit</span>}
+          {visit && !refused && <VisitBadge proof={proof} />}
         </div>
       </header>
 
@@ -460,7 +463,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
             <ul className="rvx-trust-more">
               {!session && !guestOff && <li><Icon name="user" size={15} />No account needed</li>}
               <li><Icon name="eyeOff" size={15} />Anonymous unless you choose to show your name</li>
-              <li><Icon name="verified" size={15} />Marked as a verified visit</li>
+              <li><Icon name="verified" size={15} />Marked as a verified visit when you're at the shop</li>
               {!link && !tap && <li><Icon name="pin" size={15} />We check you're at the shop. Only "near" or "far" is kept, never your location</li>}
               <li><Icon name="store" size={15} />{session ? "The shop sees your name and visit, never your review" : "The shop sees you visited as \"Guest\", never your review"}</li>
             </ul>

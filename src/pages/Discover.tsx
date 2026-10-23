@@ -305,7 +305,7 @@ export default function Discover() {
       {!q && <InstallNudge look="callout" returning title="Get Trusted Picks on your home screen" sub="Open it like an app, no store needed." />}
 
       {/* Guests can get offers too (owners see guest visitors), so the strip shows for any session. */}
-      {session && !q && <NewsStrip userId={session.user.id} />}
+      {session && !q && !type && <NewsStrip userId={session.user.id} />}
 
       {picks.length > 0 && (
         <section className="stack" style={{ gap: 10 }} aria-label="Friends' picks">
