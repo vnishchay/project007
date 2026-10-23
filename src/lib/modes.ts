@@ -117,3 +117,102 @@ export function normalizePhone(input: string): string | null {
   }
   return d.length >= 10 && d.length <= 15 ? d : null;
 }
+
+/**
+ * How each business type runs day to day: what a QR spot is called and where it goes, what its
+ * customers are called, the quick review tags for a visit, and examples that fit (deals, stamp rewards).
+ * Every visit tag here is a row in the tags table (kind "visit", migration 53).
+ */
+export type VisitVerdict = "meh" | "ok" | "good" | "love";
+type VisitTags = Record<VisitVerdict, { title: string; tags: string[] }>;
+export type DealHintKind = "percent" | "flat" | "free" | "bogo" | "happy_hour" | "other";
+
+export interface Biz {
+  /** one QR spot ("table", "chair") and where the codes go */
+  spot: string;
+  spots: string;
+  qrWhere: string;
+  /** what its customers are called */
+  customer: string;
+  customers: string;
+  visitTags: VisitTags;
+  dealHints: Record<DealHintKind, string>;
+  /** the timed deal: "Happy hour" for food and drink, "Quiet hours" elsewhere */
+  timedDeal: string;
+  stampReward: string;
+  /** Services mostly work at the customer's place, so a one-time review link comes before table QRs. */
+  linkFirst: boolean;
+  /** "Who were you with?" fits a meal, not a dentist. */
+  socialVisit: boolean;
+}
+
+const T = (meh: string[], ok: string[], good: string[], love: string[]): VisitTags => ({
+  meh: { title: "What let it down?", tags: meh },
+  ok: { title: "What stood out?", tags: ok },
+  good: { title: "What was good?", tags: good },
+  love: { title: "What made it great?", tags: love },
+});
+
+export const BIZ: Record<Kind, Biz> = {
+  food: {
+    spot: "table", spots: "tables", qrWhere: "on every table or at the counter", customer: "diner", customers: "diners",
+    visitTags: T(["Poor food", "Poor service", "Long wait", "Noisy", "Too pricey", "Not clean"], ["Food", "Service", "Value", "Long wait", "Too pricey", "Noisy"],
+      ["Food", "Service", "Ambience", "Value", "Quick"], ["Amazing food", "Lovely staff", "Great vibe", "Great value", "Super quick"]),
+    dealHints: { percent: "on all pizzas", flat: "on bills over 500", free: "Tiramisu with any pizza", bogo: "on all lemonades", happy_hour: "2 for 1 drinks", other: "Kids eat free on Sundays" },
+    timedDeal: "Happy hour", stampReward: "a free dessert", linkFirst: false, socialVisit: true,
+  },
+  store: {
+    spot: "counter", spots: "counters", qrWhere: "at the billing counter or on the bill", customer: "customer", customers: "customers",
+    visitTags: T(["Poor quality", "Pushy selling", "Long wait", "Unhelpful staff", "Too pricey"], ["Good variety", "Staff", "Value", "Long wait", "Too pricey"],
+      ["Good variety", "Genuine products", "Helpful staff", "Value", "Quick"], ["Great variety", "Lovely staff", "Great value", "Genuine products", "Easy returns"]),
+    dealHints: { percent: "on the new collection", flat: "on bills over 2000", free: "Free gift wrap", bogo: "on all socks", happy_hour: "Extra 10% off on weekday mornings", other: "Free alteration on any kurta" },
+    timedDeal: "Quiet hours", stampReward: "₹200 off your next bill", linkFirst: false, socialVisit: false,
+  },
+  beauty: {
+    spot: "chair", spots: "chairs", qrWhere: "at each mirror or at reception", customer: "client", customers: "clients",
+    visitTags: T(["Not happy with result", "Long wait", "Rushed", "Not clean", "Overcharged"], ["Result", "Staff", "Hygienic", "Value", "Long wait"],
+      ["Great result", "Skilled staff", "Hygienic", "Relaxing", "On time"], ["Loved the result", "Skilled staff", "So relaxing", "Spotless", "Great value"]),
+    dealHints: { percent: "on hair colour", flat: "on facials over 1500", free: "Free head massage with any haircut", bogo: "on manicures", happy_hour: "20% off on weekday afternoons", other: "Bring a friend, both get 10% off" },
+    timedDeal: "Quiet hours", stampReward: "a free haircut", linkFirst: false, socialVisit: false,
+  },
+  health: {
+    spot: "desk", spots: "desks", qrWhere: "at reception or in the waiting area", customer: "patient", customers: "patients",
+    visitTags: T(["Long wait", "Rushed", "Didn't explain", "Not clean", "Overcharged"], ["Doctor", "Staff", "Short wait", "Clean", "Fees"],
+      ["Caring doctor", "Explains clearly", "Short wait", "Clean", "Helpful staff"], ["Caring doctor", "Explains clearly", "Felt better", "Spotless", "Kind staff"]),
+    dealHints: { percent: "on full body checkups", flat: "on dental cleaning", free: "Free BP and sugar check", bogo: "on eye tests for families", happy_hour: "10% off morning appointments", other: "Free follow-up within 7 days" },
+    timedDeal: "Quiet hours", stampReward: "a free checkup", linkFirst: false, socialVisit: false,
+  },
+  fitness: {
+    spot: "counter", spots: "counters", qrWhere: "at the front desk or in the studio", customer: "member", customers: "members",
+    visitTags: T(["Crowded", "Old equipment", "Not clean", "Pushy selling", "Unhelpful staff"], ["Trainers", "Equipment", "Clean", "Value", "Crowded"],
+      ["Good trainers", "Good equipment", "Clean", "Good vibe", "Value"], ["Great trainers", "Great equipment", "Great vibe", "Spotless", "Great value"]),
+    dealHints: { percent: "on 3-month memberships", flat: "on yearly plans", free: "Free trial class", bogo: "Bring a friend free", happy_hour: "Off-peak plan 30% off", other: "Free diet plan with any membership" },
+    timedDeal: "Off-peak hours", stampReward: "a free personal training session", linkFirst: false, socialVisit: false,
+  },
+  education: {
+    spot: "class", spots: "classrooms", qrWhere: "in each classroom or at the front desk", customer: "student", customers: "students",
+    visitTags: T(["Rushed", "Late", "Didn't explain", "Too pricey", "Crowded classes"], ["Teachers", "Explains clearly", "Value for fees", "Personal attention", "Late"],
+      ["Good teachers", "Explains clearly", "Personal attention", "Value for fees", "On time"], ["Great teachers", "Explains clearly", "Personal attention", "Great results", "Value for fees"]),
+    dealHints: { percent: "on the full course fee", flat: "on early sign-up", free: "Free demo class", bogo: "Siblings join at half fee", happy_hour: "Weekend batch 10% off", other: "Free study material with any course" },
+    timedDeal: "Quiet hours", stampReward: "a free extra class", linkFirst: false, socialVisit: false,
+  },
+  services: {
+    spot: "card", spots: "cards", qrWhere: "on your bill, visiting card or van", customer: "customer", customers: "customers",
+    visitTags: T(["Late", "Overcharged", "Poor quality", "Didn't fix it", "Rude staff"], ["On time", "Fair quote", "Quality", "Staff", "Late"],
+      ["On time", "Fair quote", "Did it right first time", "Skilled staff", "Tidy work"], ["Did it right first time", "On time", "Fair quote", "Tidy work", "Lovely staff"]),
+    dealHints: { percent: "on your first service", flat: "on AC service over 1000", free: "Free inspection with any repair", bogo: "Second appliance at half price", happy_hour: "Weekday visits 10% off", other: "Free 30-day redo if it isn't right" },
+    timedDeal: "Quiet hours", stampReward: "a free service visit", linkFirst: true, socialVisit: false,
+  },
+  other: {
+    spot: "counter", spots: "counters", qrWhere: "at your counter or on the bill", customer: "customer", customers: "customers",
+    visitTags: T(["Poor service", "Long wait", "Unhelpful staff", "Too pricey", "Not clean"], ["Service", "Staff", "Value", "Long wait", "Too pricey"],
+      ["Service", "Staff", "Value", "Quick", "Clean"], ["Great service", "Lovely staff", "Great vibe", "Great value", "Super quick"]),
+    dealHints: { percent: "on everything this week", flat: "on bills over 500", free: "A free extra with any order", bogo: "on our best seller", happy_hour: "10% off on weekday mornings", other: "Bring a friend, both save" },
+    timedDeal: "Quiet hours", stampReward: "a free extra", linkFirst: false, socialVisit: false,
+  },
+};
+
+export const bizOf = (kind: string | null | undefined, category?: string | null): Biz => BIZ[modeOf(kind, category).kind];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "Table", "Chair", "Card": the default name of one QR code. */
+export const spotLabel = (b: Biz) => cap(b.spot);

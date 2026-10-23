@@ -445,7 +445,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
               <li><Icon name="eyeOff" size={15} />Anonymous unless you choose to show your name</li>
               <li><Icon name="verified" size={15} />Marked as a verified visit</li>
               {!link && !tap && <li><Icon name="pin" size={15} />We check you're at the shop. Only "near" or "far" is kept, never your location</li>}
-              <li><Icon name="store" size={15} />{session ? "The shop sees your name and table, never your review" : "The shop sees you visited as \"Guest\", never your review"}</li>
+              <li><Icon name="store" size={15} />{session ? "The shop sees your name and visit, never your review" : "The shop sees you visited as \"Guest\", never your review"}</li>
             </ul>
           )}
           <Link to={`/p/${peek.place_id}`} className="rvx-link"><Icon name="eye" size={16} />See reviews</Link>
@@ -479,7 +479,7 @@ function SeenByShop({ placeId, shop }: { placeId: string; shop: string }) {
       <Icon name={hidden ? "eyeOff" : "eye"} size={20} />
       <span className="grow">
         <b>{hidden ? `Hidden from ${shop}` : `${shop} can see you visited`}</b>
-        <small>{hidden ? "They can't see you or send you offers." : "Your name and table, so they can send you offers. Never your review."}</small>
+        <small>{hidden ? "They can't see you or send you offers." : "Your name and visit, so they can send you offers. Never your review."}</small>
       </span>
       <button type="button" className="rvx-tool" disabled={busy} onClick={flip}>{hidden ? "Show" : "Hide me"}</button>
     </div>

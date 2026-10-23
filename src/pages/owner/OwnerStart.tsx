@@ -34,7 +34,7 @@ export default function OwnerStart() {
             <section className="ow-card ow-empty">
               <span className="icon-chip lg"><Icon name="store" size={26} /></span>
               <h1>Run your shop from here</h1>
-              <p className="small muted">List your business to see today's visitors, reply to reviews, run deals and print your table QR codes.</p>
+              <p className="small muted">List your business to see today's visitors, reply to reviews, run deals and print your review QR codes.</p>
               <Link to="/business/setup" className="btn green"><Icon name="plus" size={18} />List my business</Link>
             </section>
           ) : (

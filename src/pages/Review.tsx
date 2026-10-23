@@ -14,7 +14,7 @@ import { loadShopItems, shopLook, sortShopItems, type ShopItem } from "../compon
 import { formatPrice } from "../lib/money";
 import { deviceId } from "../lib/device";
 import { callAi } from "../lib/assist";
-import { modeOf, tagFits } from "../lib/modes";
+import { bizOf, modeOf, tagFits } from "../lib/modes";
 import { fetchGoogleRating } from "../lib/google";
 import { copyText, googleReviewUrl } from "../lib/util";
 import { bumpStat } from "../lib/stats";
@@ -73,22 +73,6 @@ function Face({ v, size = 26 }: { v: Verdict; size?: number }) {
     </svg>
   );
 }
-
-/** Quick tags for the whole visit, by verdict. Each label is a row in the tags table, so it shows up on the shop page. */
-const VISIT_TAGS: Record<"food" | "other", Record<Verdict, { title: string; tags: string[] }>> = {
-  food: {
-    meh: { title: "What let it down?", tags: ["Poor food", "Poor service", "Long wait", "Noisy", "Too pricey", "Not clean"] },
-    ok: { title: "What stood out?", tags: ["Food", "Service", "Value", "Long wait", "Too pricey", "Noisy"] },
-    good: { title: "What was good?", tags: ["Food", "Service", "Ambience", "Value", "Quick"] },
-    love: { title: "What made it great?", tags: ["Amazing food", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
-  },
-  other: {
-    meh: { title: "What let it down?", tags: ["Poor service", "Long wait", "Unhelpful staff", "Too pricey", "Not clean"] },
-    ok: { title: "What stood out?", tags: ["Service", "Staff", "Value", "Long wait", "Too pricey"] },
-    good: { title: "What was good?", tags: ["Service", "Staff", "Value", "Quick", "Clean"] },
-    love: { title: "What made it great?", tags: ["Great service", "Lovely staff", "Great vibe", "Great value", "Super quick"] },
-  },
-};
 
 /** Two taps the AI writer asks before writing about a visit, so it sounds like the person. */
 const AI_QUESTIONS: Record<"food" | "other", { q: string; opts: string[]; say: (a: string) => string }[]> = {
@@ -361,6 +345,8 @@ function ReviewForm() {
   }, [visit, dishes, done, isPublic, stage, place, placeId, uid, googleOpened, visitKey]);
 
   const isFood = modeOf(place?.kind, place?.category).kind === "food";
+  // Quick visit tags and the AI writer's questions fit the business type (a salon is not a meal).
+  const biz = bizOf(place?.kind, place?.category);
   const patch = (i: number, p: Partial<Dish>) => setDishes((all) => all.map((d, k) => (k === i ? { ...d, ...p } : d)));
   const postedKeys = new Set(done.map((d) => d.key));
   const rated = dishes.filter((d) => d.rating > 0);
@@ -487,7 +473,7 @@ function ReviewForm() {
       for (const t of tags) if (d.picked.includes(t.id)) (isNegativeTag(t.label) ? downs : liked).push(t.label);
       liked.push(...d.custom);
     }
-    const qs = AI_QUESTIONS[isFood ? "food" : "other"];
+    const qs = AI_QUESTIONS[biz.socialVisit ? "food" : "other"];
     const answers = isVisit ? s.answers.map((a, i) => (a && qs[i] ? qs[i]!.say(a) : "")).filter(Boolean) : [];
     try {
       const j = await callAi<{ text?: string }>("draft", {
@@ -845,7 +831,7 @@ function ReviewForm() {
     const a = ai[key];
     const st = a?.stage ?? "idle";
     const hasText = bodyOf(key).trim().length > 0;
-    const qs = AI_QUESTIONS[isFood ? "food" : "other"];
+    const qs = AI_QUESTIONS[biz.socialVisit ? "food" : "other"];
     const label = !enabled ? "Choose how it went to use AI" : st === "typing" ? "Writing…" : st === "ask" ? "Not now" : st === "done" ? "Write again" : hasText ? "Improve my words with AI" : "Write it with AI";
     const refines: { k: "short" | "long" | "casual" | "polite" | "undo"; label: string; on: boolean }[] = [
       { k: "short", label: "Shorter", on: a?.len === "short" }, { k: "long", label: "More detail", on: a?.len === "long" },
@@ -894,7 +880,7 @@ function ReviewForm() {
   /* ---------- the visit: how did it go? ---------- */
   if (stage === "visit") {
     const vv = verdictOf(visit.rating);
-    const set = VISIT_TAGS[isFood ? "food" : "other"];
+    const set = biz.visitTags;
     const tagged = dishes.length;
     return (
       <div className="rvx" data-stage="visit">

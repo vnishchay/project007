@@ -4,7 +4,7 @@ import { supabase, errorText } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth";
 import { isUuid, type Place, type QrCode } from "../../lib/types";
 import { goBack } from "../../lib/nav";
-import { modeOf } from "../../lib/modes";
+import { bizOf, modeOf } from "../../lib/modes";
 import { usePin } from "../../lib/pin";
 import { setAppMode, setLastShop } from "../../lib/ownerMode";
 import { Icon, Spinner, type IconName } from "../../components/ui";
@@ -166,7 +166,7 @@ export default function OwnerApp() {
       body = <ReviewsTab placeId={place.id} placeName={place.name} live={live} onGo={goTab} />;
       break;
     case "customers":
-      title = "Customers";
+      title = peopleWord(place);
       body = <Visitors placeId={place.id} picked={picked} setPicked={setPicked} reload={sentN} onWrite={() => { setAudience("offer"); go("messages", { replace: false }); }} />;
       break;
     case "deals":
@@ -181,7 +181,7 @@ export default function OwnerApp() {
             </button>
           </div>
           {section === "deals"
-            ? <Deals placeId={place.id} currency={place.currency} live={live} />
+            ? <Deals placeId={place.id} currency={place.currency} live={live} biz={bizOf(place.kind, place.category)} />
             : <Messages placeId={place.id} placeName={place.name} logoPath={place.logo_path ?? null} live={live}
                 audience={audience} onAudience={setAudience} picked={[...picked]} onPick={() => { setAudience("offer"); go("customers"); }}
                 onSent={() => { if (audience === "offer") setPicked(new Set()); setSentN((x) => x + 1); setTodayN((x) => x + 1); }} />}
@@ -277,7 +277,7 @@ function OwnerShell({ section, title, needReply, children }: { section: Section;
         <nav className="ow-side-nav">
           {TABS.filter((t) => t.id !== "more").map((t) => (
             <NavLink key={t.id} to={t.id ? `${base}/${t.id}` : base} end replace className={tabOn(t) ? "on" : ""} aria-current={tabOn(t) ? "page" : undefined}>
-              <Icon name={t.icon} size={19} /><span className="grow">{t.label}</span>
+              <Icon name={t.icon} size={19} /><span className="grow">{t.id === "customers" ? peopleWord(place) : t.label}</span>
               {t.id === "reviews" && needReply > 0 && <span className="ow-count">{needReply > 99 ? "99+" : needReply}</span>}
             </NavLink>
           ))}
@@ -324,12 +324,15 @@ function OwnerShell({ section, title, needReply, children }: { section: Section;
         {TABS.map((t) => (
           <Link key={t.id} to={t.id ? `${base}/${t.id}` : base} replace className={tabOn(t) || (t.id === "more" && !isTab) ? "on" : ""} aria-current={tabOn(t) ? "page" : undefined}>
             <span className="ow-tab-ico"><Icon name={t.icon} size={22} width={tabOn(t) ? 2.4 : 2} />{t.id === "reviews" && needReply > 0 && <span className="ow-dot" aria-label={`${needReply} need a reply`} />}</span>
-            {t.label}
+            {t.id === "customers" ? peopleWord(place) : t.label}
           </Link>
         ))}
       </nav>
     </div>
   );
 }
+
+/** "Diners", "Clients", "Patients", "Members", "Students" or "Customers", by business type. */
+const peopleWord = (p: Place) => { const w = bizOf(p.kind, p.category).customers; return w.charAt(0).toUpperCase() + w.slice(1); };
 
 const STATUS_LABEL: Record<string, string> = { live: "Live · taking reviews", paused: "Live · reviews paused", lapsed: "Plan ended", removed: "Off the app", pending: "Waiting for approval" };
