@@ -1,5 +1,7 @@
 // Supabase Edge Function "remind": sends review reminders (Web Push) for open visits.
 // pg_cron calls it every 10 minutes (migration 47) with the x-cron-secret header; nobody else can.
+// A table call (migration 52) calls it straight away with {"request": id}: that alerts the shop's
+// phones where the owner switched alerts on, and sends nothing else.
 // Only people who switched reminders on have a push address, so nobody else gets anything.
 // A reminder never mentions offers or rewards: it only asks how the visit was.
 //
@@ -14,6 +16,10 @@ import webpush from "npm:web-push@3.6.7";
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const env = (k: string) => (Deno.env.get(k) || "").trim();
+
+interface Target { place_id: string; place_name: string; kind: "waiter" | "bill" | "help"; table_label: string | null; message: string | null; endpoint: string; p256dh: string; auth: string }
+
+const CALL = { waiter: "is calling the staff", bill: "asks for the bill", help: "needs you now" };
 
 interface Due { visit_id: string; place_id: string; place_name: string; expires_at: string; last_one: boolean; endpoint: string; p256dh: string; auth: string }
 
@@ -33,6 +39,8 @@ Deno.serve(async (req) => {
   webpush.setVapidDetails(env("VAPID_SUBJECT") || "mailto:hello@example.com", pub, priv);
 
   const db = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } });
+  const body = await req.json().catch(() => ({})) as { request?: string };
+  if (body.request) return alertShop(db, body.request);
   const { data, error } = await db.rpc("take_due_review_reminders", { p_limit: 300 });
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 
@@ -59,3 +67,30 @@ Deno.serve(async (req) => {
   if (dead.length) await db.from("push_subscriptions").delete().in("endpoint", dead);
   return new Response(JSON.stringify({ sent, gone, failed }), { headers: { "Content-Type": "application/json" } });
 });
+
+/** One table call: a loud, short alert on each phone the shop switched alerts on. */
+async function alertShop(db: ReturnType<typeof createClient>, id: string): Promise<Response> {
+  const { data, error } = await db.rpc("request_alert_targets", { p_id: id });
+  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  let sent = 0;
+  const dead: string[] = [];
+  await Promise.all(((data as Target[]) || []).map(async (t) => {
+    const who = t.table_label || "A guest";
+    const payload = JSON.stringify({
+      title: `${who} ${CALL[t.kind] ?? "needs you"}`,
+      body: t.message || t.place_name,
+      url: `/owner/${t.place_id}/live`,
+      tag: `call-${id}`,
+      renotify: true,
+    });
+    try {
+      await webpush.sendNotification({ endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } }, payload, { TTL: 600, urgency: "high" });
+      sent++;
+    } catch (e) {
+      const code = (e as { statusCode?: number }).statusCode;
+      if (code === 404 || code === 410) dead.push(t.endpoint); else console.warn("alert failed", code, (e as Error).message);
+    }
+  }));
+  if (dead.length) await db.from("push_subscriptions").delete().in("endpoint", dead);
+  return new Response(JSON.stringify({ sent }), { headers: { "Content-Type": "application/json" } });
+}

@@ -19,6 +19,7 @@ export function More() {
     { id: "links", icon: "link", tone: "sky", label: "Links", sub: "Instagram, website, delivery apps" },
   ];
   const business: { id: Section; icon: IconName; tone: string; label: string; sub: string }[] = [
+    { id: "live", icon: "service", tone: "sky", label: "Table calls", sub: "Live board: staff calls, bill, messages" },
     { id: "insights", icon: "chart", tone: "sky", label: "How you're doing", sub: "What people love and what to fix" },
     { id: "plan", icon: "crown", tone: "amber", label: "Plan and payment", sub: today?.plan_name ? `${today.plan_name}` : "Plans and payments" },
   ];

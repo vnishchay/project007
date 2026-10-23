@@ -27,6 +27,7 @@ const ICONS = {
   grid: L.Grid2x2, bag: L.ShoppingBag, coffee: L.Coffee, cake: L.CakeSlice, scissors: L.Scissors, map: L.Map, refresh: L.RefreshCw, ticket: L.Ticket,
   gift: L.Gift, bell: L.Bell, chevronRight: L.ChevronRight, arrowLeft: L.ArrowLeft, fileText: L.FileText,
   key: L.KeyRound, fingerprint: L.Fingerprint, nfc: L.Nfc, walletCards: L.WalletCards,
+  service: L.ConciergeBell, receipt: L.ReceiptText, volume: L.Volume2, volumeOff: L.VolumeX, radio: L.Radio,
   dollar: L.DollarSign, euro: L.Euro, pound: L.PoundSterling, yen: L.JapaneseYen, banknote: L.Banknote, reply: L.Reply,
 } satisfies Record<string, L.LucideIcon>;
 export type IconName = keyof typeof ICONS;

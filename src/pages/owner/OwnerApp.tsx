@@ -18,6 +18,7 @@ import { LinksEditor } from "../../components/manage/LinksEditor";
 import { Messages, type Audience } from "../../components/manage/Messages";
 import { Visitors } from "../../components/manage/Visitors";
 import { Deals } from "../../components/manage/Deals";
+import { LiveCalls } from "../../components/manage/LiveCalls";
 import { ReviewsTab } from "../../components/manage/ReviewsTab";
 import { GoogleConnect } from "../../components/manage/GoogleConnect";
 import { ShareKit } from "../../components/manage/ShareKit";
@@ -31,12 +32,12 @@ import "../../styles/owner.css";
 const COLS = "id, google_place_id, name, kind, category, area, city, about, hours, price_level, status, listed_until, created_at, cover_path, logo_path, currency";
 
 /** Screens of the owner app. "" is Today. */
-export type Section = "" | "reviews" | "customers" | "deals" | "messages" | "more" | "menu" | "details" | "links" | "qr" | "plan" | "insights" | "look";
-const SECTIONS: Section[] = ["", "reviews", "customers", "deals", "messages", "more", "menu", "details", "links", "qr", "plan", "insights", "look"];
+export type Section = "" | "reviews" | "customers" | "deals" | "messages" | "more" | "menu" | "details" | "links" | "qr" | "plan" | "insights" | "look" | "live";
+const SECTIONS: Section[] = ["", "reviews", "customers", "deals", "messages", "more", "menu", "details", "links", "qr", "plan", "insights", "look", "live"];
 
 /** The old Manage page ids, as the shared panels still use them. */
 export const SECTION_OF: Record<ManageTab, Section> = {
-  insights: "insights", plan: "plan", reviews: "reviews", visitors: "customers", deals: "deals",
+  insights: "insights", live: "live", plan: "plan", reviews: "reviews", visitors: "customers", deals: "deals",
   updates: "messages", products: "menu", details: "details", links: "links", qr: "qr",
 };
 
@@ -215,6 +216,10 @@ export default function OwnerApp() {
     case "plan":
       title = "Plan and payment";
       body = <Plan placeId={place.id} placeName={place.name} />;
+      break;
+    case "live":
+      title = "Table calls";
+      body = <LiveCalls placeId={place.id} live={live} />;
       break;
     case "insights":
       title = "How you're doing";
