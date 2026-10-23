@@ -549,7 +549,7 @@ export default function PlacePage() {
             // Not a button: nothing happens on tap, so it shouldn't look tappable.
             <div className="pn-empty"><Icon name="message" size={28} /><b>No reviews yet</b><span className="small">Customers review by scanning the QR on their table</span></div>
           )
-        ) : shown.length === 0 ? <div className="pn-empty"><Icon name="filter" size={28} /><b>Nothing here</b><button type="button" className="link-btn small" onClick={() => setFilter("all")}>Show all reviews</button></div> :
+        ) : shown.length === 0 ? <div className="pn-empty"><Icon name="filter" size={28} /><b>No reviews match this filter</b><button type="button" className="link-btn small" onClick={() => setFilter("all")}>Show all reviews</button></div> :
           shown.map((r) => (
             <ReviewCard key={r.id} r={r} mine={Boolean(me && r.user_id === me)} friend={isFriend(r)} expert={r.user_id ? experts[r.user_id] || null : null}
               itemImage={imageOf.get(r.item_id)} itemIcon={look.icon} />

@@ -9,6 +9,7 @@ import { registerServiceWorker } from "./lib/install";
 import { AuthProvider } from "./lib/auth";
 import { configured } from "./lib/supabase";
 import { Layout, RequireAuth, ToastProvider } from "./components/ui";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import Discover from "./pages/Discover";
 import PlacePage from "./pages/Place";
 import SignIn from "./pages/SignIn";
@@ -44,6 +45,7 @@ registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    <ErrorBoundary>
     {!configured ? <Setup /> : (
       <BrowserRouter>
         <AuthProvider>
@@ -87,5 +89,6 @@ createRoot(document.getElementById("root")!).render(
         </AuthProvider>
       </BrowserRouter>
     )}
+    </ErrorBoundary>
   </StrictMode>,
 );

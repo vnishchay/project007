@@ -8,6 +8,7 @@ import { avatarUrl } from "../lib/supabase";
 import { acceptPendingInvite, pendingRef } from "../lib/invite";
 import { avatarColor, initials } from "../lib/util";
 import { goBack } from "../lib/nav";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 /* ---------- Icons (lucide) ---------- */
 const ICONS = {
@@ -93,7 +94,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       )}
       <InviteAcceptor />
-      {shop && !allowedInFocus(loc.pathname, shop) ? <Navigate to={`/p/${shop}`} replace /> : children}
+      <ErrorBoundary resetKey={loc.pathname}>{shop && !allowedInFocus(loc.pathname, shop) ? <Navigate to={`/p/${shop}`} replace /> : children}</ErrorBoundary>
       <BottomNav />
     </div>
   );

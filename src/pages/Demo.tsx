@@ -117,7 +117,7 @@ export default function Demo() {
       });
 
       if (file && navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: "Verified Food Story" });
+        await navigator.share({ files: [file], title: "Verified food story" });
       } else if (file) {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(file);
@@ -141,7 +141,7 @@ export default function Demo() {
       <nav className="rvx-bar" style={{ justifyContent: "space-between" }}>
         <RvxBack />
         <div className="stack tight center">
-          <span className="strong" style={{ fontSize: 15, color: "var(--ink)" }}>Tabletop Experience</span>
+          <span className="strong" style={{ fontSize: 15, color: "var(--ink)" }}>Tabletop experience</span>
           <span className="tiny muted">{demoData.name}</span>
         </div>
         <Link to="/business" className="btn small quiet" style={{ fontSize: 13, color: "var(--champ)" }}>
@@ -170,7 +170,7 @@ export default function Demo() {
         <div className="premeal-guide">
           <div className="premeal-head">
             <div className="stack tight">
-              <strong style={{ fontSize: 15, color: "#fff" }}>Top Recommended Dishes</strong>
+              <strong style={{ fontSize: 15, color: "#fff" }}>Top recommended dishes</strong>
               <span className="tiny muted">Verified by guests who dined at this table</span>
             </div>
             <span className="premeal-badge">
@@ -230,23 +230,23 @@ export default function Demo() {
               onClick={() => handleVibe("must_try")}
               aria-label="Rate as Must Try"
             >
-              <span>Must Try</span>
+              <span>Must try</span>
             </button>
             <button
               type="button"
               className={`rvx-vibe-pill solid ${selectedVibe === "solid" ? "on" : ""}`}
               onClick={() => handleVibe("solid")}
-              aria-label="Rate as Solid Pick"
+              aria-label="Rate as solid pick"
             >
-              <span>Solid Pick</span>
+              <span>Solid pick</span>
             </button>
             <button
               type="button"
               className={`rvx-vibe-pill skip ${selectedVibe === "skip" ? "on" : ""}`}
               onClick={() => handleVibe("skip")}
-              aria-label="Rate as Skip It"
+              aria-label="Rate as skip it"
             >
-              <span>Skip It</span>
+              <span>Skip it</span>
             </button>
           </div>
 
@@ -293,7 +293,7 @@ export default function Demo() {
             <div className="row" style={{ alignItems: "center", gap: 10 }}>
               <span className="icon-chip sm coral"><Icon name="shield" size={16} /></span>
               <div className="grow stack tight">
-                <strong style={{ fontSize: 16 }}>Private Concierge Resolution</strong>
+                <strong style={{ fontSize: 16 }}>Private note to the owner</strong>
                 <span className="tiny muted">Message the chef or management directly</span>
               </div>
             </div>
@@ -354,7 +354,7 @@ export default function Demo() {
           disabled={storySharing}
         >
           <Icon name="share" size={16} />
-          <span>{storySharing ? "Generating Story Card…" : "Share Dining Story"}</span>
+          <span>{storySharing ? "Making your card…" : "Share"}</span>
         </button>
       </section>
 
