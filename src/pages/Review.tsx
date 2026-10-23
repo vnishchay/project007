@@ -7,6 +7,8 @@ import { supabase, errorText } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { isUuid, type Place, type Tag } from "../lib/types";
 import { Icon, RvxBack, Spinner, useFootSpace, useToast, type IconName } from "../components/ui";
+import { VisitBadge } from "../components/VisitBadge";
+import { useVisitProof } from "../lib/visits";
 import { ReviewPhotoPicker } from "../components/ReviewPhoto";
 import { ReviewVoiceRecorder, canRecordVoice, type VoiceClip } from "../components/ReviewVoice";
 import { ItemThumb } from "../components/place/ItemThumb";
@@ -230,6 +232,7 @@ function ReviewForm() {
   const [search] = useSearchParams();
   const { session, isGuest } = useAuth();
   const uid = session?.user.id;
+  const proof = useVisitProof(placeId, uid);
   const nav = useNavigate();
   /** Reviews already saved on this visit before this page opened. */
   const [prior, setPrior] = useState<Set<string>>(() => new Set());
@@ -925,7 +928,7 @@ function ReviewForm() {
           {(place.category || place.area) && <div className="rvx-kicker">{[place.category, place.area].filter(Boolean).join(" · ")}</div>}
           <h1>{place.name}</h1>
           <div className="rvx-meta">
-            <span className="rvx-verified"><Icon name="verified" size={15} />Verified visit</span>
+            <VisitBadge proof={proof} />
             {googleLive?.rating != null && <span className="rvx-pill"><Icon name="star" size={14} fill="var(--star)" color="var(--star)" />{googleLive.rating.toFixed(1)} on Google</span>}
           </div>
         </header>
