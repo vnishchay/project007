@@ -1332,6 +1332,8 @@ from public.places p left join public.reviews r on r.place_id = p.id and r.user_
 where p.about like '[Demo]%' group by p.id order by p.city, p.name;
 
 -- Try the invite flow: open your app address with ?ref=de00000001 (Aarav Sharma) and use the app; you become friends.
+-- Next: supabase/demo_data_features.sql adds test logins and the newer features. To remove ALL demo data in one go,
+-- run supabase/demo_data_remove.sql (the queries below are the short version).
 -- To remove the people, friendships, visits, reviews, reports and saved places later (shops stay):
 --   delete from auth.users where raw_user_meta_data ->> 'demo' = 'true';
 --   delete from public.items where description = '[Demo item]';
