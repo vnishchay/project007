@@ -6,7 +6,7 @@ import { supabase, errorText } from "../lib/supabase";
 import { lastGuestError, useAuth } from "../lib/auth";
 import { getLocation } from "../lib/util";
 import { formatPrice } from "../lib/money";
-import { Icon, Spinner } from "../components/ui";
+import { Icon, Spinner, useFootSpace } from "../components/ui";
 import { DietDot, loadShopItems, type ShopItem } from "../components/place/shop";
 import { ItemThumb } from "../components/place/ItemThumb";
 import { playHapticTap } from "../lib/haptics";
@@ -51,6 +51,7 @@ function friendly(e: unknown): string {
 
 /** Landing for a table QR (/q/:token) or a shop's one-time review link (/r/:token). Both unlock a visit. */
 export default function QrLanding({ link = false }: { link?: boolean }) {
+  const footRef = useFootSpace<HTMLDivElement>();
   const { token = "" } = useParams();
   // An NFC table tag opens this same page with a one-time signed tap (picc + cmac) instead of a plain scan.
   const [search] = useSearchParams();
@@ -409,7 +410,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
       </section>
 
       {!loading && (
-        <div className="rvx-foot">
+        <div className="rvx-foot" ref={footRef}>
           {refused ? (
             refused === "guest_used"
               ? <Link to={`/signin?next=${encodeURIComponent(`/review/${peek.place_id}`)}`} className="rvx-cta"><span>Sign in to rate more</span><Icon name="chev" size={20} /></Link>
@@ -463,7 +464,11 @@ function SeenByShop({ placeId, shop }: { placeId: string; shop: string }) {
     const next = !hidden;
     const { error } = await supabase.rpc("set_shop_privacy", { p_place: placeId, p_hidden: next, p_no_offers: next });
     setBusy(false);
-    if (!error) setHidden(next);
+    if (!error) {
+      setHidden(next);
+      // Offers on this page follow the switch straight away.
+      window.dispatchEvent(new CustomEvent("tp:shop-privacy", { detail: { placeId, hidden: next } }));
+    }
   }
   return (
     <div className="rvx-status rvx-seen" role="status">

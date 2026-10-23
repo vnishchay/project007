@@ -84,14 +84,14 @@ export default function Manage() {
   const subKeys = useTabKeys(group.tabs.map((t) => t.id), tab, setTab);
 
   if (err) return (
-    <div className="page"><TopBar title="Your shop" />
+    <div className="page"><TopBar title="Your shop" back="/business" />
       <div className="notice err row"><span className="grow">{err}</span><button className="link-btn" onClick={() => setAttempt((x) => x + 1)}><Icon name="refresh" size={15} />Retry</button></div>
     </div>
   );
   if (allowed === false) return <Locked />;
   if (allowed === undefined || place === undefined) return <div className="page"><Spinner /></div>;
   if (!place) return (
-    <div className="page"><TopBar title="Your shop" />
+    <div className="page"><TopBar title="Your shop" back="/business" />
       <div className="empty"><span className="icon-chip lg"><Icon name="store" size={26} /></span><h2>Shop not found</h2><Link to="/business" className="btn ghost small">Your shops</Link></div>
     </div>
   );
@@ -102,7 +102,7 @@ export default function Manage() {
   return (
     <div className="page narrow-gap">
       <div className="no-print stack" style={{ gap: 14 }}>
-        <TopBar title="Manage shop" sub={isAdmin ? "Admin view" : undefined}
+        <TopBar back="/business" title="Manage shop" sub={isAdmin ? "Admin view" : undefined}
           right={<Link to="/business" className="icon-btn" aria-label="All your shops"><Icon name="store" size={20} /></Link>} />
         <ShopHeader place={place} onChange={merge} />
         {(place.status === "removed" || place.verification === "rejected") && <RecheckBanner placeId={place.id} />}
@@ -209,7 +209,7 @@ function RecheckBanner({ placeId }: { placeId: string }) {
 function Locked() {
   return (
     <div className="page">
-      <TopBar title="Manage shop" />
+      <TopBar back="/business" title="Manage shop" />
       <div className="mg-lock">
         <div className="mg-lock-art"><Icon name="lock" size={38} /></div>
         <h2 style={{ fontSize: 20 }}>Only the shop owner can edit this</h2>

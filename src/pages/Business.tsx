@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useSettings } from "../lib/settings";
 import { STATUS_WORDS, initials } from "../lib/util";
 import { Icon, TopBar, type IconName } from "../components/ui";
 import { MediaImg } from "../components/manage/MediaImg";
@@ -21,6 +22,7 @@ export default function Business() {
 
   const startUrl = session ? "/business/setup" : "/signin?next=/business/setup";
 
+  const support = String(useSettings()[0].support_phone || "").replace(/\D/g, "");
   return (
     <div className="page">
       <TopBar title="For businesses" />
@@ -72,6 +74,10 @@ export default function Business() {
           </div>
         ))}
       </div>
+
+      {support && (
+        <a className="btn block ghost" href={`https://wa.me/${support}`} target="_blank" rel="noopener noreferrer"><Icon name="message" size={18} />Questions? WhatsApp us</a>
+      )}
 
       <nav className="biz-footer-nav">
         <Link to="/pricing">Pricing</Link><Link to="/terms">Terms</Link><Link to="/refunds">Refunds</Link><Link to="/privacy">Privacy</Link><Link to="/contact">Contact</Link>

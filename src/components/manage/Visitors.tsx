@@ -27,7 +27,10 @@ const AUTO: { id: string; label: string; icon: IconName; days?: 90; fits: (v: Vi
 
 function friendlyOfferError(e: unknown): string {
   const t = errorText(e);
-  if (/reviews or ratings/i.test(t)) return "Offers can't mention reviews or ratings. Google removes reviews that were rewarded.";
+  if (/reviews?,? (or )?ratings/i.test(t)) return "Offers can't mention reviews, ratings, stars or feedback. Google removes reviews that were rewarded.";
+  if (/already have a tag called/i.test(t)) return "You already have a tag with that name.";
+  if (/up to 12 tags/i.test(t)) return "You can have up to 12 tags. Delete one first.";
+  if (/customer_tags_color_check/i.test(t)) return "Pick one of the colours.";
   if (/PGRST202|shop_visitors|send_visitor_offer|customer_tag/i.test(t)) return "This isn't available yet.";
   return t;
 }
@@ -217,52 +220,69 @@ function PersonTags({ who, tags, onToggle, onNew, onClose }: { who: Visitor; tag
   );
 }
 
-/** Make, rename and delete the shop's tags (up to 12). */
+/** Make, rename, recolour and delete the shop's tags (up to 12). Tap a tag to edit it. */
 function TagManager({ placeId, tags, onChanged, onClose }: { placeId: string; tags: Tag[]; onChanged: () => void; onClose: () => void }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [label, setLabel] = useState("");
   const [color, setColor] = useState<TagColor>("sky");
+  const [editing, setEditing] = useState<Tag | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function add(e: React.FormEvent) {
+  function edit(t: Tag | null) {
+    setEditing(t);
+    setLabel(t ? t.label : "");
+    setColor(t ? t.color : "sky");
+  }
+  async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!label.trim()) return;
     setBusy(true);
-    const { error } = await supabase.rpc("save_customer_tag", { p_place: placeId, p_label: label.trim(), p_color: color });
+    const { error } = await supabase.rpc("save_customer_tag", { p_place: placeId, p_label: label.trim(), p_color: color, p_id: editing?.id ?? null });
     setBusy(false);
     if (error) { toast(friendlyOfferError(error)); return; }
-    setLabel(""); onChanged();
+    if (editing) toast("Tag saved");
+    edit(null); onChanged();
   }
   async function remove(t: Tag) {
     if (!(await confirm({ title: `Delete “${t.label}”?`, body: t.people ? `It comes off ${t.people} ${t.people === 1 ? "person" : "people"}.` : undefined, ok: "Delete", danger: true }))) return;
     const { error } = await supabase.rpc("delete_customer_tag", { p_place: placeId, p_id: t.id });
     if (error) { toast(friendlyOfferError(error)); return; }
+    if (editing?.id === t.id) edit(null);
     onChanged();
   }
 
   return (
     <Sheet title="Your customer tags" onClose={onClose}>
       {tags.length > 0 && (
-        <div className="menu">
-          {tags.map((t) => (
-            <div key={t.id} className="menu-row" style={{ cursor: "default" }}>
-              <span className={`vg-tag ${t.color}`}>{t.label}</span>
-              <span className="grow tiny muted">{t.people} {t.people === 1 ? "person" : "people"}</span>
-              <button type="button" className="mg-act" aria-label={`Delete ${t.label}`} onClick={() => void remove(t)}><Icon name="trash" size={15} /></button>
-            </div>
-          ))}
+        <div className="sheet-list">
+          <div className="menu">
+            {tags.map((t) => (
+              <div key={t.id} className={`menu-row vg-row ${editing?.id === t.id ? "vg-editing" : ""}`}>
+                <button type="button" className="vg-pick" aria-label={`Edit ${t.label}`} onClick={() => edit(editing?.id === t.id ? null : t)}>
+                  <span className={`vg-tag ${t.color}`}>{t.label}</span>
+                  <span className="grow tiny muted">{t.people} {t.people === 1 ? "person" : "people"}</span>
+                  <Icon name="edit" size={15} color="var(--muted)" />
+                </button>
+                <button type="button" className="mg-act" aria-label={`Delete ${t.label}`} onClick={() => void remove(t)}><Icon name="trash" size={15} /></button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
-      {tags.length < 12 ? (
-        <form className="stack" style={{ gap: 10 }} onSubmit={add}>
+      {editing || tags.length < 12 ? (
+        <form className="stack" style={{ gap: 10 }} onSubmit={save}>
+          {editing && <span className="tiny muted">Editing “{editing.label}”</span>}
           <input className="input" value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} placeholder="VIP, Family, Office lunch…" aria-label="Tag name" />
           <div className="row" style={{ gap: 8 }} role="radiogroup" aria-label="Colour">
             {COLORS.map((c) => (
               <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={c} className={`vg-swatch ${c} ${color === c ? "on" : ""}`} onClick={() => setColor(c)} />
             ))}
           </div>
-          <button className="btn green block" disabled={busy || !label.trim()}><Icon name="plus" size={18} />{busy ? "Adding…" : "Add tag"}</button>
+          <div className="row" style={{ gap: 8 }}>
+            {editing && <button type="button" className="btn ghost grow" onClick={() => edit(null)}>Cancel</button>}
+            <button className="btn green grow block" disabled={busy || !label.trim()}><Icon name={editing ? "check" : "plus"} size={18} />{busy ? "Saving…" : editing ? "Save tag" : "Add tag"}</button>
+          </div>
         </form>
       ) : <p className="small muted" style={{ margin: 0 }}>That's the most tags a shop can have. Delete one to make another.</p>}
       <p className="tiny muted" style={{ margin: 0 }}>Tags help you send the right offer to the right people. Keep them about visits, not about the person: no notes, no reviews.</p>

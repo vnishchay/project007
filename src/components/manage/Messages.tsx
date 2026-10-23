@@ -15,9 +15,12 @@ const DAY = 86_400_000;
 export type Audience = "update" | "offer";
 interface SentOffer { body: string; link_url: string | null; sent_at: string; recipients: number; seen: number; used?: number }
 
+/** Same rule as the database (mentions_reviews): Google bans rewards for reviews. */
+const MENTIONS_REVIEWS = /\b(reviews?|reviewing|reviewed|ratings?|rated|rate (us|our|your|the)|feedback|testimonials?)\b|\d\s*-?\s*stars?\b|★|⭐/i;
+
 function friendlyOfferError(e: unknown): string {
   const t = errorText(e);
-  if (/reviews or ratings/i.test(t)) return "Offers can't mention reviews or ratings. Google removes reviews that were rewarded.";
+  if (/reviews?,? (or )?ratings/i.test(t)) return "Offers and news can't mention reviews, ratings, stars or feedback. Google removes reviews that were rewarded.";
   if (/PGRST202|could not find the function/i.test(t)) return "This isn't available yet.";
   return t;
 }
@@ -56,7 +59,12 @@ export function Messages({ placeId, placeName, logoPath, live, audience, onAudie
   }, [placeId, n]);
 
   const today = (updates || []).filter((u) => Date.now() - new Date(u.created_at).getTime() < DAY).length;
-  const left = Math.max(0, 3 - today);
+  // The database counts posts made today, deleted ones included; fall back to what's on screen.
+  const [serverLeft, setServerLeft] = useState<number | null>(null);
+  useEffect(() => {
+    supabase.rpc("shop_updates_left", { p_place: placeId }).then(({ data, error }) => setServerLeft(error ? null : Number(data)), () => setServerLeft(null));
+  }, [placeId, n]);
+  const left = serverLeft ?? Math.max(0, 3 - today);
   const over = body.length > LIMIT;
   const isOffer = audience === "offer";
 
@@ -77,6 +85,7 @@ export function Messages({ placeId, placeName, logoPath, live, audience, onAudie
       if (!url || !/^https?:\/\//.test(url)) { setErr("Use a web link, like https://…"); return; }
     }
     if (isOffer && !picked.length) { onPick(); return; }
+    if (MENTIONS_REVIEWS.test(text)) { setErr("Offers and news can't mention reviews, ratings, stars or feedback. Google removes reviews that were rewarded."); return; }
     setBusy(true);
     if (isOffer) {
       const { data, error } = await supabase.rpc("send_visitor_offer", { p_place: placeId, p_users: picked, p_body: text, p_link: url });
@@ -111,7 +120,7 @@ export function Messages({ placeId, placeName, logoPath, live, audience, onAudie
     <div className="stack" style={{ gap: 14 }}>
       <form className="mg-section" onSubmit={send}>
         <div className="mg-section-head"><span className="icon-chip sm coral"><Icon name={isOffer ? "gift" : "message"} size={16} /></span><span className="grow">Write to customers</span>
-          {!isOffer && <span className={`badge ${left ? "gray" : "warn"}`}>{left} updates left today</span>}</div>
+          {!isOffer && <span className={`badge ${left ? "gray" : "warn"}`}>{left} {left === 1 ? "update" : "updates"} left today</span>}</div>
 
         <fieldset className="mg-aud">
           <legend className="mg-label">Who gets it</legend>

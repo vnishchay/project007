@@ -32,8 +32,13 @@ export function ShopReviews({ placeId, shopName }: { placeId: string; shopName: 
   const [loadingMore, setLoadingMore] = useState(false);
   const [replying, setReplying] = useState<ReviewRow | null>(null);
 
+  const [counts, setCounts] = useState<Record<Show, number | null>>({ reply: null, low: null, all: null });
+
+  // Filters and counts run in the database, over every review, not just the page loaded.
   const page = (before?: ReviewRow) => {
     let q = supabase.from(REVIEW_FEED).select(REVIEW_SELECT).eq("place_id", placeId).eq("status", "published");
+    if (show === "reply") q = q.is("owner_reply", null);
+    if (show === "low") q = q.lte("rating", 2);
     if (before) q = q.or(olderThan(before));
     return q.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PAGE + 1);
   };
@@ -48,7 +53,17 @@ export function ShopReviews({ placeId, shopName }: { placeId: string; shopName: 
       setRows(all.slice(0, PAGE));
     });
     return () => { alive = false; };
-  }, [placeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [placeId, show]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const countsKey = rows === null ? 0 : 1;
+  useEffect(() => {
+    let alive = true;
+    const base = () => supabase.from(REVIEW_FEED).select("id", { count: "exact", head: true }).eq("place_id", placeId).eq("status", "published");
+    Promise.all([base().is("owner_reply", null), base().lte("rating", 2), base()]).then(([a, b, c]) => {
+      if (alive) setCounts({ reply: a.error ? null : a.count, low: b.error ? null : b.count, all: c.error ? null : c.count });
+    }, () => {});
+    return () => { alive = false; };
+  }, [placeId, countsKey, replying]);
 
   async function showMore() {
     const last = rows?.[rows.length - 1];
@@ -63,11 +78,11 @@ export function ShopReviews({ placeId, shopName }: { placeId: string; shopName: 
   }
 
   if (rows === null) return <div className="skeleton" style={{ height: 120 }} />;
-  if (rows.length === 0) return (
+  if (rows.length === 0 && (show === "all" || counts.all === 0)) return (
     <div className="mg-empty"><span className="icon-chip lg amber"><Icon name="star" size={24} /></span><h2>No reviews yet</h2>
       <p className="small muted" style={{ maxWidth: 270 }}>Customers review after scanning the QR on their table, or from a review link you send.</p></div>
   );
-  const counts: Record<Show, number> = { reply: rows.filter((r) => !r.owner_reply).length, low: rows.filter((r) => r.rating <= 2).length, all: rows.length };
+  // A reply posted here drops the review out of "Needs reply" straight away.
   const shown = rows.filter((r) => (show === "reply" ? !r.owner_reply : show === "low" ? r.rating <= 2 : true));
 
   return (
@@ -80,11 +95,11 @@ export function ShopReviews({ placeId, shopName }: { placeId: string; shopName: 
       <div className="chips scroll" role="group" aria-label="Show reviews">
         {SHOWS.map((x) => (
           <button key={x.id} type="button" className={`chip ${show === x.id ? "on" : ""}`} aria-pressed={show === x.id} onClick={() => setShow(x.id)}>
-            <Icon name={x.icon} size={14} />{x.label} {counts[x.id]}{more && x.id !== "all" ? "+" : ""}
+            <Icon name={x.icon} size={14} />{x.label}{counts[x.id] != null ? ` ${counts[x.id]}` : ""}
           </button>
         ))}
       </div>
-      {shown.length === 0 && <p className="small muted row" style={{ gap: 6 }}><Icon name="checkCircle" size={16} color="var(--good)" />{show === "reply" ? "You've replied to every review here." : "No low ratings here."}</p>}
+      {shown.length === 0 && !more && <p className="small muted row" style={{ gap: 6 }}><Icon name="checkCircle" size={16} color="var(--good)" />{show === "reply" ? "You've replied to every review here." : "No low ratings here."}</p>}
       <div className="stack" style={{ gap: 8 }}>
         {shown.map((r) => {
           const { good, bad } = splitTags(tagLabels(r));

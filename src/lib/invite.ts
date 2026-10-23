@@ -30,18 +30,19 @@ export function pendingRef(): Pending | null { return read(); }
   window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash);
 })();
 
-let cached: { uid: string; code: string } | null = null;
+let cached: { uid: string; code: Promise<string | null> } | null = null;
 
-/** Your invite code, created the first time it's needed. Null if signed out. */
+/** Your invite code, created the first time it's needed. Null if signed out. One request per account, shared by every caller. */
 export async function myInviteCode(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id;
   if (!uid) return null;
   if (cached?.uid === uid) return cached.code;
-  const r = await supabase.rpc("my_invite_code");
-  if (r.error || !r.data) return null;
-  cached = { uid, code: r.data as string };
-  return cached.code;
+  const code = Promise.resolve(supabase.rpc("my_invite_code")).then((r) => (r.error || !r.data ? null : (r.data as string)), () => null);
+  cached = { uid, code };
+  const got = await code;
+  if (!got && cached?.code === code) cached = null; // try again next time
+  return got;
 }
 
 /** A link to a path in the app that makes whoever opens it your friend. */

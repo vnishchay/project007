@@ -18,6 +18,12 @@ export function ForYouHere({ placeId, placeName, signedIn }: { placeId: string; 
   const [offers, setOffers] = useState<MyOffer[]>([]);
   const [news, setNews] = useState<Update[]>([]);
   const [open, setOpen] = useState<MyOffer | null>(null);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    const on = (e: Event) => { const d = (e as CustomEvent<{ placeId: string; hidden: boolean }>).detail; if (d?.placeId === placeId) setHidden(d.hidden); };
+    window.addEventListener("tp:shop-privacy", on);
+    return () => window.removeEventListener("tp:shop-privacy", on);
+  }, [placeId]);
 
   useEffect(() => {
     let alive = true;
@@ -36,12 +42,13 @@ export function ForYouHere({ placeId, placeName, signedIn }: { placeId: string; 
     return () => { alive = false; };
   }, [placeId, signedIn]);
 
-  if (!offers.length && !news.length) return null;
+  const mine = hidden ? [] : offers;
+  if (!mine.length && !news.length) return null;
   return (
     <section className="rvx-sec" aria-label="For you here">
-      <div className="rvx-row"><h3>{offers.some((o) => !o.used_at) ? "For you here" : "From the shop"}</h3></div>
+      <div className="rvx-row"><h3>{mine.some((o) => !o.used_at) ? "For you here" : "From the shop"}</h3></div>
       <div className="rvx-scroll">
-        {offers.map((o) => (
+        {mine.map((o) => (
           <button key={o.id} type="button" className={`rvx-coupon ${o.used_at ? "used" : ""}`} onClick={() => setOpen(o)} aria-label={`Offer: ${o.body}. ${o.used_at ? "Used" : "Show at the counter"}`}>
             <span className="k"><Icon name="gift" size={14} />{o.used_at ? "Used" : "Your offer"}</span>
             <span className="b">{o.body}</span>

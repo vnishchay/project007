@@ -1,8 +1,9 @@
 import { InviteCard } from "../components/home/InviteCard";
 import { PasskeysCard } from "../components/Passkeys";
 import { ReminderRow } from "../components/Reminders";
+import { FriendsSheet } from "../components/FriendsSheet";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
 import { InstallNudge } from "../components/Install";
 import { useAuth } from "../lib/auth";
@@ -23,6 +24,7 @@ export default function Me() {
   const me = session!.user.id;
   const email = session!.user.email;
   const toast = useToast();
+  const nav = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(profile?.display_name || "");
   const [city, setCity] = useState(profile?.city || "");
@@ -32,6 +34,7 @@ export default function Me() {
   const [mine, setMine] = useState<Mine[] | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [friendCount, setFriendCount] = useState<number | null>(null);
+  const [showFriends, setShowFriends] = useState(false);
   const [shops, setShops] = useState<MyPlace[]>([]);
   const [badges, setBadges] = useState<string[]>([]);
   const [seenBy, setSeenBy] = useState<ShopSeen[] | null>(null);
@@ -98,6 +101,8 @@ export default function Me() {
 
   async function doSignOut() {
     setSigningOut(true);
+    // Leave this page first, so signing out lands on Discover rather than the sign-in page.
+    nav("/", { replace: true });
     try { await signOut(); } catch (e) { toast(errorText(e)); setSigningOut(false); }
   }
 
@@ -112,13 +117,14 @@ export default function Me() {
       <div className="stat-tile"><span className="n"><Icon name="star" size={16} />{n(list.length)}</span><span className="l">reviews</span></div>
       <div className="stat-tile"><span className="n"><Icon name="store" size={16} />{n(places)}</span><span className="l">places</span></div>
       <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{n(verified)}</span><span className="l">verified</span></div>
-      {!isGuest && <div className="stat-tile"><span className="n"><Icon name="people" size={16} />{friendCount ?? "–"}</span><span className="l">{friendCount === 1 ? "friend" : "friends"}</span></div>}
+      {!isGuest && <button type="button" className="stat-tile tap" aria-label={`${friendCount ?? ""} friends. See or remove friends`} onClick={() => setShowFriends(true)}><span className="n"><Icon name="people" size={16} />{friendCount ?? "–"}</span><span className="l">{friendCount === 1 ? "friend" : "friends"}<Icon name="chev" size={12} /></span></button>}
     </div>
   );
 
   return (
     <div className="page" style={{ gap: 18 }}>
       <TopBar title="Profile" tone={isGuest ? "sunset" : "hero"} />
+      {showFriends && <FriendsSheet onClose={() => setShowFriends(false)} onChanged={setFriendCount} />}
       {isGuest ? (
         <header className="hero sunset">
           <div className="row" style={{ gap: 12 }}>

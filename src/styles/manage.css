@@ -201,7 +201,9 @@
 /* ---------- Admin ---------- */
 .ad-head { display: flex; align-items: center; gap: 12px; }
 .ad-kpi { display: flex; flex-direction: column; gap: 6px; }
-.ad-tabs button { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; padding: 8px 2px; }
+.ad-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (min-width: 720px) { .ad-tabs { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.ad-tabs button { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 12px; padding: 8px 2px; }
 .ad-manage-link { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 20px; background: var(--grad-hero); color: #fff; }
 .ad-manage-link:hover { color: #fff; filter: brightness(1.04); }
 .ad-manage-link .icon-chip { background: rgba(255, 255, 255, 0.2); color: #fff; }
@@ -396,3 +398,5 @@
 .vg-swatch.on { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--ink); }
 .vg-swatch.sky { background: #8ec5ff; } .vg-swatch.green { background: #8fd9a3; } .vg-swatch.amber { background: #ffc46b; }
 .vg-swatch.coral { background: #ff9aa9; } .vg-swatch.violet { background: #b3b1f5; } .vg-swatch.gray { background: #c7c7cc; }
+
+.vg-editing { background: var(--fill); border-radius: 12px; }
