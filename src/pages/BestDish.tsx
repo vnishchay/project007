@@ -66,7 +66,7 @@ export default function BestDish() {
             </EmptyArt>
           </div>
         ) : (
-          <ol className="stack" style={{ gap: 12, listStyle: "none", padding: 0, margin: 0 }}>
+          <ol className="stack rsp-grid" style={{ gap: 12, listStyle: "none", padding: 0, margin: 0 }}>
             {shown.map((d, i) => (
               <li key={d.item_id}>
                 <Link to={`/p/${d.place_id}`} className="place-card">

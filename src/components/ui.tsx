@@ -9,6 +9,7 @@ import { avatarUrl } from "../lib/supabase";
 import { acceptPendingInvite, pendingRef } from "../lib/invite";
 import { avatarColor, initials } from "../lib/util";
 import { goBack } from "../lib/nav";
+import { knownShopCount } from "../lib/ownerMode";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 /* ---------- Icons (lucide) ---------- */
@@ -89,8 +90,11 @@ export function Layout({ children }: { children: ReactNode }) {
   const tabbed = !shop && TAB_ROOTS.includes(loc.pathname);
   // The owner app has its own full-width shell (sidebar on desktop, its own tab bar on phones).
   const owner = loc.pathname === "/owner" || loc.pathname.startsWith("/owner/");
+  // Browsing screens get the wider layout (and a sidebar on big screens). The scan, review and
+  // sign-in flows stay a phone-width column, since diners use them at the table.
+  const side = !shop && !owner && !FLOW_PATHS.some((p) => loc.pathname === p || loc.pathname.startsWith(`${p}/`));
   return (
-    <div className={`app ${tabbed ? "tabbed" : ""} ${owner ? "owner-app" : ""}`}>
+    <div className={`app ${tabbed ? "tabbed" : ""} ${owner ? "owner-app" : ""} ${side ? "side" : ""}`}>
       {authError && loc.pathname !== "/signin" && (
         <div className="notice err row no-print" style={{ margin: "12px 20px 0" }} role="alert">
           <span className="grow">Sign-in didn't finish: {authError}. <Link to="/signin">Try again</Link></span>
@@ -100,6 +104,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <InviteAcceptor />
       <ErrorBoundary resetKey={loc.pathname}>{shop && !allowedInFocus(loc.pathname, shop) ? <Navigate to={`/p/${shop}`} replace /> : children}</ErrorBoundary>
       <BottomNav />
+      {side && <SideNav />}
     </div>
   );
 }
@@ -152,6 +157,33 @@ export function useFootSpace<T extends HTMLElement>() {
 }
 
 export function Spinner() { return <div className="spinner" role="status" aria-label="Loading" />; }
+
+/** Big screens (1024px and up): the main tabs as a sidebar on every browsing screen, so there's always a way around. */
+function SideNav() {
+  const loc = useLocation();
+  const { session, isGuest, isAdmin, profile } = useAuth();
+  const account = session && !isGuest ? session.user : null;
+  const owns = account ? (knownShopCount(account.id) ?? 0) > 0 : false;
+  const link = (to: string, label: string, icon: IconName, on = loc.pathname === to) => (
+    <Link key={to} to={to} className={on ? "on" : ""} aria-current={on ? "page" : undefined}><Icon name={icon} size={20} width={on ? 2.4 : 2} />{label}</Link>
+  );
+  return (
+    <aside className="side-nav no-print" aria-label="Main">
+      <Link to="/" className="side-brand"><img src="/icon-192.png" alt="" width={32} height={32} />Trusted Picks</Link>
+      <nav className="side-links">{MAIN_TABS.map((t) => link(t.to, t.label, t.icon))}</nav>
+      <div className="side-links side-more">
+        {owns ? link("/owner", "Owner app", "dashboard", false) : link("/business", "For businesses", "store")}
+        {isAdmin && link("/admin", "Admin", "shield", loc.pathname.startsWith("/admin"))}
+      </div>
+      <div className="side-foot">
+        {account
+          ? <Link to="/me" className="side-me"><Avatar id={account.id} name={profile?.display_name || account.email} path={profile?.avatar_path} size="sm" /><span className="ellipsis">{profile?.display_name || "Your profile"}</span></Link>
+          : <Link to="/signin" className="btn small block"><Icon name="login" size={16} />Sign in</Link>}
+        <div className="side-legal"><Link to="/pricing">Pricing</Link><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/contact">Contact</Link></div>
+      </div>
+    </aside>
+  );
+}
 
 /**
  * guestOk: pages anyone can use without an account (writing a review). A guest session is
@@ -238,19 +270,21 @@ export const useConfirm = () => useContext(ConfirmCtx);
 
 /* ---------- Bottom bar ---------- */
 const TAB_ROOTS = ["/", "/picks", "/pocket", "/me"];
+/** Screens that keep the phone-width column on every screen size: at the table, in a review, signing in. */
+const FLOW_PATHS = ["/q", "/r", "/review", "/saved", "/signin", "/check", "/business/setup", "/claim", "/demo"];
+const MAIN_TABS: { to: string; label: string; icon: IconName }[] = [
+  { to: "/", label: "Discover", icon: "search" },
+  { to: "/picks", label: "Your picks", icon: "heart" },
+  { to: "/pocket", label: "Pocket", icon: "ticket" },
+  { to: "/me", label: "Profile", icon: "user" },
+];
 /** Discover, Your picks, Pocket and Profile, on the main screens. Never in shop mode (a customer at a table stays with that shop). */
 export function BottomNav() {
   const loc = useLocation();
   if (focusShop() || !TAB_ROOTS.includes(loc.pathname)) return null;
-  const tabs: { to: string; label: string; icon: IconName }[] = [
-    { to: "/", label: "Discover", icon: "search" },
-    { to: "/picks", label: "Your picks", icon: "heart" },
-    { to: "/pocket", label: "Pocket", icon: "ticket" },
-    { to: "/me", label: "Profile", icon: "user" },
-  ];
   return (
     <nav className="bottom-nav no-print" aria-label="Main">
-      {tabs.map((t) => {
+      {MAIN_TABS.map((t) => {
         const on = loc.pathname === t.to;
         return (
           <Link key={t.to} to={t.to} replace className={on ? "on" : ""} aria-current={on ? "page" : undefined}>

@@ -1,0 +1,101 @@
+/* Phone, tablet and desktop.
+   Phones (under 700px) keep the one-column app exactly as designed.
+   Tablets (700px and up) widen the browsing screens to a 760px column, with two-up card grids.
+   Desktops (1024px and up) add a sidebar with the main tabs and let browsing screens spread to 1160px.
+   The scan, review and sign-in flows stay a phone-width column everywhere: diners use them at the table.
+   Loaded last so these rules win over the page styles. */
+
+:root { --app-w: 520px; --side-w: 248px; }
+.app { --app-w: 520px; }
+.bottom-nav { width: min(100%, var(--app-w)); }
+.side-nav { display: none; }
+.pl-review-list { display: contents; }
+
+/* Sideways strips: snapping helps a thumb, but with a mouse or trackpad it can leave a strip
+   sitting a little scrolled (the first card cut off), so only touch screens snap. */
+@media (hover: hover) and (pointer: fine) {
+  .hscroll { scroll-snap-type: none; }
+  .hscroll, .chips.scroll { scrollbar-width: thin; scrollbar-color: rgba(60, 60, 67, 0.25) transparent; }
+  .hscroll::-webkit-scrollbar, .chips.scroll::-webkit-scrollbar { display: block; height: 6px; }
+  .hscroll::-webkit-scrollbar-thumb, .chips.scroll::-webkit-scrollbar-thumb { background: rgba(60, 60, 67, 0.25); border-radius: 3px; }
+}
+
+/* ---------- Tablet and up ---------- */
+@media (min-width: 700px) {
+  .app.side { --app-w: 760px; max-width: var(--app-w); }
+
+  /* Sheets open as a centred card instead of sliding up from the bottom edge. */
+  .sheet-backdrop { align-items: center; padding: 24px; }
+  .sheet { border-radius: 28px; max-height: min(85dvh, 760px); padding-bottom: 22px; box-shadow: var(--shadow-lg); }
+  .sheet::before { display: none; }
+
+  /* Card lists become two-up grids. */
+  .rsp-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .rsp-grid > .rsp-full, .rsp-grid > .notice, .rsp-grid > .btn.block, .rsp-grid > .empty { grid-column: 1 / -1; }
+}
+
+/* ---------- Desktop: sidebar ---------- */
+@media (min-width: 1024px) {
+  .app.side { --app-w: 1160px; max-width: none; margin: 0 0 0 var(--side-w); padding-bottom: 0; }
+  .app.side.tabbed { padding-bottom: 0; }
+  .app.side .bottom-nav { display: none; }
+  .app.side .toast { bottom: calc(28px + env(safe-area-inset-bottom)); margin-left: calc(var(--side-w) / 2); }
+  .app.side > .page { width: 100%; max-width: 820px; margin: 0 auto; padding: 28px 40px 56px; }
+  .app.side > .page.wide { max-width: var(--app-w); }
+  .app.side > .page > .topbar { margin: -28px -40px 0; padding: 10px 32px; top: 0; }
+  .app.side .hscroll, .app.side .chips.scroll { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+  .app.side .hscroll { scroll-padding-inline: 0; }
+  /* With a mouse a long row of chips wraps instead of hiding past the edge. */
+  .app.side .chips.scroll { flex-wrap: wrap; overflow: visible; }
+
+  .side-nav {
+    display: flex; flex-direction: column; gap: 6px; position: fixed; z-index: 36; left: 0; top: 0; bottom: 0; width: var(--side-w);
+    padding: 22px 14px 18px; background: var(--card); box-shadow: 0.5px 0 0 var(--line); overflow-y: auto;
+  }
+  .side-brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; color: var(--ink); font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+  .side-brand:hover { color: var(--ink); }
+  .side-brand img { border-radius: 9px; }
+  .side-links { display: flex; flex-direction: column; gap: 2px; }
+  .side-links a {
+    display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 12px; border-radius: 12px;
+    color: var(--ink-2); font-weight: 600; font-size: 15px; transition: background 0.15s var(--ease), color 0.15s var(--ease);
+  }
+  .side-links a:hover { background: var(--fill); color: var(--ink); }
+  .side-links a.on { background: var(--accent-soft); color: var(--accent-dark); }
+  .side-more { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--line); }
+  .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
+  .side-me { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 10px; border-radius: 12px; color: var(--ink); font-weight: 600; font-size: 14px; }
+  .side-me:hover { background: var(--fill); color: var(--ink); }
+  .side-me .avatar.sm { width: 32px; height: 32px; border: 0; }
+  .side-legal { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 10px; font-size: 12.5px; }
+  .side-legal a { color: var(--muted); }
+  .side-legal a:hover { color: var(--ink); }
+
+  .rsp-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  /* Dark title bars sit on the page as a rounded header instead of a strip ending mid-air. */
+  .app.side > .page > .topbar.on-hero, .app.side > .page > .topbar.on-sunset { border-radius: 0 0 20px 20px; }
+  .app.side > .page > .topbar.on-hero + .hero, .app.side > .page > .topbar.on-sunset + .hero { border-radius: 0 0 24px 24px; }
+
+  /* Shop page: a wide hero, more dishes per row, reviews two-up. */
+  .app.side > .pl-page { max-width: 1080px; }
+  .app.side > .pl-page .pn-hero { margin: 0; border-radius: 28px; }
+  .app.side > .pl-page .pn-hero.has-cover { min-height: 420px; }
+  .app.side > .pl-page .pn-ticker { margin-left: 0; margin-right: 0; border-radius: 14px; border: 0; box-shadow: var(--shadow); }
+  .app.side > .pl-page .pn-sig-row, .app.side > .pl-page .pn-fr-row { margin: 0; padding-left: 0; padding-right: 0; }
+  .app.side > .pl-page .pn-dock { justify-content: center; gap: 48px; }
+  .app.side > .pl-page .pn-tabs { top: 12px; }
+  .app.side > .pl-page .pn-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .app.side > .pl-page .pn-photos { columns: 3; }
+  .app.side .pl-review-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+}
+
+@media (min-width: 1400px) {
+  .rsp-grid.wide-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* The flows that stay a phone column get a soft frame on big screens, so the column doesn't float on a blank page. */
+@media (min-width: 700px) {
+  .app:not(.side):not(.owner-app) { box-shadow: 0 0 0 0.5px rgba(60, 60, 67, 0.12), 0 10px 40px rgba(0, 0, 0, 0.06); background: var(--bg); }
+  html:has(.app:not(.side):not(.owner-app)) body { background: #e9e9ef; }
+}

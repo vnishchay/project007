@@ -92,7 +92,7 @@ export default function Person() {
           <div className="stat-tile"><span className="n"><Icon name="verified" size={16} />{verified}</span><span className="l">verified</span></div>
         </div>
       </header>
-      <div className="stack">
+      <div className={`stack ${reviews.length ? "rsp-grid" : ""}`}>
         {reviews.length === 0
           ? <div className="card"><EmptyArt icon="star" tone="amber" title="No named reviews yet" /></div>
           : reviews.map((r) => <ReviewCard key={r.id} r={r} showPlace />)}
