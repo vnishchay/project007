@@ -35,13 +35,15 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
-// Review reminders (Web Push, migration 47). Only people who switched reminders on ever get one.
+// Review reminders (Web Push, migration 47) and table calls for shops with alerts on (migration 51).
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(d.title || "Trusted Picks", {
     body: d.body || "",
     tag: d.tag,
+    renotify: Boolean(d.tag && d.renotify),
+    requireInteraction: Boolean(d.renotify),
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     data: { url: d.url || "/" },

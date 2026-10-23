@@ -64,3 +64,9 @@ Tested on a local Postgres 16 + PostGIS with a stand-in for Supabase Auth: QR sc
 - **Your pocket** (`/pocket`, new bottom tab): every offer, deal from shops you visited or saved, and stamp card, plus what you used.
 - **Wallet:** offers, deals and stamp cards can be added to Apple or Google Wallet once `wallet` is redeployed (`scripts/deploy-wallet.ps1`). A pass only opens the live screen in the app; it can't be used on its own. Stamp passes show the card as it was when added.
 - To turn on: run `run-now-50.sql` (or `update_existing_database.sql`), then redeploy `wallet`. Deals run on the shop's local time (`places.time_zone`, India by default).
+
+## Table calls (migration 51)
+
+Diners can tap **Call staff**, **Get the bill** or **Tell the shop now** on the table page. Requests show on **Manage > Home > Live**, which rings for every new call. Calls and bill requests stay off until the owner switches **Table calls** on. "Tell the shop now" always works. A request shows the table only, never the person, and is never linked to a review.
+
+Phone alerts reuse the Web Push setup from migration 47 (VAPID keys and the `remind` function). After this migration, redeploy `remind` with `supabase functions deploy remind --no-verify-jwt`. Owners then turn on **Alert my phone** on the Live tab.

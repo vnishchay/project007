@@ -13,6 +13,7 @@ import { LinksEditor } from "../components/manage/LinksEditor";
 import { Messages, type Audience } from "../components/manage/Messages";
 import { Visitors } from "../components/manage/Visitors";
 import { Deals } from "../components/manage/Deals";
+import { LiveCalls } from "../components/manage/LiveCalls";
 import { ReviewsTab } from "../components/manage/ReviewsTab";
 import { GoogleConnect } from "../components/manage/GoogleConnect";
 import { ShareKit } from "../components/manage/ShareKit";
@@ -27,7 +28,7 @@ type Tab = ManageTab;
 type Group = "home" | "reviews" | "customers" | "shop";
 /** Four groups instead of eight tabs. ?tab= keeps the page ids (plan, qr…) so old links still land in the right place. */
 const GROUPS: { id: Group; label: string; icon: IconName; tabs: { id: Tab; label: string }[] }[] = [
-  { id: "home", label: "Home", icon: "chart", tabs: [{ id: "insights", label: "Overview" }, { id: "plan", label: "Plan" }] },
+  { id: "home", label: "Home", icon: "chart", tabs: [{ id: "insights", label: "Overview" }, { id: "live", label: "Live" }, { id: "plan", label: "Plan" }] },
   { id: "reviews", label: "Reviews", icon: "star", tabs: [{ id: "reviews", label: "Reviews" }] },
   { id: "customers", label: "Customers", icon: "people", tabs: [{ id: "visitors", label: "Visitors" }, { id: "deals", label: "Deals" }, { id: "updates", label: "Messages" }] },
   { id: "shop", label: "Shop page", icon: "store", tabs: [{ id: "products", label: "Catalog" }, { id: "details", label: "Details" }, { id: "links", label: "Links" }, { id: "qr", label: "QR codes" }] },
@@ -133,6 +134,7 @@ export default function Manage() {
           </div>
         )}
         {tab === "insights" && <Insights place={place} onGo={setTab} hasPin={pinState.pin ? pinState.pin.has_pin : null} />}
+        {tab === "live" && <LiveCalls placeId={place.id} live={place.status === "live"} />}
         {tab === "plan" && <Plan placeId={place.id} placeName={place.name} />}
         {tab === "reviews" && <ReviewsTab placeId={place.id} placeName={place.name} live={place.status === "live"} onGo={setTab} />}
         {tab === "visitors" && <Visitors placeId={place.id} picked={picked} setPicked={setPicked} reload={sentN} onWrite={() => { setAudience("offer"); setTab("updates"); }} />}

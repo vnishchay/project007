@@ -1,0 +1,66 @@
+/* Table calls (migration 51): the diner's "Need something?" buttons and the shop's live board. */
+.sv .tone-sky, .lv .tone-sky { --t: #0062cc; --t-soft: rgba(0, 98, 204, 0.12); }
+.sv .tone-green, .lv .tone-green { --t: #1f7a36; --t-soft: rgba(31, 122, 54, 0.12); }
+.sv .tone-coral, .lv .tone-coral, .sv-sheet .tone-coral { --t: #c70d40; --t-soft: rgba(199, 13, 64, 0.12); }
+
+.sv-btns { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+.sv-btns.n2 { grid-template-columns: repeat(2, 1fr); }
+.sv-btns.n1 { grid-template-columns: 1fr; }
+.sv-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 104px; padding: 14px 8px;
+  border: 0; border-radius: 22px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); cursor: pointer; text-align: center;
+  transition: transform 0.12s, background 0.2s; }
+.sv-btn:active { transform: scale(0.96); }
+.sv-btn:disabled { opacity: 0.7; }
+.sv-btn .ic { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: var(--t-soft); color: var(--t); }
+.sv-btn b { font-size: 14.5px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; }
+.sv-btn small { font-size: 12px; opacity: 0.85; }
+.sv-btns.n1 .sv-btn { flex-direction: row; min-height: 64px; justify-content: flex-start; padding: 10px 16px; gap: 12px; }
+.sv-btn.on { background: var(--t); color: #fff; }
+.sv-btn.on .ic { background: rgba(255, 255, 255, 0.2); color: #fff; animation: sv-ring 1.6s ease-in-out infinite; }
+@keyframes sv-ring { 0%, 100% { transform: rotate(0); } 10% { transform: rotate(-14deg); } 20% { transform: rotate(12deg); } 30% { transform: rotate(-8deg); } 40% { transform: rotate(0); } }
+
+.sv-mine { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sv-mine li { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 16px; background: var(--fill); color: var(--muted); }
+.sv-mine li b { display: block; color: var(--ink); font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-mine li small { font-size: 12.5px; }
+.sv-mine li .grow { min-width: 0; }
+.sv-mine li.seen, .sv-mine li.done { background: var(--good-soft); color: var(--good-dark); }
+.sv-x { border: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px; }
+
+.sv-head { display: flex; gap: 12px; align-items: flex-start; }
+.sv-head .ic { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--t-soft); color: var(--t); }
+.sv-head b { display: block; font-size: 18px; }
+.sv-head small { color: var(--muted); font-size: 13.5px; }
+.sv-priv { display: flex; gap: 6px; align-items: center; margin: 0; }
+
+/* Live board */
+.lv { display: flex; flex-direction: column; gap: 14px; }
+.lv-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lv-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 0 rgba(31, 122, 54, 0.5); animation: lv-pulse 1.8s infinite; flex: none; }
+.lv-dot.off { background: var(--muted); animation: none; }
+@keyframes lv-pulse { 70% { box-shadow: 0 0 0 10px rgba(31, 122, 54, 0); } 100% { box-shadow: 0 0 0 0 rgba(31, 122, 54, 0); } }
+.lv-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.lv-stats > div { background: var(--card); box-shadow: var(--shadow); border-radius: 16px; padding: 10px 12px; }
+.lv-stats b { display: block; font-size: 22px; letter-spacing: -0.02em; }
+.lv-stats small { color: var(--muted); font-size: 12px; }
+.lv-list { display: flex; flex-direction: column; gap: 10px; }
+.lv-card { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: center; padding: 14px; border-radius: 20px; background: var(--card);
+  box-shadow: var(--shadow); border-left: 6px solid var(--t); animation: lv-in 0.3s ease both; }
+.lv-card.new { background: var(--t-soft); }
+@keyframes lv-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.lv-card .ic { grid-row: span 2; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--t); color: #fff; }
+.lv-card .t { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.lv-card .t b { font-size: 19px; letter-spacing: -0.015em; }
+.lv-card .t span { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.lv-card .t .late { color: var(--danger); font-weight: 600; }
+.lv-card .m { font-size: 15px; color: var(--ink); }
+.lv-card .k { font-size: 13.5px; color: var(--t); font-weight: 600; }
+.lv-card .acts { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 8px; }
+.lv-card .acts .btn { flex: 1; min-height: 44px; }
+.lv-empty { text-align: center; padding: 28px 16px; color: var(--muted); display: flex; flex-direction: column; gap: 8px; align-items: center; background: var(--card); border-radius: 20px; box-shadow: var(--shadow); }
+.lv-done { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+.lv-done b { color: var(--ink); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-btn.on .ic, .lv-dot, .lv-card { animation: none; }
+}

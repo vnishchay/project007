@@ -14,6 +14,7 @@ import { MODES, modeOf, type Mode } from "../lib/modes";
 import { placeMediaUrl } from "../lib/media";
 import { ForYouHere } from "../components/ForYouHere";
 import { TreatsRail } from "../components/treats/TreatsRail";
+import { TableService } from "../components/TableService";
 import { laterNote } from "../components/Reminders";
 import { turnOnReminders, type PushState } from "../lib/push";
 import "../styles/review.css";
@@ -305,6 +306,16 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     return true;
   }
 
+  /** Calls and messages to the shop need a visit here, even when this account can't review. */
+  async function reachShop(): Promise<boolean> {
+    if (visit) return true;
+    if (!(await ensureSession())) return false;
+    const r = await unlock();
+    if (r.error) throw r.error;
+    setVisit(((r.data as Visit[]) || [])[0] ?? { visit_id: "", expires_at: "" });
+    return true;
+  }
+
   /** Not now: keep the review open (visit unlocked), switch on a reminder if this phone can get one. */
   async function rateLater() {
     setStarting(true); startingGuest.current = true;
@@ -344,6 +355,7 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         </div>
       </header>
 
+      {!link && <TableService placeId={peek.place_id} shop={peek.place_name} table={peek.table_label ?? null} food={isFood} ensureVisit={reachShop} />}
       <TreatsRail placeId={peek.place_id} placeName={peek.place_name} currency={currency} onCollect={collectStamp} />
       <ForYouHere placeId={peek.place_id} placeName={peek.place_name} signedIn={Boolean(session)} newsOnly />
 
