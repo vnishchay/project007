@@ -28,7 +28,7 @@ export default function Check() {
       if (!session) {
         const r = await supabase.auth.signInAnonymously();
         session = r.data.session;
-        add(!r.error && Boolean(session), "Guest session starts", r.error ? `${r.error.message}${r.error.status ? ` (${r.error.status})` : ""}` : "ok");
+        add(!r.error && Boolean(session), "Guest session starts", r.error ? `${r.error.message}${r.error.status ? ` (${r.error.status})` : ""}${/anonymous/i.test(r.error.message) ? ". Fix: Supabase dashboard > Authentication > Sign In / Providers > turn on \"Allow anonymous sign-ins\"" : ""}` : "ok");
         if (!session) return;
       }
       const prof = await supabase.rpc("my_profile");
