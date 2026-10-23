@@ -14,7 +14,7 @@ const clock = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", mi
  * On the scan page: this shop's offers for you (show one at the counter, then mark it used) and its
  * latest news. Quietly absent when there's nothing. Offers never depend on reviewing.
  */
-export function ForYouHere({ placeId, placeName, signedIn }: { placeId: string; placeName: string; signedIn: boolean }) {
+export function ForYouHere({ placeId, placeName, signedIn, newsOnly = false }: { placeId: string; placeName: string; signedIn: boolean; newsOnly?: boolean }) {
   const [offers, setOffers] = useState<MyOffer[]>([]);
   const [news, setNews] = useState<Update[]>([]);
   const [open, setOpen] = useState<MyOffer | null>(null);
@@ -24,7 +24,8 @@ export function ForYouHere({ placeId, placeName, signedIn }: { placeId: string; 
     supabase.from("place_updates").select("id, body, link_url, created_at").eq("place_id", placeId)
       .order("created_at", { ascending: false }).limit(2)
       .then(({ data, error }) => alive && !error && setNews(((data as Update[]) || []).filter((u) => Date.now() - new Date(u.created_at).getTime() < MONTH)), () => {});
-    if (signedIn) {
+    // newsOnly: offers show as tickets above (TreatsRail), wrapped until opened.
+    if (signedIn && !newsOnly) {
       supabase.rpc("my_offers_here", { p_place: placeId }).then(({ data, error }) => {
         if (!alive || error) return;
         const list = (data as MyOffer[]) || [];
@@ -34,7 +35,7 @@ export function ForYouHere({ placeId, placeName, signedIn }: { placeId: string; 
       }, () => {});
     }
     return () => { alive = false; };
-  }, [placeId, signedIn]);
+  }, [placeId, signedIn, newsOnly]);
 
   if (!offers.length && !news.length) return null;
   return (

@@ -13,6 +13,7 @@ import { playHapticTap } from "../lib/haptics";
 import { MODES, modeOf, type Mode } from "../lib/modes";
 import { placeMediaUrl } from "../lib/media";
 import { ForYouHere } from "../components/ForYouHere";
+import { TreatsRail } from "../components/treats/TreatsRail";
 import { laterNote } from "../components/Reminders";
 import { turnOnReminders, type PushState } from "../lib/push";
 import "../styles/review.css";
@@ -297,6 +298,13 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
     setStarting(false); startingGuest.current = false;
   }
 
+  /** Records today's visit (so the stamp card counts it) without opening the review. */
+  async function collectStamp(): Promise<boolean> {
+    if (!(await ensureSession())) return false;
+    await openVisit(false);
+    return true;
+  }
+
   /** Not now: keep the review open (visit unlocked), switch on a reminder if this phone can get one. */
   async function rateLater() {
     setStarting(true); startingGuest.current = true;
@@ -336,7 +344,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
         </div>
       </header>
 
-      <ForYouHere placeId={peek.place_id} placeName={peek.place_name} signedIn={Boolean(session)} />
+      <TreatsRail placeId={peek.place_id} placeName={peek.place_name} currency={currency} onCollect={collectStamp} />
+      <ForYouHere placeId={peek.place_id} placeName={peek.place_name} signedIn={Boolean(session)} newsOnly />
 
       {menu.length > 0 && (
         <section className="rvx-sec" aria-label={catalog}>

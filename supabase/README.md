@@ -55,3 +55,12 @@ Tested on a local Postgres 16 + PostGIS with a stand-in for Supabase Auth: QR sc
   3. Run the one SQL line it prints (stores the project address and the cron secret in Vault).
   4. Add `VITE_VAPID_PUBLIC_KEY` on Vercel (it prints the value) and redeploy.
   On iPhone, notifications need the app added to the home screen (iOS 16.4+); the app says so. Until step 4 the app hides the switch and keeps Ready to rate on Home.
+
+## Shop deals, stamp cards and Your pocket (migration 50)
+
+- **Deals:** owners add them under Manage > Customers > Deals (% off, money off, free item, 2 for 1, happy hour or anything else, on chosen days and hours, with an end date). They show as tickets at the top of the shop page and on the scan page, with a live "Ends in" countdown. A diner opens one at the counter and the staff press and hold to use it (once a day, or once per person).
+- **Personal offers** now arrive gift-wrapped: they stay "new" until the diner unwraps them.
+- **Stamp cards:** "N visits, then <reward>". Each day a diner scans a table code there (not from far away, not a review link) adds a stamp by itself; the scan page has "Collect today's stamp" so nobody has to review to get one. Stamps never depend on reviews, and deals or rewards can't mention reviews.
+- **Your pocket** (`/pocket`, new bottom tab): every offer, deal from shops you visited or saved, and stamp card, plus what you used.
+- **Wallet:** offers, deals and stamp cards can be added to Apple or Google Wallet once `wallet` is redeployed (`scripts/deploy-wallet.ps1`). A pass only opens the live screen in the app; it can't be used on its own. Stamp passes show the card as it was when added.
+- To turn on: run `run-now-50.sql` (or `update_existing_database.sql`), then redeploy `wallet`. Deals run on the shop's local time (`places.time_zone`, India by default).
