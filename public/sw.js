@@ -35,7 +35,7 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
-// Review reminders (Web Push, migration 47) and table calls for shops with alerts on (migration 51).
+// Review reminders (Web Push, migration 47) and table calls for shops with alerts on (migration 52).
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }

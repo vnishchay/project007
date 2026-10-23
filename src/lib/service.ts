@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-/** A call from a table (migration 51): the staff, the bill, or "tell the shop now". */
+/** A call from a table (migration 52): the staff, the bill, or "tell the shop now". */
 export type CallKind = "waiter" | "bill" | "help";
 export interface TableCall {
   id: string; kind: CallKind; message: string | null; table_label: string | null;

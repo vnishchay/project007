@@ -1,6 +1,6 @@
 // Supabase Edge Function "remind": sends review reminders (Web Push) for open visits.
 // pg_cron calls it every 10 minutes (migration 47) with the x-cron-secret header; nobody else can.
-// A table call (migration 51) calls it straight away with {"request": id}: that alerts the shop's
+// A table call (migration 52) calls it straight away with {"request": id}: that alerts the shop's
 // phones where the owner switched alerts on, and sends nothing else.
 // Only people who switched reminders on have a push address, so nobody else gets anything.
 // A reminder never mentions offers or rewards: it only asks how the visit was.
