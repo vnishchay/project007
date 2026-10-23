@@ -1,5 +1,6 @@
 import { InviteCard } from "../components/home/InviteCard";
 import { PasskeysCard } from "../components/Passkeys";
+import { ReminderRow } from "../components/Reminders";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase, errorText } from "../lib/supabase";
@@ -237,6 +238,8 @@ export default function Me() {
           <span className="small grow">{named ? `${named} review${named === 1 ? " shows" : "s show"} your name. The rest are anonymous.` : "All your reviews are anonymous. You can show your name on any of them in Your picks."}</span>
         </div>
       )}
+
+      <ReminderRow />
 
       <InstallNudge look="row" title="Add to home screen" sub="Open Trusted Picks like an app" />
 

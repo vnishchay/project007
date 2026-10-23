@@ -21,6 +21,7 @@ with needed(fn, params) as (values
   ('claim_place', array['p_lat', 'p_lng', 'p_phone', 'p_photo', 'p_place', 'p_role']::text[]),
   ('create_review_link', array['p_place']::text[]),
   ('decide_claim', array['p_approve', 'p_claim']::text[]),
+  ('delete_push_subscription', array['p_endpoint']::text[]),
   ('ensure_profile', array[]::text[]),
   ('list_my_shop', array['p_area', 'p_category', 'p_city', 'p_google_place_id', 'p_links', 'p_name', 'p_note', 'p_phone']::text[]),
   ('make_table_qrs', array['p_place', 'p_style', 'p_tables']::text[]),
@@ -29,6 +30,8 @@ with needed(fn, params) as (values
   ('my_friends', array[]::text[]),
   ('my_invite_code', array[]::text[]),
   ('my_offers', array['p_limit']::text[]),
+  ('my_offers_here', array['p_place']::text[]),
+  ('my_open_visits', array[]::text[]),
   ('my_owner_notes', array['p_place']::text[]),
   ('my_place_check', array['p_place']::text[]),
   ('my_places', array[]::text[]),
@@ -51,6 +54,7 @@ with needed(fn, params) as (values
   ('report_review', array['p_reason', 'p_review']::text[]),
   ('request_recheck', array['p_note', 'p_place']::text[]),
   ('review_link_counts', array['p_place']::text[]),
+  ('save_push_subscription', array['p_auth', 'p_endpoint', 'p_p256dh']::text[]),
   ('scan_qr', array['p_token']::text[]),
   ('search_places', array[]::text[]),
   ('send_owner_note', array['p_body', 'p_contact', 'p_device', 'p_place']::text[]),
@@ -64,8 +68,10 @@ with needed(fn, params) as (values
   ('similar_items', array['p_item', 'p_lat', 'p_limit', 'p_lng']::text[]),
   ('submit_review', array[]::text[]),
   ('submit_visit_review', array['p_ai_drafted', 'p_body', 'p_device', 'p_is_public', 'p_place_id', 'p_rating', 'p_tags']::text[]),
+  ('take_due_review_reminders', array['p_limit']::text[]),
   ('tap_nfc', array['p_cmac', 'p_picc', 'p_token']::text[]),
   ('top_dishes', array['p_area', 'p_city', 'p_exclude_place', 'p_kind', 'p_lat', 'p_limit', 'p_lng', 'p_place', 'p_query', 'p_radius_m']::text[]),
+  ('use_offer', array['p_id']::text[]),
   ('verify_place', array['p_lat', 'p_lng', 'p_note', 'p_ok', 'p_place']::text[])
 )
 select n.fn as missing_function, n.params as with_arguments

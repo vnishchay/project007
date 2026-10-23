@@ -12,6 +12,9 @@ import { ItemThumb } from "../components/place/ItemThumb";
 import { playHapticTap } from "../lib/haptics";
 import { MODES, modeOf, type Mode } from "../lib/modes";
 import { placeMediaUrl } from "../lib/media";
+import { ForYouHere } from "../components/ForYouHere";
+import { laterNote } from "../components/Reminders";
+import { turnOnReminders, type PushState } from "../lib/push";
 import "../styles/review.css";
 
 interface Peek { place_id: string; place_name: string; area: string | null; table_label?: string | null; status?: "ok" | "used" | "expired" }
@@ -75,6 +78,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
   // Picking a sixth thing: say why nothing happened.
   const [full, setFull] = useState(false);
   const [showPerks, setShowPerks] = useState(false);
+  // What happens after "Rate later": the reminder, or where the review waits.
+  const [later, setLater] = useState<string | null>(null);
   // The shop's own special picks (products it chose to list), shown like a mini shop page.
   const [specials, setSpecials] = useState<ShopItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -251,42 +256,57 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
 
   const until = visit?.expires_at ? new Date(visit.expires_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : null;
 
-  /** Record the verified visit (location is asked for here, on the tap), then open the review. */
-  async function openVisit() {
+  /** Record the verified visit (location is asked for here, on the tap), then open the review (unless `go` is false). */
+  async function openVisit(go = true): Promise<Visit | null> {
     setScanning(true); setScanErr(""); setRefused(null);
     const { data } = await supabase.auth.getSession();
     scannedFor.current = `${data.session?.user.id}:${token}:${Date.now()}`;
     const r = await unlock().then((x) => x, (e: unknown) => ({ data: null, error: e as Error }));
-    if (r.error) { setScanning(false); setScanErr(friendly(r.error)); return false; }
+    if (r.error) { setScanning(false); setScanErr(friendly(r.error)); return null; }
     const no = await checkCan(peek!.place_id);
     setScanning(false);
-    const v = ((r.data as Visit[]) || [])[0];
-    setVisit(v ?? { visit_id: "", expires_at: "" });
+    const v = ((r.data as Visit[]) || [])[0] ?? { visit_id: "", expires_at: "" };
+    setVisit(v);
     setRefused(no);
-    if (!no) navTo(`/review/${peek!.place_id}`);
-    return !no;
+    if (no) return null;
+    if (go) navTo(`/review/${peek!.place_id}`);
+    return v;
+  }
+
+  /** Guests review without an account: start a guest session first. False (with a plain message) if that fails. */
+  async function ensureSession(): Promise<boolean> {
+    if (session) return true;
+    setGuestErr("");
+    const ok = await startGuest();
+    if (ok) return true;
+    const why = lastGuestError;
+    // The real reason is for the team; diners get a plain next step.
+    console.warn("Guest review could not start:", why);
+    setGuestErr(/rate limit|too many|429/i.test(why)
+      ? "Lots of people are reviewing from this network right now. Wait a few minutes and tap again."
+      : /anonymous|captcha|disabled/i.test(why)
+      ? "Reviewing without an account isn't available here right now. Sign in to review, or try again later."
+      : "We couldn't start your review just now. Check your connection and tap again.");
+    return false;
   }
 
   async function rateAsGuest() {
-    // Start a guest session and unlock the verified visit before moving on.
-    setStarting(true); setGuestErr(""); startingGuest.current = true;
-    const ok = await startGuest();
-    if (ok) {
-      // Stay on "Opening…" until the visit is unlocked, so nobody reaches the review before it exists.
-      await openVisit();
-      setStarting(false); startingGuest.current = false;
-    } else {
-      setStarting(false);
-      startingGuest.current = false;
-      const why = lastGuestError;
-      // The real reason is for the team; diners get a plain next step.
-      console.warn("Guest review could not start:", why);
-      setGuestErr(/rate limit|too many|429/i.test(why)
-        ? "Lots of people are reviewing from this network right now. Wait a few minutes and tap again."
-        : /anonymous|captcha|disabled/i.test(why)
-        ? "Reviewing without an account isn't available here right now. Sign in to review, or try again later."
-        : "We couldn't start your review just now. Check your connection and tap again.");
-    }
+    // Stay on "Opening…" until the visit is unlocked, so nobody reaches the review before it exists.
+    setStarting(true); startingGuest.current = true;
+    if (await ensureSession()) await openVisit();
+    setStarting(false); startingGuest.current = false;
+  }
+
+  /** Not now: keep the review open (visit unlocked), switch on a reminder if this phone can get one. */
+  async function rateLater() {
+    setStarting(true); startingGuest.current = true;
+    const v = (await ensureSession()) ? await openVisit(false) : null;
+    setStarting(false); startingGuest.current = false;
+    if (!v) return;
+    let st: PushState = "unsupported";
+    try { st = await turnOnReminders(); } catch { /* keep the in-app fallback */ }
+    const end = v.expires_at ? new Date(v.expires_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : null;
+    setLater(laterNote(st, end));
   }
 
   const q = menuQ.trim().toLowerCase();
@@ -315,6 +335,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
           {visit && !refused && <span className="rvx-verified"><Icon name="verified" size={15} />Verified visit</span>}
         </div>
       </header>
+
+      <ForYouHere placeId={peek.place_id} placeName={peek.place_name} signedIn={Boolean(session)} />
 
       {menu.length > 0 && (
         <section className="rvx-sec" aria-label={catalog}>
@@ -398,6 +420,8 @@ export default function QrLanding({ link = false }: { link?: boolean }) {
               <span>{scanErr ? "Try again" : ctaLabel}</span>
             </button>
           )}
+          {!refused && !later && <button type="button" className="rvx-later" disabled={busy} onClick={() => void rateLater()}><Icon name="bell" size={16} />Not now? Rate later</button>}
+          {later && !refused && <p className="rvx-later-note" role="status"><Icon name="bell" size={18} />{later}</p>}
           {!refused && (
             <button type="button" className="rvx-trust" aria-expanded={showPerks} onClick={() => setShowPerks((v) => !v)}>
               <span><Icon name="eyeOff" size={14} />{session ? "Anonymous unless you choose" : "No account"}</span>

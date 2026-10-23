@@ -34,3 +34,26 @@ self.addEventListener("fetch", (e) => {
     })));
   }
 });
+
+// Review reminders (Web Push, migration 47). Only people who switched reminders on ever get one.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Trusted Picks", {
+    body: d.body || "",
+    tag: d.tag,
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { url: d.url || "/" },
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    const open = list.find((c) => c.url.startsWith(self.location.origin));
+    if (open) return open.navigate(url).then((c) => (c || open).focus()).catch(() => self.clients.openWindow(url));
+    return self.clients.openWindow(url);
+  }));
+});
