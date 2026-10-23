@@ -40,13 +40,13 @@ export const SECTION_OF: Record<ManageTab, Section> = {
   updates: "messages", products: "menu", details: "details", links: "links", qr: "qr",
 };
 
-/** Bottom tabs on phones, first block of the sidebar on desktop. Offers covers deals and messages. */
+/** Bottom tabs on phones, first block of the sidebar on desktop. Offers covers deals and messages; My shop holds everything set up once. */
 const TABS: { id: Section; label: string; icon: IconName; also?: Section[] }[] = [
   { id: "", label: "Today", icon: "dashboard" },
   { id: "reviews", label: "Reviews", icon: "star" },
   { id: "customers", label: "Customers", icon: "people" },
   { id: "deals", label: "Offers", icon: "ticket", also: ["messages"] },
-  { id: "more", label: "More", icon: "grid" },
+  { id: "more", label: "My shop", icon: "store" },
 ];
 
 interface OwnerCtx {
@@ -175,9 +175,9 @@ export default function OwnerApp() {
       body = (
         <>
           <div className="ow-seg" role="tablist" aria-label="Offers">
-            <button type="button" role="tab" aria-selected={section === "deals"} className={section === "deals" ? "on" : ""} onClick={() => go("deals")}><Icon name="ticket" size={17} />Deals and stamps</button>
+            <button type="button" role="tab" aria-selected={section === "deals"} className={section === "deals" ? "on" : ""} onClick={() => go("deals")}><Icon name="ticket" size={17} />Deals</button>
             <button type="button" role="tab" aria-selected={section === "messages"} className={section === "messages" ? "on" : ""} onClick={() => go("messages")}>
-              <Icon name="send" size={17} />Messages{picked.size > 0 && <span className="badge" style={{ marginLeft: 4 }}>{picked.size}</span>}
+              <Icon name="send" size={17} />Send a message{picked.size > 0 && <span className="badge" style={{ marginLeft: 4 }}>{picked.size}</span>}
             </button>
           </div>
           {section === "deals"
@@ -189,7 +189,7 @@ export default function OwnerApp() {
       );
       break;
     case "more":
-      title = "More";
+      title = "My shop";
       body = <More />;
       break;
     case "menu":
@@ -197,7 +197,7 @@ export default function OwnerApp() {
       body = <Products placeId={place.id} isAdmin={isAdmin} mode={mode} links={place.links ?? []} currency={place.currency} onCount={onCount} />;
       break;
     case "look":
-      title = "Photos and look";
+      title = "Photos";
       body = <ShopHeader place={place} onChange={merge} />;
       break;
     case "details":
@@ -213,11 +213,11 @@ export default function OwnerApp() {
       body = <><ShopQr place={place} isAdmin={isAdmin} onCodes={setCodes} /><ShareKit placeId={place.id} placeName={place.name} live={live} /></>;
       break;
     case "plan":
-      title = "Plan";
+      title = "Plan and payment";
       body = <Plan placeId={place.id} placeName={place.name} />;
       break;
     case "insights":
-      title = "Insights";
+      title = "How you're doing";
       body = <Insights place={place} onGo={goTab} hasPin={pinState.pin ? pinState.pin.has_pin : null} />;
       break;
   }
@@ -258,11 +258,11 @@ function OwnerShell({ section, title, needReply, children }: { section: Section;
   const sideMore: { id: Section; label: string; icon: IconName }[] = [
     { id: "qr", label: "QR codes", icon: "qr" },
     { id: "menu", label: catalog, icon: "box" },
-    { id: "look", label: "Photos and look", icon: "camera" },
+    { id: "look", label: "Photos", icon: "camera" },
     { id: "details", label: "Details and hours", icon: "clock" },
     { id: "links", label: "Links", icon: "link" },
-    { id: "insights", label: "Insights", icon: "chart" },
-    { id: "plan", label: "Plan", icon: "crown" },
+    { id: "insights", label: "How you're doing", icon: "chart" },
+    { id: "plan", label: "Plan and payment", icon: "crown" },
   ];
 
   return (
@@ -335,4 +335,4 @@ function OwnerShell({ section, title, needReply, children }: { section: Section;
 /** "Diners", "Clients", "Patients", "Members", "Students" or "Customers", by business type. */
 const peopleWord = (p: Place) => { const w = bizOf(p.kind, p.category).customers; return w.charAt(0).toUpperCase() + w.slice(1); };
 
-const STATUS_LABEL: Record<string, string> = { live: "Live · taking reviews", paused: "Live · reviews paused", lapsed: "Plan ended", removed: "Off the app", pending: "Waiting for approval" };
+const STATUS_LABEL: Record<string, string> = { live: "Live", paused: "Reviews paused", lapsed: "Plan ended", removed: "Off the app", pending: "Waiting for approval" };
